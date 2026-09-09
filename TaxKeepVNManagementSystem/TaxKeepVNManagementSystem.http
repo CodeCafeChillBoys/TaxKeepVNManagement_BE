@@ -1,0 +1,6 @@
+@TaxKeepVNManagementSystem_HostAddress = http://localhost:5023
+
+GET {{TaxKeepVNManagementSystem_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
