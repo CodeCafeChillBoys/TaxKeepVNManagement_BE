@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using TaxKeepVN.Domain.Entities;
 
 namespace TaxKeepVN.Infrastructure.Contexts
@@ -12,6 +12,7 @@ namespace TaxKeepVN.Infrastructure.Contexts
         public DbSet<Dependent> Dependents { get; set; }
         public DbSet<DependentDocument> DependentDocuments { get; set; }
         public DbSet<SystemNotification> SystemNotifications { get; set; }
+        public DbSet<IncomeSource> IncomeSources { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {

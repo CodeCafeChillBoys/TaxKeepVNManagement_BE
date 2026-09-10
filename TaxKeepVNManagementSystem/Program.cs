@@ -3,8 +3,11 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
+using FluentValidation;
+using FluentValidation.AspNetCore;
 using TaxKeepVN.Application.Service.Implementations;
 using TaxKeepVN.Application.Service.Interfaces;
+using TaxKeepVN.Application.Validators;
 using TaxKeepVN.Domain.IRepositories;
 using TaxKeepVN.Infrastructure.Contexts;
 using TaxKeepVN.Infrastructure.Repositories;
@@ -14,7 +17,22 @@ using TaxKeepVNManagementSystem.Middlewares;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddControllers();
+builder.Services.AddControllers(options =>
+{
+    // Return 406 Not Acceptable if client requests unsupported format
+    options.ReturnHttpNotAcceptable = true;
+})
+.AddXmlSerializerFormatters() // Support application/xml
+.ConfigureApiBehaviorOptions(options =>
+{
+    // Disable automatic 400 from ModelState; let FluentValidation + Middleware handle it
+    options.SuppressModelStateInvalidFilter = true;
+});
+
+// Register FluentValidation validators from Application layer
+builder.Services.AddFluentValidationAutoValidation();
+builder.Services.AddValidatorsFromAssemblyContaining<IncomeSourceCreateValidator>();
+
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -34,6 +52,7 @@ builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
 builder.Services.AddScoped<IDependentDocumentService, DependentDocumentService>();
 builder.Services.AddScoped<IDependentReminderService, DependentReminderService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
+builder.Services.AddScoped<IIncomeSourceService, IncomeSourceService>();
 
 // Register Background Jobs
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.AgeTransitionReminderJob>();
