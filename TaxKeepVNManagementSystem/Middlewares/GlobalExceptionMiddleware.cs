@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http;
 using System;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -43,6 +43,11 @@ namespace TaxKeepVNManagementSystem.Middlewares
                     context.Response.StatusCode = StatusCodes.Status400BadRequest;
                     response.ErrorCode = badRequestEx.ErrorCode;
                     response.Message = badRequestEx.Message;
+                    break;
+                case UnauthorizedException unauthorizedEx:
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    response.ErrorCode = unauthorizedEx.ErrorCode;
+                    response.Message = unauthorizedEx.Message;
                     break;
                 case NotFoundException notFoundEx:
                     context.Response.StatusCode = StatusCodes.Status404NotFound;
