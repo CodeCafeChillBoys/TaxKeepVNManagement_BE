@@ -1,12 +1,12 @@
 ﻿using Microsoft.AspNetCore.Http;
 using System;
 using System.Threading.Tasks;
-using TaxKeepVN.Domain.Entities;
+using TaxKeepVN.Application.DTOs;
 
 namespace TaxKeepVN.Application.Service.Interfaces
 {
     public interface IDependentDocumentService
     {
-        Task<DependentDocument> UploadDocumentAsync(Guid userId, Guid dependentId, string docTypeString, IFormFile file);
+        Task<UploadDocumentResultDto> UploadDocumentAsync(Guid userId, Guid dependentId, string docTypeString, IFormFile file);
     }
 }

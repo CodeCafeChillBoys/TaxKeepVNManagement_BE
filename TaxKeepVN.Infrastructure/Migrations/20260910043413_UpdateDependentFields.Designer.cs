@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TaxKeepVN.Infrastructure.Contexts;
@@ -11,9 +12,11 @@ using TaxKeepVN.Infrastructure.Contexts;
 namespace TaxKeepVN.Infrastructure.Migrations
 {
     [DbContext(typeof(TaxKeepDbContext))]
-    partial class TaxKeepDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260910043413_UpdateDependentFields")]
+    partial class UpdateDependentFields
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -40,9 +43,6 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         .HasColumnType("text");
 
                     b.Property<bool>("IsDeleted")
-                        .HasColumnType("boolean");
-
-                    b.Property<bool>("IsProfileComplete")
                         .HasColumnType("boolean");
 
                     b.Property<Guid>("TaxpayerId")
@@ -85,51 +85,6 @@ namespace TaxKeepVN.Infrastructure.Migrations
                     b.HasIndex("DependentId");
 
                     b.ToTable("DependentDocuments");
-                });
-
-            modelBuilder.Entity("TaxKeepVN.Domain.Entities.SystemNotification", b =>
-                {
-                    b.Property<Guid>("NotificationId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("notification_id");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<bool>("IsRead")
-                        .HasColumnType("boolean")
-                        .HasColumnName("is_read");
-
-                    b.Property<string>("Message")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("message");
-
-                    b.Property<string>("NotificationType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("notification_type");
-
-                    b.Property<string>("TargetActionUrl")
-                        .HasColumnType("text")
-                        .HasColumnName("target_action_url");
-
-                    b.Property<string>("Title")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)")
-                        .HasColumnName("title");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id");
-
-                    b.HasKey("NotificationId");
-
-                    b.ToTable("system_notifications");
                 });
 
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.DependentDocument", b =>

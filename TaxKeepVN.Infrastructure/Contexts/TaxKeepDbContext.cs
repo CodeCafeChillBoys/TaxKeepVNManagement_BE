@@ -11,6 +11,7 @@ namespace TaxKeepVN.Infrastructure.Contexts
 
         public DbSet<Dependent> Dependents { get; set; }
         public DbSet<DependentDocument> DependentDocuments { get; set; }
+        public DbSet<SystemNotification> SystemNotifications { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -18,8 +19,12 @@ namespace TaxKeepVN.Infrastructure.Contexts
 
             modelBuilder.Entity<DependentDocument>()
                 .Property(d => d.DocType)
-                .HasConversion<string>(); // Save Enum as string in DB
+                .HasConversion<string>();
                 
+            modelBuilder.Entity<Dependent>()
+                .Property(d => d.CurrentGroup)
+                .HasConversion<string>();
+
             modelBuilder.Entity<DependentDocument>()
                 .HasOne(d => d.Dependent)
                 .WithMany(d => d.Documents)

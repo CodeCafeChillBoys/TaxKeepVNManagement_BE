@@ -2,7 +2,6 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System;
-using System.Security.Claims;
 using System.Threading.Tasks;
 using TaxKeepVN.Application.DTOs.Responses;
 using TaxKeepVN.Application.Service.Interfaces;
@@ -11,8 +10,8 @@ namespace TaxKeepVNManagementSystem.Controllers
 {
     [ApiController]
     [Route("api/v1/dependents")]
-    // [Authorize(Roles = "TAXPAYER")] // Comment out auth for easier testing if no JWT logic is implemented yet
-    public class DependentDocumentController : ControllerBase
+    // [Authorize(Roles = "TAXPAYER")]
+    public partial class DependentDocumentController : ControllerBase
     {
         private readonly IDependentDocumentService _documentService;
 
@@ -27,12 +26,11 @@ namespace TaxKeepVNManagementSystem.Controllers
             [FromForm] string docType, 
             IFormFile file)
         {
-            // Dummy user ID for now since JWT is not fully setup
-            // var userIdStr = User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             var userIdStr = "c1234567-89ab-cdef-0123-456789abcdef"; // Mock UUID
             _ = Guid.TryParse(userIdStr, out Guid userId);
 
-            var document = await _documentService.UploadDocumentAsync(userId, dependentId, docType, file);
+            var result = await _documentService.UploadDocumentAsync(userId, dependentId, docType, file);
+            var document = result.Document;
 
             var responseData = new
             {
@@ -42,7 +40,9 @@ namespace TaxKeepVNManagementSystem.Controllers
                 fileUrl = document.FileUrl,
                 fileMimeType = document.FileMimeType,
                 isReadable = document.IsReadable,
-                uploadedAt = document.UploadedAt
+                uploadedAt = document.UploadedAt,
+                isProfileComplete = result.IsProfileComplete,
+                missingDocuments = result.MissingDocuments
             };
 
             return StatusCode(StatusCodes.Status201Created, ApiResponse<object>.Ok(responseData, "Tải lên và lưu trữ chứng từ gốc thành công."));

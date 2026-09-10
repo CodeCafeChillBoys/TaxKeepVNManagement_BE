@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.EntityFrameworkCore;
@@ -21,7 +21,7 @@ builder.Services.AddSwaggerGen();
 // Configure Database (InMemory for now if no connection string, or Postgres)
 // Let's use PostgreSQL as specified in initial dependencies
 // Make sure appsettings.json has connection string. We will use a dummy one if it crashes
-var connString = builder.Configuration.GetConnectionString("DefaultConnection") ?? "Host=localhost;Database=TaxKeep;Username=postgres;Password=postgres";
+var connString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<TaxKeepDbContext>(options =>
     options.UseNpgsql(connString));
 
@@ -32,6 +32,11 @@ builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepositor
 // Register Application Services
 builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
 builder.Services.AddScoped<IDependentDocumentService, DependentDocumentService>();
+builder.Services.AddScoped<IDependentReminderService, DependentReminderService>();
+builder.Services.AddScoped<INotificationService, NotificationService>();
+
+// Register Background Jobs
+builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.AgeTransitionReminderJob>();
 
 var app = builder.Build();
 
