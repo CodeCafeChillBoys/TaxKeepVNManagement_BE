@@ -57,16 +57,46 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.HasIndex(t => t.Jti).HasDatabaseName("idx_revoked_tokens_jti");
             });
 
-            // ── DependentDocument ────────────────────────────────────────────────
-            modelBuilder.Entity<DependentDocument>()
-                .Property(d => d.DocType)
-                .HasConversion<string>(); // Save Enum as string in DB
+            // ── Dependent ────────────────────────────────────────────────────────
+            modelBuilder.Entity<Dependent>(entity =>
+            {
+                entity.ToTable("dependents");
+                entity.HasKey(d => d.Id);
 
-            modelBuilder.Entity<DependentDocument>()
-                .HasOne(d => d.Dependent)
-                .WithMany(d => d.Documents)
-                .HasForeignKey(d => d.DependentId)
-                .OnDelete(DeleteBehavior.Cascade);
+                entity.Property(d => d.Id).HasColumnName("id");
+                entity.Property(d => d.TaxpayerId).HasColumnName("taxpayer_id");
+                entity.Property(d => d.FullName).HasColumnName("full_name").IsRequired();
+                entity.Property(d => d.Relationship).HasColumnName("relationship")
+                    .HasConversion<string>().IsRequired();
+                entity.Property(d => d.DateOfBirth).HasColumnName("date_of_birth");
+                entity.Property(d => d.CitizenId).HasColumnName("citizen_id");
+                entity.Property(d => d.BirthCertNumber).HasColumnName("birth_cert_number");
+                entity.Property(d => d.TaxIdNumber).HasColumnName("tax_id_number");
+                entity.Property(d => d.EffectiveFromMonth).HasColumnName("effective_from_month").IsRequired();
+                entity.Property(d => d.EffectiveToMonth).HasColumnName("effective_to_month").IsRequired();
+                entity.Property(d => d.Note).HasColumnName("note");
+                entity.Property(d => d.Status).HasColumnName("status")
+                    .HasConversion<string>().HasDefaultValue(TaxKeepVN.Domain.Enums.DependentStatus.PENDING_DOCUMENTS);
+                entity.Property(d => d.CreatedAt).HasColumnName("created_at");
+                entity.Property(d => d.UpdatedAt).HasColumnName("updated_at");
+
+                // Index để query overlap nhanh theo CitizenId và BirthCertNumber
+                entity.HasIndex(d => d.CitizenId).HasDatabaseName("idx_dependents_citizen_id");
+                entity.HasIndex(d => d.BirthCertNumber).HasDatabaseName("idx_dependents_birth_cert");
+                entity.HasIndex(d => d.TaxpayerId).HasDatabaseName("idx_dependents_taxpayer_id");
+            });
+
+            // ── DependentDocument ────────────────────────────────────────────────
+            modelBuilder.Entity<DependentDocument>(entity =>
+            {
+                entity.Property(d => d.DocType).HasConversion<string>();
+
+                entity.HasOne(d => d.Dependent)
+                    .WithMany(d => d.Documents)
+                    .HasForeignKey(d => d.DependentId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
         }
     }
 }
+
