@@ -21,8 +21,6 @@ namespace TaxKeepVN.Domain.Entities
         /// <summary>Nhóm quan hệ theo Điều 9 TT 111/2013</summary>
         public DependentRelationship Relationship { get; set; } = DependentRelationship.CHILD;
 
-        public DateOnly? DateOfBirth { get; set; }
-
         /// <summary>
         /// Số Căn cước công dân (12 số). Nullable vì trẻ em nhỏ chưa có CCCD.
         /// Ít nhất một trong CitizenId hoặc BirthCertNumber phải có giá trị.

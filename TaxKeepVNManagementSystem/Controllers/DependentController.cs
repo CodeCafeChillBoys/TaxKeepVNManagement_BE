@@ -75,12 +75,8 @@ namespace TaxKeepVNManagementSystem.Controllers
 
             if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
             {
-                // Fallback cho development test nếu token chưa sẵn sàng
-                if (Guid.TryParse("c1234567-89ab-cdef-0123-456789abcdef", out var mockId))
-                    return mockId;
-
                 throw new UnauthorizedException("INVALID_TOKEN",
-                    "Không thể xác định danh tính người dùng từ token.");
+                    "Không thể xác định danh tính người dùng từ token. Vui lòng đăng nhập lại.");
             }
             return userId;
         }

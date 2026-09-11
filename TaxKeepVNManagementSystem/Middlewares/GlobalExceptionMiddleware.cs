@@ -68,9 +68,10 @@ namespace TaxKeepVNManagementSystem.Middlewares
                     break;
 
                 default:
+                    Console.WriteLine($"[GLOBAL ERROR] {exception}");
                     context.Response.StatusCode = StatusCodes.Status500InternalServerError;
                     errorCode = "INTERNAL_SERVER_ERROR";
-                    message = "Đã xảy ra lỗi hệ thống. Vui lòng thử lại sau.";
+                    message = exception.InnerException?.Message ?? exception.Message;
                     break;
             }
 

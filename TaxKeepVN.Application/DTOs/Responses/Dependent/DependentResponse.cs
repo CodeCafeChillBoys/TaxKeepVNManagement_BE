@@ -8,6 +8,13 @@ namespace TaxKeepVN.Application.DTOs.Responses.Dependent
         public Guid TaxpayerId { get; set; }
         public string FullName { get; set; } = string.Empty;
         public string Relationship { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Nhóm điều kiện cụ thể: CHILD_UNDER_18 | CHILD_OVER_18_DISABLED | CHILD_OVER_18_STUDYING
+        /// | SPOUSE_DISABLED | SPOUSE_RETIRED | PARENT_DISABLED | PARENT_RETIRED | OTHER_HELPLESS
+        /// </summary>
+        public string CurrentGroup { get; set; } = string.Empty;
+
         public DateTime BirthDate { get; set; }
         public string? CitizenId { get; set; }
         public string? BirthCertNumber { get; set; }

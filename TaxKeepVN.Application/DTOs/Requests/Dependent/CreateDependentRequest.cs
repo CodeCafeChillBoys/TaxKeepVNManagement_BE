@@ -15,6 +15,16 @@ namespace TaxKeepVN.Application.DTOs.Requests.Dependent
         [Required(ErrorMessage = "Nhóm quan hệ người phụ thuộc không được để trống.")]
         public string Relationship { get; set; } = string.Empty;
 
+        /// <summary>
+        /// Nhóm điều kiện cụ thể xác định loại giấy tờ cần nộp:
+        /// - CHILD_UNDER_18 | CHILD_OVER_18_DISABLED | CHILD_OVER_18_STUDYING
+        /// - SPOUSE_DISABLED | SPOUSE_RETIRED
+        /// - PARENT_DISABLED | PARENT_RETIRED
+        /// - OTHER_HELPLESS
+        /// </summary>
+        [Required(ErrorMessage = "Điều kiện đăng ký người phụ thuộc không được để trống.")]
+        public string CurrentGroup { get; set; } = string.Empty;
+
         [Required(ErrorMessage = "Ngày sinh người phụ thuộc không được để trống.")]
         public DateTime? BirthDate { get; set; }
 

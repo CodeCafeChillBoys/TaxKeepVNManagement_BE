@@ -32,7 +32,20 @@ namespace TaxKeepVN.Application.Service.Implementations
                 );
             }
 
-            // ── 2. Validate định danh: phải có CitizenId HOẶC BirthCertNumber ──
+            // ── 2. Validate và parse CurrentGroup enum ──────────────────────────
+            if (!Enum.TryParse<DependentGroup>(request.CurrentGroup, true, out var currentGroup))
+            {
+                throw new BadRequestException(
+                    "INVALID_CURRENT_GROUP",
+                    $"Điều kiện đăng ký '{request.CurrentGroup}' không hợp lệ. " +
+                    "Vui lòng chọn đúng điều kiện đăng ký người phụ thuộc."
+                );
+            }
+
+            // ── 3. Validate CurrentGroup phải khớp với Relationship ─────────────
+            ValidateGroupMatchesRelationship(relationship, currentGroup);
+
+            // ── 4. Validate định danh: phải có CitizenId HOẶC BirthCertNumber ──
             var hasCitizenId = !string.IsNullOrWhiteSpace(request.CitizenId);
             var hasBirthCert = !string.IsNullOrWhiteSpace(request.BirthCertNumber);
 
@@ -44,7 +57,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 );
             }
 
-            // ── 3. Validate khoảng thời gian: From <= To ───────────────────────
+            // ── 5. Validate khoảng thời gian: From <= To ───────────────────────
             if (string.Compare(request.EffectiveFromMonth, request.EffectiveToMonth, StringComparison.Ordinal) > 0)
             {
                 throw new BadRequestException(
@@ -53,10 +66,9 @@ namespace TaxKeepVN.Application.Service.Implementations
                 );
             }
 
-            // ── 4. Kiểm tra trùng lặp thời gian ────────────────────────────────
+            // ── 6. Kiểm tra trùng lặp thời gian ────────────────────────────────
             // Hai khoảng [A_from, A_to] và [B_from, B_to] overlap khi:
             //   A_from <= B_to AND A_to >= B_from
-            // So sánh chuỗi "YYYY-MM" hoạt động đúng vì format chuẩn.
             var dependentRepo = _unitOfWork.Repository<Dependent>();
 
             if (hasCitizenId)
@@ -66,7 +78,6 @@ namespace TaxKeepVN.Application.Service.Implementations
                     d.CitizenId == request.CitizenId);
 
                 // Bước 2: Kiểm tra overlap trong bộ nhớ (in-memory)
-                // [A_from, A_to] overlap [B_from, B_to]  ↔  A_from <= B_to AND A_to >= B_from
                 var conflict = existingByCitizenId.FirstOrDefault(d =>
                     string.Compare(d.EffectiveFromMonth, request.EffectiveToMonth, StringComparison.Ordinal) <= 0 &&
                     string.Compare(d.EffectiveToMonth, request.EffectiveFromMonth, StringComparison.Ordinal) >= 0
@@ -106,19 +117,20 @@ namespace TaxKeepVN.Application.Service.Implementations
                 }
             }
 
-            // ── 5. Tạo mới Dependent ────────────────────────────────────────────
+            // ── 7. Tạo mới Dependent ────────────────────────────────────────────
             var newDependent = new Dependent
             {
                 Id = Guid.NewGuid(),
                 TaxpayerId = taxpayerId,
                 FullName = request.FullName,
                 Relationship = relationship,
-                BirthDate = request.BirthDate.HasValue 
-                    ? DateTime.SpecifyKind(request.BirthDate.Value, DateTimeKind.Utc) 
+                CurrentGroup = currentGroup,
+                BirthDate = request.BirthDate.HasValue
+                    ? DateTime.SpecifyKind(request.BirthDate.Value, DateTimeKind.Utc)
                     : DateTime.UtcNow,
-                CitizenId = request.CitizenId?.Trim(),
-                BirthCertNumber = request.BirthCertNumber?.Trim(),
-                TaxIdNumber = request.TaxIdNumber?.Trim(),
+                CitizenId = string.IsNullOrWhiteSpace(request.CitizenId) ? null : request.CitizenId.Trim(),
+                BirthCertNumber = string.IsNullOrWhiteSpace(request.BirthCertNumber) ? null : request.BirthCertNumber.Trim(),
+                TaxIdNumber = string.IsNullOrWhiteSpace(request.TaxIdNumber) ? null : request.TaxIdNumber.Trim(),
                 EffectiveFromMonth = request.EffectiveFromMonth,
                 EffectiveToMonth = request.EffectiveToMonth,
                 Note = request.Note,
@@ -130,13 +142,14 @@ namespace TaxKeepVN.Application.Service.Implementations
             await dependentRepo.AddAsync(newDependent);
             await _unitOfWork.SaveChangesAsync();
 
-            // ── 6. Trả về response kèm danh sách giấy tờ cần upload ─────────────
+            // ── 8. Trả về response kèm danh sách giấy tờ cần upload ─────────────
             return new DependentResponse
             {
                 DependentId = newDependent.Id,
                 TaxpayerId = newDependent.TaxpayerId,
                 FullName = newDependent.FullName,
                 Relationship = newDependent.Relationship.ToString(),
+                CurrentGroup = newDependent.CurrentGroup.ToString(),
                 BirthDate = newDependent.BirthDate,
                 CitizenId = newDependent.CitizenId,
                 BirthCertNumber = newDependent.BirthCertNumber,
@@ -147,38 +160,101 @@ namespace TaxKeepVN.Application.Service.Implementations
                 Status = newDependent.Status.ToString(),
                 CreatedAt = newDependent.CreatedAt,
                 UpdatedAt = newDependent.UpdatedAt,
-                RequiredDocuments = GetRequiredDocuments(relationship)
+                RequiredDocuments = GetRequiredDocuments(currentGroup)
             };
         }
 
-        // ── Helper: gợi ý giấy tờ cần upload theo từng nhóm quan hệ ─────────────
-        private static string[] GetRequiredDocuments(DependentRelationship relationship)
+        // ── Helper: validate CurrentGroup phải khớp Relationship ─────────────────
+        private static void ValidateGroupMatchesRelationship(
+            DependentRelationship relationship,
+            DependentGroup currentGroup)
         {
-            return relationship switch
+            var isValid = relationship switch
             {
-                DependentRelationship.CHILD => new[]
+                DependentRelationship.CHILD => currentGroup is
+                    DependentGroup.CHILD_UNDER_18 or
+                    DependentGroup.CHILD_OVER_18_DISABLED or
+                    DependentGroup.CHILD_OVER_18_STUDYING,
+
+                DependentRelationship.SPOUSE => currentGroup is
+                    DependentGroup.SPOUSE_DISABLED or
+                    DependentGroup.SPOUSE_RETIRED,
+
+                DependentRelationship.PARENT => currentGroup is
+                    DependentGroup.PARENT_DISABLED or
+                    DependentGroup.PARENT_RETIRED,
+
+                DependentRelationship.OTHER_DEPENDENT => currentGroup is
+                    DependentGroup.OTHER_HELPLESS,
+
+                _ => false
+            };
+
+            if (!isValid)
+            {
+                throw new BadRequestException(
+                    "GROUP_RELATIONSHIP_MISMATCH",
+                    $"Điều kiện đăng ký '{currentGroup}' không thuộc nhóm quan hệ '{relationship}'. " +
+                    "Vui lòng kiểm tra lại điều kiện phù hợp với loại người phụ thuộc."
+                );
+            }
+        }
+
+        // ── Helper: danh sách giấy tờ bắt buộc theo DependentGroup ───────────────
+        private static string[] GetRequiredDocuments(DependentGroup group)
+        {
+            return group switch
+            {
+                // ── Nhóm 1: Con ──────────────────────────────────────────────────
+                DependentGroup.CHILD_UNDER_18 => new[]
                 {
-                    "BIRTH_CERTIFICATE",    // Giấy khai sinh
-                    "CITIZEN_ID",           // CCCD (nếu đã có)
-                    "STUDENT_CARD"          // Thẻ học sinh/sinh viên (nếu từ 18-25 tuổi)
+                    "BIRTH_CERTIFICATE",    // Giấy khai sinh (bắt buộc)
+                    "CITIZEN_ID"            // CCCD (nếu đã có, không bắt buộc với trẻ nhỏ)
                 },
-                DependentRelationship.SPOUSE => new[]
+
+                DependentGroup.CHILD_OVER_18_DISABLED => new[]
                 {
-                    "CITIZEN_ID",           // CCCD vợ/chồng
-                    "OTHER"                 // Giấy đăng ký kết hôn
+                    "DISABILITY_CERTIFICATE" // Giấy xác nhận mức độ khuyết tật hoặc hồ sơ bệnh án
                 },
-                DependentRelationship.PARENT => new[]
+
+                DependentGroup.CHILD_OVER_18_STUDYING => new[]
                 {
-                    "CITIZEN_ID",           // CCCD cha/mẹ
-                    "PENSION_STATEMENT",    // Giấy xác nhận không thu nhập / Quyết định hưu trí
-                    "OTHER"                 // Giấy tờ chứng minh quan hệ huyết thống
+                    "STUDENT_CARD"          // Thẻ học sinh/sinh viên hoặc Giấy xác nhận đang theo học
                 },
-                DependentRelationship.OTHER_DEPENDENT => new[]
+
+                // ── Nhóm 2: Vợ/Chồng ─────────────────────────────────────────────
+                DependentGroup.SPOUSE_DISABLED => new[]
                 {
-                    "CITIZEN_ID",           // CCCD người phụ thuộc
-                    "DISABILITY_CERTIFICATE", // Giấy xác nhận khuyết tật (nếu có)
-                    "OTHER"                 // Giấy tờ chứng minh không nơi nương tựa
+                    "CITIZEN_ID",           // CCCD của vợ/chồng (bắt buộc)
+                    "OTHER"                 // Giấy chứng nhận kết hôn (bắt buộc)
                 },
+
+                DependentGroup.SPOUSE_RETIRED => new[]
+                {
+                    "CITIZEN_ID",           // CCCD của vợ/chồng (bắt buộc)
+                    "OTHER"                 // Giấy chứng nhận kết hôn (bắt buộc)
+                },
+
+                // ── Nhóm 3: Cha/Mẹ ───────────────────────────────────────────────
+                DependentGroup.PARENT_DISABLED => new[]
+                {
+                    "CITIZEN_ID",           // CCCD của cha/mẹ (bắt buộc)
+                    "OTHER"                 // Giấy tờ chứng minh quan hệ phụ tử/mẫu tử (GKS của NNT hoặc quyết định nhận con nuôi)
+                },
+
+                DependentGroup.PARENT_RETIRED => new[]
+                {
+                    "CITIZEN_ID",           // CCCD của cha/mẹ (bắt buộc)
+                    "OTHER"                 // Giấy tờ chứng minh quan hệ phụ tử/mẫu tử
+                },
+
+                // ── Nhóm 4: Cá nhân khác không nơi nương tựa ─────────────────────
+                DependentGroup.OTHER_HELPLESS => new[]
+                {
+                    "CITIZEN_ID",           // CCCD của người phụ thuộc (bắt buộc)
+                    "OTHER"                 // Giấy tờ pháp lý chứng minh quan hệ huyết thống/họ hàng + Mẫu số 07/XN-NPT-TNCN
+                },
+
                 _ => new[] { "OTHER" }
             };
         }
