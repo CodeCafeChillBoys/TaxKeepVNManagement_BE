@@ -68,23 +68,29 @@ namespace TaxKeepVN.Application.Service.Implementations
 
         public async Task<IncomeSourceResponseDto> CreateAsync(Guid userId, IncomeSourceCreateDto dto)
         {
-            ValidateTaxCode(dto.CompanyTaxCode);
+            var taxCode = dto.ResolvedTaxCode;
+            ValidateTaxCode(taxCode);
 
             var repo = _unitOfWork.Repository<IncomeSource>();
 
-            // Check duplicate MST for same user
+            // Check duplicate MST for same user in the same tax year
             var existing = await repo.FindAsync(s =>
-                s.TaxpayerId == userId && s.CompanyTaxCode == dto.CompanyTaxCode.Trim());
+                s.TaxpayerId == userId &&
+                s.CompanyTaxCode == taxCode &&
+                s.TaxYear == dto.TaxYear);
             if (existing.Any())
                 throw new ConflictException("DUPLICATE_TAX_CODE",
-                    $"Mã số thuế '{dto.CompanyTaxCode}' đã được đăng ký. Mỗi tổ chức chi trả chỉ được khai báo một lần.");
+                    $"Mã số thuế '{taxCode}' đã được đăng ký cho năm tính thuế {dto.TaxYear}. Mỗi tổ chức chi trả chỉ được khai báo một lần trong năm.");
 
             var source = new IncomeSource
             {
                 Id = Guid.NewGuid(),
                 TaxpayerId = userId,
                 CompanyName = dto.CompanyName.Trim(),
-                CompanyTaxCode = dto.CompanyTaxCode.Trim(),
+                CompanyTaxCode = taxCode,
+                TaxYear = dto.TaxYear,
+                TotalIncome = dto.TotalIncome,
+                TaxWithheld = dto.TaxWithheld,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
@@ -98,20 +104,25 @@ namespace TaxKeepVN.Application.Service.Implementations
         public async Task<IncomeSourceResponseDto> UpdateAsync(Guid id, Guid userId, IncomeSourceUpdateDto dto)
         {
             var source = await GetAndVerifyOwnershipAsync(id, userId);
-            ValidateTaxCode(dto.CompanyTaxCode);
+            var taxCode = dto.ResolvedTaxCode;
+            ValidateTaxCode(taxCode);
 
             var repo = _unitOfWork.Repository<IncomeSource>();
-            // Check duplicate MST for same user (exclude current record)
+            // Check duplicate MST for same user in the same tax year (exclude current record)
             var existing = await repo.FindAsync(s =>
                 s.TaxpayerId == userId &&
-                s.CompanyTaxCode == dto.CompanyTaxCode.Trim() &&
+                s.CompanyTaxCode == taxCode &&
+                s.TaxYear == dto.TaxYear &&
                 s.Id != id);
             if (existing.Any())
                 throw new ConflictException("DUPLICATE_TAX_CODE",
-                    $"Mã số thuế '{dto.CompanyTaxCode}' đã được đăng ký ở một nơi chi trả khác.");
+                    $"Mã số thuế '{taxCode}' đã được đăng ký cho năm {dto.TaxYear} ở một nơi chi trả khác.");
 
             source.CompanyName = dto.CompanyName.Trim();
-            source.CompanyTaxCode = dto.CompanyTaxCode.Trim();
+            source.CompanyTaxCode = taxCode;
+            source.TaxYear = dto.TaxYear;
+            source.TotalIncome = dto.TotalIncome;
+            source.TaxWithheld = dto.TaxWithheld;
             source.IsActive = dto.IsActive;
             source.UpdatedAt = DateTime.UtcNow;
 
@@ -145,7 +156,11 @@ namespace TaxKeepVN.Application.Service.Implementations
         {
             Id = s.Id,
             CompanyName = s.CompanyName,
+            CompanyTaxId = s.CompanyTaxCode,
             CompanyTaxCode = s.CompanyTaxCode,
+            TaxYear = s.TaxYear,
+            TotalIncome = s.TotalIncome,
+            TaxWithheld = s.TaxWithheld,
             IsActive = s.IsActive,
             CreatedAt = s.CreatedAt,
             UpdatedAt = s.UpdatedAt
@@ -200,6 +215,10 @@ namespace TaxKeepVN.Application.Service.Implementations
             {
                 "companyname" => desc ? sources.OrderByDescending(s => s.CompanyName) : sources.OrderBy(s => s.CompanyName),
                 "companytaxcode" => desc ? sources.OrderByDescending(s => s.CompanyTaxCode) : sources.OrderBy(s => s.CompanyTaxCode),
+                "companytaxid" => desc ? sources.OrderByDescending(s => s.CompanyTaxCode) : sources.OrderBy(s => s.CompanyTaxCode),
+                "taxyear" => desc ? sources.OrderByDescending(s => s.TaxYear) : sources.OrderBy(s => s.TaxYear),
+                "totalincome" => desc ? sources.OrderByDescending(s => s.TotalIncome) : sources.OrderBy(s => s.TotalIncome),
+                "taxwithheld" => desc ? sources.OrderByDescending(s => s.TaxWithheld) : sources.OrderBy(s => s.TaxWithheld),
                 "createdat" => desc ? sources.OrderByDescending(s => s.CreatedAt) : sources.OrderBy(s => s.CreatedAt),
                 "updatedat" => desc ? sources.OrderByDescending(s => s.UpdatedAt) : sources.OrderBy(s => s.UpdatedAt),
                 _ => sources.OrderByDescending(s => s.CreatedAt) // Default
