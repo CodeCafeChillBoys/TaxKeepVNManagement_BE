@@ -82,12 +82,12 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(d => d.CreatedAt).HasColumnName("created_at");
                 entity.Property(d => d.UpdatedAt).HasColumnName("updated_at");
 
-                // Our fields
-                entity.Property(d => d.CurrentGroup).HasColumnName("current_group")
+                // Our fields matching exact DB column names
+                entity.Property(d => d.CurrentGroup).HasColumnName("CurrentGroup")
                     .HasConversion<string>();
-                entity.Property(d => d.BirthDate).HasColumnName("birth_date");
-                entity.Property(d => d.IsDeleted).HasColumnName("is_deleted").HasDefaultValue(false);
-                entity.Property(d => d.IsProfileComplete).HasColumnName("is_profile_complete").HasDefaultValue(false);
+                entity.Property(d => d.BirthDate).HasColumnName("BirthDate");
+                entity.Property(d => d.IsDeleted).HasColumnName("IsDeleted").HasDefaultValue(false);
+                entity.Property(d => d.IsProfileComplete).HasColumnName("IsProfileComplete").HasDefaultValue(false);
 
                 // Index để query overlap nhanh theo CitizenId và BirthCertNumber
                 entity.HasIndex(d => d.CitizenId).HasDatabaseName("idx_dependents_citizen_id");
