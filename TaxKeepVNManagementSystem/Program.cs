@@ -38,6 +38,17 @@ builder.Services.AddControllers(options =>
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblyContaining<IncomeSourceCreateValidator>();
 
+// ── CORS (Hỗ trợ kết nối từ Android Emulator 10.0.2.2, Flutter, React Native, Web) ──
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAll", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
+});
+
 // ── Swagger & Security Definition ───────────────────────────────────────────
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -96,8 +107,7 @@ builder.Services.AddScoped<IDependentService, DependentService>();
 
 // ── JWT Authentication ───────────────────────────────────────────────────────
 var jwtSection = builder.Configuration.GetSection("Jwt");
-var jwtKey = jwtSection["Key"]
-    ?? "TaxKeepVN_Secret_Key_For_Development_Only_At_Least_32_Chars_Long!";
+var jwtKey = jwtSection["Key"];
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -148,7 +158,14 @@ if (app.Environment.IsDevelopment())
 
 app.UseMiddleware<GlobalExceptionMiddleware>();
 
-app.UseHttpsRedirection();
+// ── Enable CORS ──────────────────────────────────────────────────────────────
+app.UseCors("AllowAll");
+
+// Chỉ chuyển hướng HTTPS khi production để không làm gián đoạn HTTP từ Android Emulator (10.0.2.2:5023)
+if (!app.Environment.IsDevelopment())
+{
+    app.UseHttpsRedirection();
+}
 app.UseStaticFiles();
 
 app.UseAuthentication();
