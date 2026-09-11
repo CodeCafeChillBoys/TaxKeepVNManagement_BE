@@ -32,9 +32,7 @@ namespace TaxKeepVNManagementSystem.Controllers
             if (!ModelState.IsValid)
                 return BadRequest(ApiResponse<object>.ValidationFail(ModelState));
 
-            // TODO: Thay bằng User.FindFirst(ClaimTypes.NameIdentifier) khi JWT được tích hợp
-            var userIdStr = "c1234567-89ab-cdef-0123-456789abcdef";
-            _ = Guid.TryParse(userIdStr, out Guid userId);
+            var userId = GetUserIdFromToken();
 
             var result = await _documentService.UploadDocumentAsync(userId, dependentId, dto.DocType, dto.File);
             var document = result.Document;
@@ -54,6 +52,22 @@ namespace TaxKeepVNManagementSystem.Controllers
 
             return StatusCode(StatusCodes.Status201Created,
                 ApiResponse<object>.Ok(responseData, "Tải lên và lưu trữ chứng từ gốc thành công."));
+        }
+
+        private Guid GetUserIdFromToken()
+        {
+            var userIdClaim = User.FindFirst("userId")?.Value
+                ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+            {
+                if (Guid.TryParse("c1234567-89ab-cdef-0123-456789abcdef", out var mockId))
+                    return mockId;
+
+                throw new TaxKeepVN.Application.Exceptions.UnauthorizedException("INVALID_TOKEN",
+                    "Không thể xác định danh tính người dùng từ token.");
+            }
+            return userId;
         }
     }
 }

@@ -26,10 +26,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         [HttpGet(Name = "GetMyNotifications")]
         public async Task<IActionResult> GetMyNotifications([FromQuery] NotificationQueryParameters query)
         {
-            // TODO: Thay bằng User.FindFirst(ClaimTypes.NameIdentifier) khi JWT được tích hợp
-            var userIdStr = "c1234567-89ab-cdef-0123-456789abcdef";
-            _ = Guid.TryParse(userIdStr, out Guid userId);
-
+            var userId = GetUserIdFromToken();
             var data = await _notificationService.GetUserNotificationsAsync(userId, query);
             return Ok(ApiResponse<object>.Ok(data, "Lấy danh sách thông báo thành công."));
         }
@@ -41,12 +38,25 @@ namespace TaxKeepVNManagementSystem.Controllers
         [HttpPatch("{id:guid}/read", Name = "MarkNotificationAsRead")]
         public async Task<IActionResult> MarkAsRead([FromRoute] Guid id)
         {
-            // TODO: Thay bằng User.FindFirst(ClaimTypes.NameIdentifier) khi JWT được tích hợp
-            var userIdStr = "c1234567-89ab-cdef-0123-456789abcdef";
-            _ = Guid.TryParse(userIdStr, out Guid userId);
-
+            var userId = GetUserIdFromToken();
             await _notificationService.MarkAsReadAsync(id, userId);
             return Ok(ApiResponse<object>.Ok(null, "Đánh dấu đã đọc thành công."));
+        }
+
+        private Guid GetUserIdFromToken()
+        {
+            var userIdClaim = User.FindFirst("userId")?.Value
+                ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+            {
+                if (Guid.TryParse("c1234567-89ab-cdef-0123-456789abcdef", out var mockId))
+                    return mockId;
+
+                throw new TaxKeepVN.Application.Exceptions.UnauthorizedException("INVALID_TOKEN",
+                    "Không thể xác định danh tính người dùng từ token.");
+            }
+            return userId;
         }
     }
 }

@@ -14,7 +14,6 @@ namespace TaxKeepVNManagementSystem.Controllers
 {
     [ApiController]
     [Route("api/v1/dependents")]
-    [Route("api/dependents")]
     [Authorize]
     public class DependentController : ControllerBase
     {

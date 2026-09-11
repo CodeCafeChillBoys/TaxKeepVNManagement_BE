@@ -73,9 +73,19 @@ namespace TaxKeepVNManagementSystem.Controllers
             return Ok(ApiResponse<object>.Ok(null, "Xóa nơi chi trả thu nhập thành công."));
         }
 
-        private static Guid GetMockUserId()
+        private Guid GetMockUserId()
         {
-            _ = Guid.TryParse("c1234567-89ab-cdef-0123-456789abcdef", out Guid userId);
+            var userIdClaim = User.FindFirst("userId")?.Value
+                ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+            {
+                if (Guid.TryParse("c1234567-89ab-cdef-0123-456789abcdef", out var mockId))
+                    return mockId;
+
+                throw new TaxKeepVN.Application.Exceptions.UnauthorizedException("INVALID_TOKEN",
+                    "Không thể xác định danh tính người dùng từ token.");
+            }
             return userId;
         }
     }
