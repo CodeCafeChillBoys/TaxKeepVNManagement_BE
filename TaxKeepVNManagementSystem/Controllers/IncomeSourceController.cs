@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System;
@@ -11,7 +12,7 @@ namespace TaxKeepVNManagementSystem.Controllers
 {
     [ApiController]
     [Route("api/v1/income-sources")]
-    // [Authorize(Roles = "TAXPAYER")]
+    [Authorize]
     public class IncomeSourceController : ControllerBase
     {
         private readonly IIncomeSourceService _service;
@@ -21,13 +22,22 @@ namespace TaxKeepVNManagementSystem.Controllers
             _service = service;
         }
 
-        // GET /api/v1/income-sources?page=1&size=10&search=cty&sort=-createdAt
+        // GET /api/v1/income-sources?taxYear=2026&page=1&size=10&search=cty&sort=-createdAt
         [HttpGet(Name = "GetIncomeSources")]
-        public async Task<IActionResult> GetAll([FromQuery] QueryParameters query)
+        public async Task<IActionResult> GetAll([FromQuery] IncomeSourceQueryParameters query)
         {
             Guid userId = GetMockUserId();
             var data = await _service.GetAllByUserIdAsync(userId, query);
             return Ok(ApiResponse<object>.Ok(data, "Lấy danh sách nơi chi trả thu nhập thành công."));
+        }
+
+        // GET /api/v1/income-sources/summary?taxYear=2026
+        [HttpGet("summary", Name = "GetIncomeSourcesSummary")]
+        public async Task<IActionResult> GetSummary([FromQuery] int taxYear = 2026)
+        {
+            Guid userId = GetMockUserId();
+            var data = await _service.GetSummaryByUserIdAsync(userId, taxYear);
+            return Ok(ApiResponse<object>.Ok(data, $"Lấy bảng tổng hợp thu nhập năm {taxYear} thành công."));
         }
 
         // GET /api/v1/income-sources/{id}
@@ -44,7 +54,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         public async Task<IActionResult> Create([FromBody] IncomeSourceCreateDto dto)
         {
             if (!ModelState.IsValid)
-                return BadRequest(ApiResponse<object>.Fail("VALIDATION_ERROR", "Dữ liệu không hợp lệ."));
+                return BadRequest(ApiResponse<object>.ValidationFail(ModelState));
 
             Guid userId = GetMockUserId();
             var data = await _service.CreateAsync(userId, dto);
@@ -57,7 +67,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         public async Task<IActionResult> Update(Guid id, [FromBody] IncomeSourceUpdateDto dto)
         {
             if (!ModelState.IsValid)
-                return BadRequest(ApiResponse<object>.Fail("VALIDATION_ERROR", "Dữ liệu không hợp lệ."));
+                return BadRequest(ApiResponse<object>.ValidationFail(ModelState));
 
             Guid userId = GetMockUserId();
             var data = await _service.UpdateAsync(id, userId, dto);

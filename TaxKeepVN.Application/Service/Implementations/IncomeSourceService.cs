@@ -23,10 +23,18 @@ namespace TaxKeepVN.Application.Service.Implementations
 
         #region Public Methods
 
-        public async Task<PagedResult<IncomeSourceResponseDto>> GetAllByUserIdAsync(Guid userId, QueryParameters query)
+        public async Task<PagedResult<IncomeSourceResponseDto>> GetAllByUserIdAsync(Guid userId, IncomeSourceQueryParameters query)
         {
             var repo = _unitOfWork.Repository<IncomeSource>();
             var sources = await repo.FindAsync(s => s.TaxpayerId == userId);
+
+            // Filter by TaxYear if specified
+            if (query.TaxYear.HasValue)
+                sources = sources.Where(s => s.TaxYear == query.TaxYear.Value);
+
+            // Filter by IsActive if specified
+            if (query.IsActive.HasValue)
+                sources = sources.Where(s => s.IsActive == query.IsActive.Value);
 
             // Searching
             if (!string.IsNullOrWhiteSpace(query.Search))
@@ -57,6 +65,20 @@ namespace TaxKeepVN.Application.Service.Implementations
                     TotalItems = totalItems,
                     TotalPages = (int)Math.Ceiling(totalItems / (double)query.Size)
                 }
+            };
+        }
+
+        public async Task<IncomeSourceSummaryDto> GetSummaryByUserIdAsync(Guid userId, int taxYear)
+        {
+            var repo = _unitOfWork.Repository<IncomeSource>();
+            var sources = (await repo.FindAsync(s => s.TaxpayerId == userId && s.TaxYear == taxYear)).ToList();
+
+            return new IncomeSourceSummaryDto
+            {
+                TaxYear = taxYear,
+                TotalIncome = sources.Sum(s => s.TotalIncome),
+                TotalTaxWithheld = sources.Sum(s => s.TaxWithheld),
+                TotalSources = sources.Count
             };
         }
 

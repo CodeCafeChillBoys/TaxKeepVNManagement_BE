@@ -28,4 +28,16 @@ namespace TaxKeepVN.Application.DTOs.Common
         /// <summary>Lọc theo trạng thái đọc. null = tất cả, true = đã đọc, false = chưa đọc.</summary>
         public bool? IsRead { get; set; }
     }
+
+    /// <summary>
+    /// Query parameters đặc thù cho Income Sources — hỗ trợ lọc theo năm tính thuế và trạng thái.
+    /// </summary>
+    public class IncomeSourceQueryParameters : QueryParameters
+    {
+        /// <summary>Lọc theo năm tính thuế (ví dụ: 2026)</summary>
+        public int? TaxYear { get; set; }
+
+        /// <summary>Lọc theo trạng thái hoạt động</summary>
+        public bool? IsActive { get; set; }
+    }
 }
