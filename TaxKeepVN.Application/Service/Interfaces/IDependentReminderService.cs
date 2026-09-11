@@ -1,11 +1,11 @@
-﻿using System;
+using System;
 using System.Threading.Tasks;
-using TaxKeepVN.Application.DTOs;
+using TaxKeepVN.Application.DTOs.Common;
 
 namespace TaxKeepVN.Application.Service.Interfaces
 {
     public interface IDependentReminderService
     {
-        Task<DependentAgeReminderResponseDto> GetAgeTransitionRemindersAsync(Guid userId, int taxYear);
+        Task<PagedResult<DTOs.AgeReminderItemDto>> GetAgeTransitionRemindersAsync(Guid userId, int taxYear, QueryParameters query);
     }
 }

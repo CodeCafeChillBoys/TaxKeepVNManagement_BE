@@ -1,7 +1,7 @@
-﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System;
 using System.Threading.Tasks;
+using TaxKeepVN.Application.DTOs.Common;
 using TaxKeepVN.Application.DTOs.Responses;
 using TaxKeepVN.Application.Service.Interfaces;
 
@@ -19,25 +19,33 @@ namespace TaxKeepVNManagementSystem.Controllers
             _notificationService = notificationService;
         }
 
-        [HttpGet]
-        public async Task<IActionResult> GetMyNotifications()
+        /// <summary>
+        /// Lấy danh sách thông báo của người dùng.
+        /// GET /api/v1/notifications?page=1&size=10&search=tuổi&sort=-createdAt&isRead=false
+        /// </summary>
+        [HttpGet(Name = "GetMyNotifications")]
+        public async Task<IActionResult> GetMyNotifications([FromQuery] NotificationQueryParameters query)
         {
-            var userIdStr = "c1234567-89ab-cdef-0123-456789abcdef"; // Mock UUID
+            // TODO: Thay bằng User.FindFirst(ClaimTypes.NameIdentifier) khi JWT được tích hợp
+            var userIdStr = "c1234567-89ab-cdef-0123-456789abcdef";
             _ = Guid.TryParse(userIdStr, out Guid userId);
 
-            var data = await _notificationService.GetUserNotificationsAsync(userId);
-
-            return Ok(ApiResponse<object>.Ok(new { items = data }, "Lấy danh sách thông báo thành công."));
+            var data = await _notificationService.GetUserNotificationsAsync(userId, query);
+            return Ok(ApiResponse<object>.Ok(data, "Lấy danh sách thông báo thành công."));
         }
 
-        [HttpPut("{id}/read")]
-        public async Task<IActionResult> MarkAsRead(Guid id)
+        /// <summary>
+        /// Đánh dấu thông báo là đã đọc.
+        /// PATCH /api/v1/notifications/{id}/read
+        /// </summary>
+        [HttpPatch("{id:guid}/read", Name = "MarkNotificationAsRead")]
+        public async Task<IActionResult> MarkAsRead([FromRoute] Guid id)
         {
-            var userIdStr = "c1234567-89ab-cdef-0123-456789abcdef"; // Mock UUID
+            // TODO: Thay bằng User.FindFirst(ClaimTypes.NameIdentifier) khi JWT được tích hợp
+            var userIdStr = "c1234567-89ab-cdef-0123-456789abcdef";
             _ = Guid.TryParse(userIdStr, out Guid userId);
 
             await _notificationService.MarkAsReadAsync(id, userId);
-
             return Ok(ApiResponse<object>.Ok(null, "Đánh dấu đã đọc thành công."));
         }
     }

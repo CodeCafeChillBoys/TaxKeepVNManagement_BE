@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -51,49 +51,42 @@ namespace TaxKeepVN.Application.Service.Implementations
             if (dependent.TaxpayerId != userId)
                 throw new ForbiddenException("Bạn không có quyền cập nhật hồ sơ người phụ thuộc của người khác.");
 
-            try 
+            var fileUrl = await _fileStorageService.SaveFileAsync(file, "documents");
+
+            var document = new DependentDocument
             {
-                var fileUrl = await _fileStorageService.SaveFileAsync(file, "documents");
+                Id = Guid.NewGuid(),
+                DependentId = dependentId,
+                DocType = docType,
+                FileUrl = fileUrl,
+                FileMimeType = file.ContentType,
+                IsReadable = true,
+                UploadedAt = DateTime.UtcNow
+            };
 
-                var document = new DependentDocument
-                {
-                    Id = Guid.NewGuid(),
-                    DependentId = dependentId,
-                    DocType = docType,
-                    FileUrl = fileUrl,
-                    FileMimeType = file.ContentType,
-                    IsReadable = true,
-                    UploadedAt = DateTime.UtcNow
-                };
+            await _unitOfWork.Repository<DependentDocument>().AddAsync(document);
+            await _unitOfWork.SaveChangesAsync();
 
-                await _unitOfWork.Repository<DependentDocument>().AddAsync(document);
+            // Logic: Kiểm tra đủ danh sách giấy tờ bắt buộc
+            var allDocs = await _unitOfWork.Repository<DependentDocument>().FindAsync(d => d.DependentId == dependentId);
+            var uploadedTypes = allDocs.Select(d => d.DocType).ToList();
+            
+            var (isComplete, missing) = CheckProfileCompletion(dependent.CurrentGroup, uploadedTypes);
+
+            // Update Dependent status in DB
+            if (dependent.IsProfileComplete != isComplete)
+            {
+                dependent.IsProfileComplete = isComplete;
+                dependentRepo.Update(dependent);
                 await _unitOfWork.SaveChangesAsync();
-
-                // Logic: Kiểm tra đủ danh sách giấy tờ bắt buộc
-                var allDocs = await _unitOfWork.Repository<DependentDocument>().FindAsync(d => d.DependentId == dependentId);
-                var uploadedTypes = allDocs.Select(d => d.DocType).ToList();
-                
-                var (isComplete, missing) = CheckProfileCompletion(dependent.CurrentGroup, uploadedTypes);
-
-                // Update Dependent status in DB
-                if (dependent.IsProfileComplete != isComplete)
-                {
-                    dependent.IsProfileComplete = isComplete;
-                    dependentRepo.Update(dependent);
-                    await _unitOfWork.SaveChangesAsync();
-                }
-
-                return new UploadDocumentResultDto
-                {
-                    Document = document,
-                    IsProfileComplete = isComplete,
-                    MissingDocuments = missing
-                };
             }
-            catch (Exception)
+
+            return new UploadDocumentResultDto
             {
-                throw new Exception("Lưu trữ tệp thất bại do sự cố hệ thống. Vui lòng thử lại."); 
-            }
+                Document = document,
+                IsProfileComplete = isComplete,
+                MissingDocuments = missing
+            };
         }
 
         private (bool isComplete, List<string> missing) CheckProfileCompletion(DependentGroup group, List<DocumentType> uploadedDocs)

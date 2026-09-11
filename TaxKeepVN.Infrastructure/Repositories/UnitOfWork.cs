@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Threading.Tasks;
 using TaxKeepVN.Domain.IRepositories;
@@ -9,7 +9,7 @@ namespace TaxKeepVN.Infrastructure.Repositories
     public class UnitOfWork : IUnitOfWork
     {
         private readonly TaxKeepDbContext _context;
-        private Hashtable _repositories;
+        private Hashtable _repositories = new();
 
         public UnitOfWork(TaxKeepDbContext context)
         {
