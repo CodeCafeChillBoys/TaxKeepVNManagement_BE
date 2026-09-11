@@ -1,22 +1,27 @@
-using Microsoft.AspNetCore.Builder;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Configuration;
 using FluentValidation;
 using FluentValidation.AspNetCore;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.IdentityModel.Tokens;
+using System;
+using System.Text;
 using TaxKeepVN.Application.Service.Implementations;
 using TaxKeepVN.Application.Service.Interfaces;
 using TaxKeepVN.Application.Validators;
 using TaxKeepVN.Domain.IRepositories;
 using TaxKeepVN.Infrastructure.Contexts;
 using TaxKeepVN.Infrastructure.Repositories;
+using TaxKeepVN.Infrastructure.Services;
 using TaxKeepVN.Infrastructure.Storage;
 using TaxKeepVNManagementSystem.Middlewares;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
+// ── Controllers, Content Negotiation & FluentValidation ─────────────────────
 builder.Services.AddControllers(options =>
 {
     // Return 406 Not Acceptable if client requests unsupported format
@@ -25,7 +30,7 @@ builder.Services.AddControllers(options =>
 .AddXmlSerializerFormatters() // Support application/xml
 .ConfigureApiBehaviorOptions(options =>
 {
-    // Disable automatic 400 from ModelState; let FluentValidation + Middleware handle it
+    // Disable automatic 400 from ModelState; let FluentValidation + Controller handle it
     options.SuppressModelStateInvalidFilter = true;
 });
 
@@ -33,33 +38,108 @@ builder.Services.AddControllers(options =>
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblyContaining<IncomeSourceCreateValidator>();
 
+// ── Swagger & Security Definition ───────────────────────────────────────────
 builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new() { Title = "TaxKeepVN API", Version = "v1" });
 
-// Configure Database (InMemory for now if no connection string, or Postgres)
-// Let's use PostgreSQL as specified in initial dependencies
-// Make sure appsettings.json has connection string. We will use a dummy one if it crashes
-var connString = builder.Configuration.GetConnectionString("DefaultConnection");
+    // Cho phép nhập JWT token trong Swagger UI
+    c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+    {
+        Name = "Authorization",
+        Type = Microsoft.OpenApi.Models.SecuritySchemeType.Http,
+        Scheme = "Bearer",
+        BearerFormat = "JWT",
+        In = Microsoft.OpenApi.Models.ParameterLocation.Header,
+        Description = "Nhập JWT token theo format: Bearer {token}"
+    });
+    c.AddSecurityRequirement(new Microsoft.OpenApi.Models.OpenApiSecurityRequirement
+    {
+        {
+            new Microsoft.OpenApi.Models.OpenApiSecurityScheme
+            {
+                Reference = new Microsoft.OpenApi.Models.OpenApiReference
+                {
+                    Type = Microsoft.OpenApi.Models.ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
+            },
+            System.Array.Empty<string>()
+        }
+    });
+});
+
+// ── Database (PostgreSQL) ───────────────────────────────────────────────────
+var connString = builder.Configuration.GetConnectionString("DefaultConnection")
+    ?? "Host=localhost;Database=TaxKeepVNDB;Username=postgres;Password=12345";
+
 builder.Services.AddDbContext<TaxKeepDbContext>(options =>
     options.UseNpgsql(connString));
 
-// Register Unit of Work and Repositories
+// ── Repository & UnitOfWork ─────────────────────────────────────────────────
 builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 
-// Register Application Services
+// ── Application & Infrastructure Services ───────────────────────────────────
 builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
 builder.Services.AddScoped<IDependentDocumentService, DependentDocumentService>();
 builder.Services.AddScoped<IDependentReminderService, DependentReminderService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IIncomeSourceService, IncomeSourceService>();
+builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
+builder.Services.AddScoped<IPasswordHasher, BcryptPasswordHasher>();
+builder.Services.AddScoped<ITokenRevocationService, TokenRevocationService>();
+builder.Services.AddScoped<IProfileService, ProfileService>();
+builder.Services.AddScoped<IDependentService, DependentService>();
 
-// Register Background Jobs
+// ── JWT Authentication ───────────────────────────────────────────────────────
+var jwtSection = builder.Configuration.GetSection("Jwt");
+var jwtKey = jwtSection["Key"]
+    ?? "TaxKeepVN_Secret_Key_For_Development_Only_At_Least_32_Chars_Long!";
+
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidateAudience = true,
+            ValidateLifetime = true,
+            ValidateIssuerSigningKey = true,
+            ValidIssuer = jwtSection["Issuer"] ?? "TaxKeepVN",
+            ValidAudience = jwtSection["Audience"] ?? "TaxKeepVNClient",
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+        };
+
+        // Kiểm tra JTI có trong blacklist không sau khi token hợp lệ về chữ ký
+        options.Events = new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents
+        {
+            OnTokenValidated = async context =>
+            {
+                var revocationService = context.HttpContext.RequestServices
+                    .GetRequiredService<ITokenRevocationService>();
+
+                var jti = context.Principal?
+                    .FindFirst(System.IdentityModel.Tokens.Jwt.JwtRegisteredClaimNames.Jti)?.Value;
+
+                if (!string.IsNullOrEmpty(jti) && await revocationService.IsRevokedAsync(jti))
+                {
+                    context.Fail("Token đã bị thu hồi. Vui lòng đăng nhập lại.");
+                }
+            }
+        };
+    });
+
+builder.Services.AddAuthorization();
+
+// ── Background Jobs ─────────────────────────────────────────────────────────
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.AgeTransitionReminderJob>();
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// ── Middleware Pipeline ──────────────────────────────────────────────────────
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -69,9 +149,9 @@ if (app.Environment.IsDevelopment())
 app.UseMiddleware<GlobalExceptionMiddleware>();
 
 app.UseHttpsRedirection();
+app.UseStaticFiles();
 
-app.UseStaticFiles(); // Allow serving files from wwwroot
-
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();

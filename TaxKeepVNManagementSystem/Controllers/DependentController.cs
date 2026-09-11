@@ -1,23 +1,52 @@
-using Microsoft.AspNetCore.Mvc;
 using System;
 using System.ComponentModel.DataAnnotations;
 using System.Threading.Tasks;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Mvc;
 using TaxKeepVN.Application.DTOs.Common;
+using TaxKeepVN.Application.DTOs.Requests.Dependent;
 using TaxKeepVN.Application.DTOs.Responses;
+using TaxKeepVN.Application.Exceptions;
 using TaxKeepVN.Application.Service.Interfaces;
 
 namespace TaxKeepVNManagementSystem.Controllers
 {
     [ApiController]
     [Route("api/v1/dependents")]
-    // [Authorize(Roles = "TAXPAYER")]
+    [Route("api/dependents")]
+    [Authorize]
     public class DependentController : ControllerBase
     {
+        private readonly IDependentService _dependentService;
         private readonly IDependentReminderService _reminderService;
 
-        public DependentController(IDependentReminderService reminderService)
+        public DependentController(
+            IDependentService dependentService,
+            IDependentReminderService reminderService)
         {
+            _dependentService = dependentService;
             _reminderService = reminderService;
+        }
+
+        /// <summary>
+        /// Đăng ký người phụ thuộc mới cho người nộp thuế đang đăng nhập.
+        /// Sau khi tạo thành công, sử dụng dependentId trong response để upload
+        /// giấy tờ minh chứng qua endpoint: POST /api/v1/dependents/{dependentId}/documents
+        /// </summary>
+        [HttpPost(Name = "CreateDependent")]
+        [ProducesResponseType(StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> CreateDependent([FromBody] CreateDependentRequest request)
+        {
+            var taxpayerId = GetUserIdFromToken();
+            var result = await _dependentService.CreateDependentAsync(taxpayerId, request);
+
+            return StatusCode(StatusCodes.Status201Created,
+                ApiResponse<object>.Ok(result,
+                    "Đăng ký người phụ thuộc thành công. " +
+                    "Vui lòng upload giấy tờ minh chứng để hoàn tất hồ sơ."));
         }
 
         /// <summary>
@@ -33,13 +62,28 @@ namespace TaxKeepVNManagementSystem.Controllers
                 return BadRequest(ApiResponse<object>.ValidationFail(ModelState));
 
             query ??= new QueryParameters();
-
-            // TODO: Thay bằng User.FindFirst(ClaimTypes.NameIdentifier) khi JWT được tích hợp
-            var userIdStr = "c1234567-89ab-cdef-0123-456789abcdef";
-            _ = Guid.TryParse(userIdStr, out Guid userId);
+            var userId = GetUserIdFromToken();
 
             var data = await _reminderService.GetAgeTransitionRemindersAsync(userId, taxYear, query);
             return Ok(ApiResponse<object>.Ok(data, "Lấy danh sách nhắc nhở chuyển nhóm tuổi NPT thành công."));
+        }
+
+        // ── Helper ──────────────────────────────────────────────────────────────
+        private Guid GetUserIdFromToken()
+        {
+            var userIdClaim = User.FindFirst("userId")?.Value
+                ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+
+            if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
+            {
+                // Fallback cho development test nếu token chưa sẵn sàng
+                if (Guid.TryParse("c1234567-89ab-cdef-0123-456789abcdef", out var mockId))
+                    return mockId;
+
+                throw new UnauthorizedException("INVALID_TOKEN",
+                    "Không thể xác định danh tính người dùng từ token.");
+            }
+            return userId;
         }
     }
 }

@@ -43,6 +43,12 @@ namespace TaxKeepVNManagementSystem.Middlewares
                     message = badRequestEx.Message;
                     break;
 
+                case UnauthorizedException unauthorizedEx:
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                    errorCode = unauthorizedEx.ErrorCode;
+                    message = unauthorizedEx.Message;
+                    break;
+
                 case ConflictException conflictEx:
                     context.Response.StatusCode = StatusCodes.Status409Conflict;
                     errorCode = conflictEx.ErrorCode;
