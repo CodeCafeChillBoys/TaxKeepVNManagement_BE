@@ -70,7 +70,6 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(d => d.FullName).HasColumnName("full_name").IsRequired();
                 entity.Property(d => d.Relationship).HasColumnName("relationship")
                     .HasConversion<string>().IsRequired();
-                entity.Property(d => d.DateOfBirth).HasColumnName("date_of_birth");
                 entity.Property(d => d.CitizenId).HasColumnName("citizen_id");
                 entity.Property(d => d.BirthCertNumber).HasColumnName("birth_cert_number");
                 entity.Property(d => d.TaxIdNumber).HasColumnName("tax_id_number");

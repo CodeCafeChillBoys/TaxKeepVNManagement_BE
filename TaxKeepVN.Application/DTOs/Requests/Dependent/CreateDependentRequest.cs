@@ -16,7 +16,7 @@ namespace TaxKeepVN.Application.DTOs.Requests.Dependent
         public string Relationship { get; set; } = string.Empty;
 
         [Required(ErrorMessage = "Ngày sinh người phụ thuộc không được để trống.")]
-        public DateOnly? DateOfBirth { get; set; }
+        public DateTime? BirthDate { get; set; }
 
         /// <summary>
         /// Số CCCD (12 chữ số). Dùng cho người phụ thuộc đã có CCCD.

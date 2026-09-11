@@ -113,9 +113,8 @@ namespace TaxKeepVN.Application.Service.Implementations
                 TaxpayerId = taxpayerId,
                 FullName = request.FullName,
                 Relationship = relationship,
-                DateOfBirth = request.DateOfBirth,
-                BirthDate = request.DateOfBirth.HasValue
-                    ? request.DateOfBirth.Value.ToDateTime(TimeOnly.MinValue)
+                BirthDate = request.BirthDate.HasValue 
+                    ? DateTime.SpecifyKind(request.BirthDate.Value, DateTimeKind.Utc) 
                     : DateTime.UtcNow,
                 CitizenId = request.CitizenId?.Trim(),
                 BirthCertNumber = request.BirthCertNumber?.Trim(),
@@ -138,7 +137,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 TaxpayerId = newDependent.TaxpayerId,
                 FullName = newDependent.FullName,
                 Relationship = newDependent.Relationship.ToString(),
-                DateOfBirth = newDependent.DateOfBirth,
+                BirthDate = newDependent.BirthDate,
                 CitizenId = newDependent.CitizenId,
                 BirthCertNumber = newDependent.BirthCertNumber,
                 TaxIdNumber = newDependent.TaxIdNumber,
