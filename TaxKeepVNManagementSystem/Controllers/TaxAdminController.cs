@@ -12,7 +12,7 @@ namespace TaxKeepVNManagementSystem.Controllers
 {
     [ApiController]
     [Route("api/admin/tax-rules")]
-    [Authorize] // Bắt buộc đăng nhập
+    [Authorize] 
     public class TaxAdminController : ControllerBase
     {
         private readonly ITaxAIProducerService _producerService;
