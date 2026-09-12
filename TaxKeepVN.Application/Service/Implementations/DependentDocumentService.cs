@@ -67,11 +67,11 @@ namespace TaxKeepVN.Application.Service.Implementations
             await _unitOfWork.Repository<DependentDocument>().AddAsync(document);
             await _unitOfWork.SaveChangesAsync();
 
-            // Logic: Kiểm tra đủ danh sách giấy tờ bắt buộc
+            // Logic: Kiểm tra đủ danh sách giấy tờ bắt buộc dựa trên dynamic rules trong DB
             var allDocs = await _unitOfWork.Repository<DependentDocument>().FindAsync(d => d.DependentId == dependentId);
             var uploadedTypes = allDocs.Select(d => d.DocType).ToList();
             
-            var (isComplete, missing) = CheckProfileCompletion(dependent.CurrentGroup, uploadedTypes);
+            var (isComplete, missing) = await CheckProfileCompletionAsync(dependent.CurrentGroup, uploadedTypes);
 
             // Update Dependent status in DB
             if (dependent.IsProfileComplete != isComplete)
@@ -89,7 +89,56 @@ namespace TaxKeepVN.Application.Service.Implementations
             };
         }
 
-        private (bool isComplete, List<string> missing) CheckProfileCompletion(DependentGroup group, List<DocumentType> uploadedDocs)
+        private async Task<(bool isComplete, List<string> missing)> CheckProfileCompletionAsync(DependentGroup group, List<DocumentType> uploadedDocs)
+        {
+            var groupString = group.ToString();
+            var ruleRepo = _unitOfWork.Repository<DependentDocumentRule>();
+            var activeRules = (await ruleRepo.FindAsync(r => r.TargetGroup == groupString && r.IsActive)).ToList();
+
+            if (activeRules.Any())
+            {
+                var missing = new List<string>();
+                var uploadedNames = uploadedDocs.Select(d => d.ToString()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                if (group == DependentGroup.CHILD_UNDER_18)
+                {
+                    // Theo Thông tư 87: Con dưới 18 tuổi cần Giấy khai sinh HOẶC Căn cước công dân
+                    bool hasBirthCert = uploadedNames.Contains("BIRTH_CERTIFICATE");
+                    bool hasCitizenId = uploadedNames.Contains("CITIZEN_ID");
+                    if (!hasBirthCert && !hasCitizenId)
+                    {
+                        missing.Add("BIRTH_CERTIFICATE_OR_CITIZEN_ID");
+                    }
+
+                    // Kiểm tra các giấy tờ bắt buộc khác ngoài 2 loại trên nếu có cấu hình
+                    var otherMandatory = activeRules.Where(r => r.IsMandatory &&
+                        !r.DocType.Equals("BIRTH_CERTIFICATE", StringComparison.OrdinalIgnoreCase) &&
+                        !r.DocType.Equals("CITIZEN_ID", StringComparison.OrdinalIgnoreCase));
+
+                    foreach (var r in otherMandatory)
+                    {
+                        if (!uploadedNames.Contains(r.DocType))
+                            missing.Add(r.DocType);
+                    }
+                }
+                else
+                {
+                    var mandatoryRules = activeRules.Where(r => r.IsMandatory);
+                    foreach (var rule in mandatoryRules)
+                    {
+                        if (!uploadedNames.Contains(rule.DocType))
+                            missing.Add(rule.DocType);
+                    }
+                }
+
+                return (missing.Count == 0, missing);
+            }
+
+            // Fallback khi chưa cấu hình rule trong database
+            return FallbackCheckProfileCompletion(group, uploadedDocs);
+        }
+
+        private static (bool isComplete, List<string> missing) FallbackCheckProfileCompletion(DependentGroup group, List<DocumentType> uploadedDocs)
         {
             var missing = new List<string>();
 
