@@ -104,6 +104,7 @@ builder.Services.AddScoped<IPasswordHasher, BcryptPasswordHasher>();
 builder.Services.AddScoped<ITokenRevocationService, TokenRevocationService>();
 builder.Services.AddScoped<IProfileService, ProfileService>();
 builder.Services.AddScoped<IDependentService, DependentService>();
+builder.Services.AddScoped<IDependentRuleService, DependentRuleService>();
 
 // ── JWT Authentication ───────────────────────────────────────────────────────
 var jwtSection = builder.Configuration.GetSection("Jwt");

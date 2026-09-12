@@ -15,6 +15,7 @@ namespace TaxKeepVN.Infrastructure.Contexts
         public DbSet<DependentDocument> DependentDocuments { get; set; }
         public DbSet<SystemNotification> SystemNotifications { get; set; }
         public DbSet<IncomeSource> IncomeSources { get; set; }
+        public DbSet<DependentDocumentRule> DependentDocumentRules { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -103,6 +104,26 @@ namespace TaxKeepVN.Infrastructure.Contexts
                     .WithMany(d => d.Documents)
                     .HasForeignKey(d => d.DependentId)
                     .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // ── DependentDocumentRule ────────────────────────────────────────────
+            modelBuilder.Entity<DependentDocumentRule>(entity =>
+            {
+                entity.ToTable("dependent_document_rules");
+                entity.HasKey(r => r.RuleId);
+
+                entity.Property(r => r.RuleId).HasColumnName("rule_id");
+                entity.Property(r => r.TargetGroup).HasColumnName("target_group").HasMaxLength(50).IsRequired();
+                entity.Property(r => r.DocType).HasColumnName("doc_type").HasMaxLength(50).IsRequired();
+                entity.Property(r => r.IsMandatory).HasColumnName("is_mandatory").HasDefaultValue(true);
+                entity.Property(r => r.Description).HasColumnName("description");
+                entity.Property(r => r.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+                entity.Property(r => r.CreatedAt).HasColumnName("created_at");
+                entity.Property(r => r.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasIndex(r => new { r.TargetGroup, r.DocType })
+                    .IsUnique()
+                    .HasDatabaseName("uq_group_doc_rule");
             });
         }
     }
