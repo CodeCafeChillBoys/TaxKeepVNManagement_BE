@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Caching.Memory;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -17,11 +18,13 @@ namespace TaxKeepVN.Application.Service.Implementations
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IFileStorageService _fileStorageService;
+        private readonly IMemoryCache _cache;
 
-        public DependentDocumentService(IUnitOfWork unitOfWork, IFileStorageService fileStorageService)
+        public DependentDocumentService(IUnitOfWork unitOfWork, IFileStorageService fileStorageService, IMemoryCache cache)
         {
             _unitOfWork = unitOfWork;
             _fileStorageService = fileStorageService;
+            _cache = cache;
         }
 
         public async Task<UploadDocumentResultDto> UploadDocumentAsync(Guid userId, Guid dependentId, string docTypeString, IFormFile file)
@@ -92,8 +95,19 @@ namespace TaxKeepVN.Application.Service.Implementations
         private async Task<(bool isComplete, List<string> missing)> CheckProfileCompletionAsync(DependentGroup group, List<DocumentType> uploadedDocs)
         {
             var groupString = group.ToString();
-            var ruleRepo = _unitOfWork.Repository<DependentDocumentRule>();
-            var activeRules = (await ruleRepo.FindAsync(r => r.TargetGroup == groupString && r.IsActive)).ToList();
+            var cacheKey = $"DependentRules_{groupString}";
+
+            // Lấy từ IMemoryCache (hết hạn sau 1 tiếng) để tối ưu hiệu năng mili-giây, tránh query DB liên tục
+            if (!_cache.TryGetValue(cacheKey, out List<DependentDocumentRule>? activeRules) || activeRules == null)
+            {
+                var ruleRepo = _unitOfWork.Repository<DependentDocumentRule>();
+                activeRules = (await ruleRepo.FindAsync(r => r.TargetGroup == groupString && r.IsActive)).ToList();
+
+                var cacheOptions = new MemoryCacheEntryOptions()
+                    .SetAbsoluteExpiration(TimeSpan.FromHours(1));
+
+                _cache.Set(cacheKey, activeRules, cacheOptions);
+            }
 
             if (activeRules.Any())
             {

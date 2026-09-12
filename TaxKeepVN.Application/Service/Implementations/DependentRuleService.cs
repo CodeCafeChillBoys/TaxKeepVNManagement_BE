@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Caching.Memory;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -14,10 +15,12 @@ namespace TaxKeepVN.Application.Service.Implementations
     public class DependentRuleService : IDependentRuleService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IMemoryCache _cache;
 
-        public DependentRuleService(IUnitOfWork unitOfWork)
+        public DependentRuleService(IUnitOfWork unitOfWork, IMemoryCache cache)
         {
             _unitOfWork = unitOfWork;
+            _cache = cache;
         }
 
         #region Public Methods
@@ -115,6 +118,9 @@ namespace TaxKeepVN.Application.Service.Implementations
             await repo.AddAsync(rule);
             await _unitOfWork.SaveChangesAsync();
 
+            // Invalidate cache for this group
+            _cache.Remove($"DependentRules_{targetGroup}");
+
             return MapToDto(rule);
         }
 
@@ -133,6 +139,9 @@ namespace TaxKeepVN.Application.Service.Implementations
             repo.Update(rule);
             await _unitOfWork.SaveChangesAsync();
 
+            // Invalidate cache for this group
+            _cache.Remove($"DependentRules_{rule.TargetGroup}");
+
             return MapToDto(rule);
         }
 
@@ -143,8 +152,12 @@ namespace TaxKeepVN.Application.Service.Implementations
             if (rule == null)
                 throw new NotFoundException($"Không tìm thấy quy tắc giấy tờ với mã '{ruleId}'.");
 
+            var targetGroup = rule.TargetGroup;
             repo.Remove(rule);
             await _unitOfWork.SaveChangesAsync();
+
+            // Invalidate cache for this group
+            _cache.Remove($"DependentRules_{targetGroup}");
         }
 
         #endregion
