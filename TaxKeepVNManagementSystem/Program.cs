@@ -1,4 +1,4 @@
-﻿using TaxKeepVNManagementSystem.Hubs;
+using TaxKeepVNManagementSystem.Hubs;
 using TaxKeepVNManagementSystem.BackgroundJobs;
 using FluentValidation;
 using FluentValidation.AspNetCore;
@@ -108,6 +108,13 @@ builder.Services.AddScoped<IProfileService, ProfileService>();
 builder.Services.AddScoped<IDependentService, DependentService>();
 builder.Services.AddScoped<ITaxAIProducerService, TaxAIProducerService>();
 builder.Services.AddScoped<IDependentRuleService, DependentRuleService>();
+
+// ── HTTP Clients ────────────────────────────────────────────────────────────
+builder.Services.AddHttpClient("TaxAIService", client =>
+{
+    var baseUrl = builder.Configuration["Services:TaxAIService:BaseUrl"] ?? "http://localhost:8000";
+    client.BaseAddress = new Uri(baseUrl);
+});
 
 // ── SignalR Real-Time ────────────────────────────────────────────────────────
 builder.Services.AddSignalR();

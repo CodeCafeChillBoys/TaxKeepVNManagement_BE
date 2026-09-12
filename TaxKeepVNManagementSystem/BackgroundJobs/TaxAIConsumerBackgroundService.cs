@@ -56,9 +56,8 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
                         autoDelete: false,
                         arguments: null
                     );
-
+                     // trong RabbitMQ dùng để giới hạn số lượng message mà một Consumer được phép nhận trước khi xử lý xong message trước đó.
                     channel.BasicQos(prefetchSize: 0, prefetchCount: 1, global: false);
-
                     var consumer = new AsyncEventingBasicConsumer(channel);
                     consumer.Received += async (model, ea) =>
                     {

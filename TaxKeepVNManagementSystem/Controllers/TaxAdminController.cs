@@ -1,5 +1,7 @@
 using System;
 using System.IO;
+using System.Net.Http;
+using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
@@ -16,10 +18,14 @@ namespace TaxKeepVNManagementSystem.Controllers
     public class TaxAdminController : ControllerBase
     {
         private readonly ITaxAIProducerService _producerService;
+        private readonly IHttpClientFactory _httpClientFactory;
 
-        public TaxAdminController(ITaxAIProducerService producerService)
+        public TaxAdminController(
+            ITaxAIProducerService producerService,
+            IHttpClientFactory httpClientFactory)
         {
             _producerService = producerService;
+            _httpClientFactory = httpClientFactory;
         }
 
         [HttpPost("upload")]
@@ -69,5 +75,40 @@ namespace TaxKeepVNManagementSystem.Controllers
                 adminId = adminId
             });
         }
+
+        [HttpPost("{id:guid}/approve")]
+        public async Task<IActionResult> ApproveTaxRule([FromRoute] Guid id)
+        {
+            // Lấy ID Admin từ Claims JWT
+            var adminIdClaim = User.FindFirstValue(ClaimTypes.NameIdentifier)
+                               ?? User.FindFirstValue("sub")
+                               ?? User.FindFirstValue("adminId");
+            if (string.IsNullOrWhiteSpace(adminIdClaim) || !Guid.TryParse(adminIdClaim, out var adminGuid))
+            {
+                return Unauthorized(new { message = "Không xác định được danh tính Admin từ token." });
+            }
+            var httpClient = _httpClientFactory.CreateClient("TaxAIService");
+            var payload = new { adminId = adminGuid };
+            try
+            {
+                var response = await httpClient.PostAsJsonAsync($"/api/tax-rules/{id}/approve", payload);
+                if (response.IsSuccessStatusCode)
+                {
+                    var result = await response.Content.ReadFromJsonAsync<TaxRuleApproveResponse>();
+                    return Ok(result);
+                }
+                var error = await response.Content.ReadFromJsonAsync<object>();
+                return StatusCode((int)response.StatusCode, error);
+            }
+            catch (HttpRequestException ex)
+            {
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, new
+                {
+                    message = "Không thể kết nối tới Tax AI Service.",
+                    detail = ex.Message
+                });
+            }
+        }
+
     }
 }
