@@ -40,4 +40,16 @@ namespace TaxKeepVN.Application.DTOs.Common
         /// <summary>Lọc theo trạng thái hoạt động</summary>
         public bool? IsActive { get; set; }
     }
+
+    /// <summary>
+    /// Query parameters cho Dependent Document Rules — hỗ trợ lọc theo nhóm đối tượng và trạng thái hoạt động.
+    /// </summary>
+    public class DependentRuleQueryParameters : QueryParameters
+    {
+        /// <summary>Lọc theo nhóm đối tượng (ví dụ: CHILD_UNDER_18, PARENT_RETIRED)</summary>
+        public string? TargetGroup { get; set; }
+
+        /// <summary>Lọc theo trạng thái hoạt động (true/false)</summary>
+        public bool? IsActive { get; set; }
+    }
 }
