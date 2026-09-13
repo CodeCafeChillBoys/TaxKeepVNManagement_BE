@@ -1,3 +1,5 @@
+using TaxKeepVNManagementSystem.Hubs;
+using TaxKeepVNManagementSystem.BackgroundJobs;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -107,8 +109,19 @@ builder.Services.AddScoped<IPasswordHasher, BcryptPasswordHasher>();
 builder.Services.AddScoped<ITokenRevocationService, TokenRevocationService>();
 builder.Services.AddScoped<IProfileService, ProfileService>();
 builder.Services.AddScoped<IDependentService, DependentService>();
+builder.Services.AddScoped<ITaxAIProducerService, TaxAIProducerService>();
 builder.Services.AddScoped<IDependentRuleService, DependentRuleService>();
 
+// ── HTTP Clients ────────────────────────────────────────────────────────────
+builder.Services.AddHttpClient("TaxAIService", client =>
+{
+    var baseUrl = builder.Configuration["Services:TaxAIService:BaseUrl"] ?? "http://localhost:8000";
+    client.BaseAddress = new Uri(baseUrl);
+});
+
+// ── SignalR Real-Time ────────────────────────────────────────────────────────
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<Microsoft.AspNetCore.SignalR.IUserIdProvider, CustomUserIdProvider>();
 // ── JWT Authentication ───────────────────────────────────────────────────────
 var jwtSection = builder.Configuration.GetSection("Jwt");
 var jwtKey = jwtSection["Key"];
@@ -130,6 +143,16 @@ builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
         // Kiểm tra JTI có trong blacklist không sau khi token hợp lệ về chữ ký
         options.Events = new Microsoft.AspNetCore.Authentication.JwtBearer.JwtBearerEvents
         {
+            OnMessageReceived = context =>
+            {
+                var accessToken = context.Request.Query["access_token"];
+                var path = context.HttpContext.Request.Path;
+                if (!string.IsNullOrEmpty(accessToken) && path.StartsWithSegments("/hubs"))
+                {
+                    context.Token = accessToken;
+                }
+                return Task.CompletedTask;
+            },
             OnTokenValidated = async context =>
             {
                 var revocationService = context.HttpContext.RequestServices
@@ -150,6 +173,7 @@ builder.Services.AddAuthorization();
 
 // ── Background Jobs ─────────────────────────────────────────────────────────
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.AgeTransitionReminderJob>();
+builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.TaxAIConsumerBackgroundService>();
 
 var app = builder.Build();
 
@@ -176,5 +200,6 @@ app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHub<TaxAIHub>("/hubs/tax-ai");
 
 app.Run();

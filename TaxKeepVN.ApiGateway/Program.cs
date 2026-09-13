@@ -1,4 +1,4 @@
-var builder = WebApplication.CreateBuilder(args);
+﻿var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
 builder.Services.AddReverseProxy()
@@ -42,7 +42,8 @@ app.MapGet("/health", () => Results.Ok(new
 // Configure the HTTP request pipeline.
 app.UseSwaggerUI(c =>
 {
-    c.SwaggerEndpoint("/taxkeep/swagger/v1/swagger.json", "TaxKeepVN Management API");
+        c.SwaggerEndpoint("/taxkeep/swagger/v1/swagger.json", "TaxKeepVN Management API");
+    c.SwaggerEndpoint("/ai/openapi.json", "Tax AI Service API (FastAPI)");
     c.RoutePrefix = "swagger"; // Set Swagger UI at /swagger
 });
 
