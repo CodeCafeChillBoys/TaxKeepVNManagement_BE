@@ -52,4 +52,22 @@ namespace TaxKeepVN.Application.DTOs.Common
         /// <summary>Lọc theo trạng thái hoạt động (true/false)</summary>
         public bool? IsActive { get; set; }
     }
+
+    /// <summary>
+    /// Query parameters cho Dependent List — hỗ trợ filter theo trạng thái hồ sơ và nhóm quan hệ.
+    /// </summary>
+    public class DependentQueryParameters : QueryParameters
+    {
+        /// <summary>
+        /// Lọc theo trạng thái hồ sơ: PENDING_DOCUMENTS | ACTIVE | INACTIVE.
+        /// Để trống = lấy tất cả trạng thái.
+        /// </summary>
+        public string? Status { get; set; }
+
+        /// <summary>
+        /// Lọc theo nhóm quan hệ: CHILD | SPOUSE | PARENT | OTHER_DEPENDENT.
+        /// Để trống = lấy tất cả nhóm quan hệ.
+        /// </summary>
+        public string? Relationship { get; set; }
+    }
 }
