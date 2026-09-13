@@ -67,29 +67,40 @@ namespace TaxKeepVN.Application.Service.Implementations
                 UploadedAt = DateTime.UtcNow
             };
 
-            await _unitOfWork.Repository<DependentDocument>().AddAsync(document);
-            await _unitOfWork.SaveChangesAsync();
-
-            // Logic: Kiểm tra đủ danh sách giấy tờ bắt buộc dựa trên dynamic rules trong DB
-            var allDocs = await _unitOfWork.Repository<DependentDocument>().FindAsync(d => d.DependentId == dependentId);
-            var uploadedTypes = allDocs.Select(d => d.DocType).ToList();
-            
-            var (isComplete, missing) = await CheckProfileCompletionAsync(dependent.CurrentGroup, uploadedTypes);
-
-            // Update Dependent status in DB
-            if (dependent.IsProfileComplete != isComplete)
+            await _unitOfWork.BeginTransactionAsync();
+            try
             {
-                dependent.IsProfileComplete = isComplete;
-                dependentRepo.Update(dependent);
+                await _unitOfWork.Repository<DependentDocument>().AddAsync(document);
                 await _unitOfWork.SaveChangesAsync();
-            }
 
-            return new UploadDocumentResultDto
+                // Logic: Kiểm tra đủ danh sách giấy tờ bắt buộc dựa trên dynamic rules trong DB
+                var allDocs = await _unitOfWork.Repository<DependentDocument>().FindAsync(d => d.DependentId == dependentId);
+                var uploadedTypes = allDocs.Select(d => d.DocType).ToList();
+                
+                var (isComplete, missing) = await CheckProfileCompletionAsync(dependent.CurrentGroup, uploadedTypes);
+
+                // Update Dependent status in DB
+                if (dependent.IsProfileComplete != isComplete)
+                {
+                    dependent.IsProfileComplete = isComplete;
+                    dependentRepo.Update(dependent);
+                    await _unitOfWork.SaveChangesAsync();
+                }
+
+                await _unitOfWork.CommitTransactionAsync();
+
+                return new UploadDocumentResultDto
+                {
+                    Document = document,
+                    IsProfileComplete = isComplete,
+                    MissingDocuments = missing
+                };
+            }
+            catch
             {
-                Document = document,
-                IsProfileComplete = isComplete,
-                MissingDocuments = missing
-            };
+                await _unitOfWork.RollbackTransactionAsync();
+                throw;
+            }
         }
 
         private async Task<(bool isComplete, List<string> missing)> CheckProfileCompletionAsync(DependentGroup group, List<DocumentType> uploadedDocs)
