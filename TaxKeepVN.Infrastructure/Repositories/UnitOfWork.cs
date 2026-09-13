@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Threading.Tasks;
+using Microsoft.EntityFrameworkCore.Storage;
 using TaxKeepVN.Domain.IRepositories;
 using TaxKeepVN.Infrastructure.Contexts;
 
@@ -10,6 +11,7 @@ namespace TaxKeepVN.Infrastructure.Repositories
     {
         private readonly TaxKeepDbContext _context;
         private Hashtable _repositories = new();
+        private IDbContextTransaction? _currentTransaction;
 
         public UnitOfWork(TaxKeepDbContext context)
         {
@@ -37,8 +39,61 @@ namespace TaxKeepVN.Infrastructure.Repositories
             return await _context.SaveChangesAsync();
         }
 
+        public async Task BeginTransactionAsync()
+        {
+            if (_currentTransaction == null)
+            {
+                _currentTransaction = await _context.Database.BeginTransactionAsync();
+            }
+        }
+
+        public async Task CommitTransactionAsync()
+        {
+            try
+            {
+                await _context.SaveChangesAsync();
+                if (_currentTransaction != null)
+                {
+                    await _currentTransaction.CommitAsync();
+                }
+            }
+            catch
+            {
+                await RollbackTransactionAsync();
+                throw;
+            }
+            finally
+            {
+                if (_currentTransaction != null)
+                {
+                    await _currentTransaction.DisposeAsync();
+                    _currentTransaction = null;
+                }
+            }
+        }
+
+        public async Task RollbackTransactionAsync()
+        {
+            try
+            {
+                if (_currentTransaction != null)
+                {
+                    await _currentTransaction.RollbackAsync();
+                }
+            }
+            finally
+            {
+                if (_currentTransaction != null)
+                {
+                    await _currentTransaction.DisposeAsync();
+                    _currentTransaction = null;
+                }
+            }
+        }
+
         public void Dispose()
         {
+            _currentTransaction?.Dispose();
             _context.Dispose();
         }
     }
