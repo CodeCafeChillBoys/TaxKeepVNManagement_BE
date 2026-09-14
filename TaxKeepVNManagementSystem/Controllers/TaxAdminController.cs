@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
 using System.Net.Http.Json;
@@ -13,7 +14,7 @@ using TaxKeepVN.Application.Service.Interfaces;
 namespace TaxKeepVNManagementSystem.Controllers
 {
     [ApiController]
-    [Route("api/admin/tax-rules")]
+    [Route("api/v1/admin/tax-rules")]
     [Authorize] 
     public class TaxAdminController : ControllerBase
     {
@@ -175,3 +176,5 @@ namespace TaxKeepVNManagementSystem.Controllers
         }
     }
 }
+
+
