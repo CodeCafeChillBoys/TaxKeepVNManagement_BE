@@ -76,6 +76,70 @@ namespace TaxKeepVNManagementSystem.Controllers
             });
         }
 
+        /// <summary>
+        /// Review chi tiết toàn bộ nội dung của Tax Rule Set (Rules & Dependent Rules)
+        /// </summary>
+        [HttpGet("{id:guid}")]
+        [ProducesResponseType(typeof(TaxRuleDetailResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+        public async Task<IActionResult> GetTaxRuleDetail([FromRoute] Guid id)
+        {
+            var httpClient = _httpClientFactory.CreateClient("TaxAIService");
+            try
+            {
+                var response = await httpClient.GetAsync($"/api/tax-rules/{id}");
+                if (response.IsSuccessStatusCode)
+                {
+                    var result = await response.Content.ReadFromJsonAsync<TaxRuleDetailResponse>();
+                    return Ok(result);
+                }
+
+                var error = await response.Content.ReadFromJsonAsync<object>();
+                return StatusCode((int)response.StatusCode, error);
+            }
+            catch (HttpRequestException ex)
+            {
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, new
+                {
+                    message = "Không thể kết nối tới Tax AI Service.",
+                    detail = ex.Message
+                });
+            }
+        }
+
+        /// <summary>
+        /// Chỉnh sửa toàn bộ nội dung Tax Rule Set, Tax Rules và cập nhật taxYear
+        /// </summary>
+        [HttpPut("{id:guid}")]
+        [ProducesResponseType(typeof(TaxRuleDetailResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+        public async Task<IActionResult> UpdateTaxRuleSet([FromRoute] Guid id, [FromBody] TaxRuleUpdateRequest request)
+        {
+            var httpClient = _httpClientFactory.CreateClient("TaxAIService");
+            try
+            {
+                var response = await httpClient.PutAsJsonAsync($"/api/tax-rules/{id}", request);
+                if (response.IsSuccessStatusCode)
+                {
+                    var result = await response.Content.ReadFromJsonAsync<TaxRuleDetailResponse>();
+                    return Ok(result);
+                }
+
+                var error = await response.Content.ReadFromJsonAsync<object>();
+                return StatusCode((int)response.StatusCode, error);
+            }
+            catch (HttpRequestException ex)
+            {
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, new
+                {
+                    message = "Không thể kết nối tới Tax AI Service.",
+                    detail = ex.Message
+                });
+            }
+        }
+
         [HttpPost("{id:guid}/approve")]
         public async Task<IActionResult> ApproveTaxRule([FromRoute] Guid id)
         {
@@ -109,6 +173,5 @@ namespace TaxKeepVNManagementSystem.Controllers
                 });
             }
         }
-
     }
 }
