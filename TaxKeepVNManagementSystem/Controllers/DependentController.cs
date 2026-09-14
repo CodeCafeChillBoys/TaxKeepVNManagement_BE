@@ -67,6 +67,39 @@ namespace TaxKeepVNManagementSystem.Controllers
             return Ok(ApiResponse<object>.Ok(data, "Lấy danh sách nhắc nhở chuyển nhóm tuổi NPT thành công."));
         }
 
+        /// <summary>
+        /// Lấy danh sách người phụ thuộc của người nộp thuế đang đăng nhập.
+        /// Hỗ trợ phân trang, tìm kiếm theo tên/CCCD, lọc theo trạng thái hồ sơ và nhóm quan hệ.
+        /// GET /api/v1/dependents?page=1&amp;size=10&amp;search=Nguyen&amp;status=ACTIVE&amp;relationship=CHILD&amp;sort=fullName
+        /// </summary>
+        [HttpGet(Name = "GetDependents")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> GetDependents([FromQuery] DependentQueryParameters query)
+        {
+            query ??= new DependentQueryParameters();
+            var taxpayerId = GetUserIdFromToken();
+
+            var result = await _dependentService.GetDependentsAsync(taxpayerId, query);
+            return Ok(ApiResponse<object>.Ok(result, "Lấy danh sách người phụ thuộc thành công."));
+        }
+
+        /// <summary>
+        /// Xem chi tiết một người phụ thuộc, bao gồm thông tin cá nhân và toàn bộ giấy tờ đã upload.
+        /// GET /api/v1/dependents/{id}
+        /// </summary>
+        [HttpGet("{dependentId:guid}", Name = "GetDependentById")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetDependentById([FromRoute] Guid dependentId)
+        {
+            var taxpayerId = GetUserIdFromToken();
+            var result = await _dependentService.GetDependentByIdAsync(taxpayerId, dependentId);
+            return Ok(ApiResponse<object>.Ok(result, "Lấy thông tin chi tiết người phụ thuộc thành công."));
+        }
+
         // ── Helper ──────────────────────────────────────────────────────────────
         private Guid GetUserIdFromToken()
         {

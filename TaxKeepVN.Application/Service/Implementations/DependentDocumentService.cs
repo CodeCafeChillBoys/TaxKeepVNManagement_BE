@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.Caching.Memory;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -17,11 +18,13 @@ namespace TaxKeepVN.Application.Service.Implementations
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IFileStorageService _fileStorageService;
+        private readonly IMemoryCache _cache;
 
-        public DependentDocumentService(IUnitOfWork unitOfWork, IFileStorageService fileStorageService)
+        public DependentDocumentService(IUnitOfWork unitOfWork, IFileStorageService fileStorageService, IMemoryCache cache)
         {
             _unitOfWork = unitOfWork;
             _fileStorageService = fileStorageService;
+            _cache = cache;
         }
 
         public async Task<UploadDocumentResultDto> UploadDocumentAsync(Guid userId, Guid dependentId, string docTypeString, IFormFile file)
@@ -64,36 +67,58 @@ namespace TaxKeepVN.Application.Service.Implementations
                 UploadedAt = DateTime.UtcNow
             };
 
-            await _unitOfWork.Repository<DependentDocument>().AddAsync(document);
-            await _unitOfWork.SaveChangesAsync();
-
-            // Logic: Kiểm tra đủ danh sách giấy tờ bắt buộc dựa trên dynamic rules trong DB
-            var allDocs = await _unitOfWork.Repository<DependentDocument>().FindAsync(d => d.DependentId == dependentId);
-            var uploadedTypes = allDocs.Select(d => d.DocType).ToList();
-            
-            var (isComplete, missing) = await CheckProfileCompletionAsync(dependent.CurrentGroup, uploadedTypes);
-
-            // Update Dependent status in DB
-            if (dependent.IsProfileComplete != isComplete)
+            await _unitOfWork.BeginTransactionAsync();
+            try
             {
-                dependent.IsProfileComplete = isComplete;
-                dependentRepo.Update(dependent);
+                await _unitOfWork.Repository<DependentDocument>().AddAsync(document);
                 await _unitOfWork.SaveChangesAsync();
-            }
 
-            return new UploadDocumentResultDto
+                // Logic: Kiểm tra đủ danh sách giấy tờ bắt buộc dựa trên dynamic rules trong DB
+                var allDocs = await _unitOfWork.Repository<DependentDocument>().FindAsync(d => d.DependentId == dependentId);
+                var uploadedTypes = allDocs.Select(d => d.DocType).ToList();
+                
+                var (isComplete, missing) = await CheckProfileCompletionAsync(dependent.CurrentGroup, uploadedTypes);
+
+                // Update Dependent status in DB
+                if (dependent.IsProfileComplete != isComplete)
+                {
+                    dependent.IsProfileComplete = isComplete;
+                    dependentRepo.Update(dependent);
+                    await _unitOfWork.SaveChangesAsync();
+                }
+
+                await _unitOfWork.CommitTransactionAsync();
+
+                return new UploadDocumentResultDto
+                {
+                    Document = document,
+                    IsProfileComplete = isComplete,
+                    MissingDocuments = missing
+                };
+            }
+            catch
             {
-                Document = document,
-                IsProfileComplete = isComplete,
-                MissingDocuments = missing
-            };
+                await _unitOfWork.RollbackTransactionAsync();
+                throw;
+            }
         }
 
         private async Task<(bool isComplete, List<string> missing)> CheckProfileCompletionAsync(DependentGroup group, List<DocumentType> uploadedDocs)
         {
             var groupString = group.ToString();
-            var ruleRepo = _unitOfWork.Repository<DependentDocumentRule>();
-            var activeRules = (await ruleRepo.FindAsync(r => r.TargetGroup == groupString && r.IsActive)).ToList();
+            var cacheKey = $"DependentRules_{groupString}";
+
+            // Lấy từ IMemoryCache (hết hạn sau 1 tiếng) để tối ưu hiệu năng mili-giây, tránh query DB liên tục
+            if (!_cache.TryGetValue(cacheKey, out List<DependentDocumentRule>? activeRules) || activeRules == null)
+            {
+                var ruleRepo = _unitOfWork.Repository<DependentDocumentRule>();
+                activeRules = (await ruleRepo.FindAsync(r => r.TargetGroup == groupString && r.IsActive)).ToList();
+
+                var cacheOptions = new MemoryCacheEntryOptions()
+                    .SetAbsoluteExpiration(TimeSpan.FromHours(1));
+
+                _cache.Set(cacheKey, activeRules, cacheOptions);
+            }
 
             if (activeRules.Any())
             {

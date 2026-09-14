@@ -23,6 +23,9 @@ using TaxKeepVNManagementSystem.Middlewares;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// ── In-Memory Cache (Tối ưu tốc độ mili-giây cho Dependent Document Rules) ──
+builder.Services.AddMemoryCache();
+
 // ── Controllers, Content Negotiation & FluentValidation ─────────────────────
 builder.Services.AddControllers(options =>
 {
