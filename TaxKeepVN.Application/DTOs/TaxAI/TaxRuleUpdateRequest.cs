@@ -80,9 +80,6 @@ namespace TaxKeepVN.Application.DTOs.TaxAI
 
         [JsonPropertyName("status")]
         public string? Status { get; set; }
-
-        [JsonPropertyName("version")]
-        public int? Version { get; set; }
     }
 
     /// <summary>

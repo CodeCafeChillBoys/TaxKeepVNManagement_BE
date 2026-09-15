@@ -110,9 +110,6 @@ namespace TaxKeepVN.Application.DTOs.TaxAI
 
         [JsonPropertyName("status")]
         public string Status { get; set; } = "Draft";
-
-        [JsonPropertyName("version")]
-        public int Version { get; set; } = 1;
     }
 
     public class DependentRuleResponse

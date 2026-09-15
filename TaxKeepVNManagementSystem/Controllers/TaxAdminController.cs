@@ -78,6 +78,69 @@ namespace TaxKeepVNManagementSystem.Controllers
         }
 
         /// <summary>
+        /// Lấy danh sách tất cả các bộ quy tắc thuế đã tạo/bóc tách
+        /// </summary>
+        [HttpGet]
+        [ProducesResponseType(typeof(List<TaxRuleSetResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+        public async Task<IActionResult> GetAllTaxRuleSets()
+        {
+            var httpClient = _httpClientFactory.CreateClient("TaxAIService");
+            try
+            {
+                var response = await httpClient.GetAsync("/api/tax-rules");
+                if (response.IsSuccessStatusCode)
+                {
+                    var result = await response.Content.ReadFromJsonAsync<List<TaxRuleSetResponse>>();
+                    return Ok(result);
+                }
+
+                var error = await response.Content.ReadFromJsonAsync<object>();
+                return StatusCode((int)response.StatusCode, error);
+            }
+            catch (HttpRequestException ex)
+            {
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, new
+                {
+                    message = "Không thể kết nối tới Tax AI Service.",
+                    detail = ex.Message
+                });
+            }
+        }
+
+        /// <summary>
+        /// Lấy toàn bộ thông tin AI đã bóc tách theo năm tính thuế (vd: 2026)
+        /// </summary>
+        [HttpGet("year/{taxYear:int}")]
+        [ProducesResponseType(typeof(TaxRuleDetailResponse), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+        public async Task<IActionResult> GetTaxRuleSetByYear([FromRoute] int taxYear)
+        {
+            var httpClient = _httpClientFactory.CreateClient("TaxAIService");
+            try
+            {
+                var response = await httpClient.GetAsync($"/api/tax-rules/year/{taxYear}");
+                if (response.IsSuccessStatusCode)
+                {
+                    var result = await response.Content.ReadFromJsonAsync<TaxRuleDetailResponse>();
+                    return Ok(result);
+                }
+
+                var error = await response.Content.ReadFromJsonAsync<object>();
+                return StatusCode((int)response.StatusCode, error);
+            }
+            catch (HttpRequestException ex)
+            {
+                return StatusCode(StatusCodes.Status503ServiceUnavailable, new
+                {
+                    message = "Không thể kết nối tới Tax AI Service.",
+                    detail = ex.Message
+                });
+            }
+        }
+
+        /// <summary>
         /// Review chi tiết toàn bộ nội dung của Tax Rule Set (Rules & Dependent Rules)
         /// </summary>
         [HttpGet("{id:guid}")]
