@@ -1,4 +1,4 @@
-﻿using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
 using System;
@@ -6,7 +6,6 @@ using System.Threading.Tasks;
 
 namespace TaxKeepVNManagementSystem.Hubs
 {
-    [Authorize]
     public class TaxAIHub : Hub
     {
         private readonly ILogger<TaxAIHub> _logger;

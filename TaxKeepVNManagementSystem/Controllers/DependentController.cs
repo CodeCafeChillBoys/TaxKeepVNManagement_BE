@@ -19,13 +19,30 @@ namespace TaxKeepVNManagementSystem.Controllers
     {
         private readonly IDependentService _dependentService;
         private readonly IDependentReminderService _reminderService;
+        private readonly IOcrService _ocrService;
 
         public DependentController(
             IDependentService dependentService,
-            IDependentReminderService reminderService)
+            IDependentReminderService reminderService,
+            IOcrService ocrService)
         {
             _dependentService = dependentService;
             _reminderService = reminderService;
+            _ocrService = ocrService;
+        }
+
+        /// <summary>
+        /// Bóc tách thông tin CCCD hoặc Giấy khai sinh người phụ thuộc để tự động điền Form đăng ký.
+        /// Tự động gợi ý nhóm điều kiện (CHILD_UNDER_18,...) và kiểm tra người này đã được đăng ký NPT chưa.
+        /// </summary>
+        [HttpPost("ocr-extractions", Name = "ExtractDependentOcr")]
+        [Consumes("multipart/form-data")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> ExtractDependentOcr([FromForm] TaxKeepVN.Application.DTOs.OcrAI.OcrDocumentUploadRequestDto request)
+        {
+            var result = await _ocrService.ProcessDependentOcrAsync(request.File, request.BackFile);
+            return Ok(ApiResponse<TaxKeepVN.Application.DTOs.OcrAI.DependentOcrResponseDto>.Ok(result, "Bóc tách thông tin người phụ thuộc thành công."));
         }
 
         /// <summary>
