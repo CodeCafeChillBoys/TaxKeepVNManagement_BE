@@ -19,12 +19,18 @@ namespace TaxKeepVN.Application.Service.Implementations
         private readonly IUnitOfWork _unitOfWork;
         private readonly IFileStorageService _fileStorageService;
         private readonly IMemoryCache _cache;
+        private readonly IOcrService _ocrService;
 
-        public DependentDocumentService(IUnitOfWork unitOfWork, IFileStorageService fileStorageService, IMemoryCache cache)
+        public DependentDocumentService(
+            IUnitOfWork unitOfWork, 
+            IFileStorageService fileStorageService, 
+            IMemoryCache cache,
+            IOcrService ocrService)
         {
             _unitOfWork = unitOfWork;
             _fileStorageService = fileStorageService;
             _cache = cache;
+            _ocrService = ocrService;
         }
 
         public async Task<UploadDocumentResultDto> UploadDocumentAsync(Guid userId, Guid dependentId, string docTypeString, IFormFile file)
@@ -53,6 +59,9 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             if (dependent.TaxpayerId != userId)
                 throw new ForbiddenException("Bạn không có quyền cập nhật hồ sơ người phụ thuộc của người khác.");
+
+            // ── AI OCR Cross-check Validation (Kiểm tra đúng loại giấy tờ & đúng người phụ thuộc) ──
+            await _ocrService.ValidateDependentDocumentAsync(dependent, docType, file);
 
             var fileUrl = await _fileStorageService.SaveFileAsync(file, "documents");
 
