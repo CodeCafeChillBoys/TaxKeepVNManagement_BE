@@ -110,6 +110,8 @@ builder.Services.AddScoped<ITokenRevocationService, TokenRevocationService>();
 builder.Services.AddScoped<IProfileService, ProfileService>();
 builder.Services.AddScoped<IDependentService, DependentService>();
 builder.Services.AddScoped<ITaxAIProducerService, TaxAIProducerService>();
+builder.Services.AddScoped<IOcrAIProducerService, OcrAIProducerService>();
+builder.Services.AddScoped<IOcrService, OcrService>();
 builder.Services.AddScoped<IDependentRuleService, DependentRuleService>();
 
 // ── HTTP Clients ────────────────────────────────────────────────────────────
@@ -174,6 +176,7 @@ builder.Services.AddAuthorization();
 // ── Background Jobs ─────────────────────────────────────────────────────────
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.AgeTransitionReminderJob>();
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.TaxAIConsumerBackgroundService>();
+builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.OcrAIConsumerBackgroundService>();
 
 var app = builder.Build();
 

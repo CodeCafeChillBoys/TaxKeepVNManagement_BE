@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
@@ -11,72 +11,37 @@ namespace TaxKeepVN.Infrastructure.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
-            migrationBuilder.DropColumn(
-                name: "date_of_birth",
-                table: "dependents");
+            migrationBuilder.Sql("ALTER TABLE dependents DROP COLUMN IF EXISTS date_of_birth;");
+            migrationBuilder.Sql("ALTER TABLE income_sources ADD COLUMN IF NOT EXISTS tax_withheld numeric(18,2) NOT NULL DEFAULT 0.0;");
+            migrationBuilder.Sql("ALTER TABLE income_sources ADD COLUMN IF NOT EXISTS tax_year integer NOT NULL DEFAULT 0;");
+            migrationBuilder.Sql("ALTER TABLE income_sources ADD COLUMN IF NOT EXISTS total_income numeric(18,2) NOT NULL DEFAULT 0.0;");
 
-            migrationBuilder.AddColumn<decimal>(
-                name: "tax_withheld",
-                table: "income_sources",
-                type: "numeric(18,2)",
-                nullable: false,
-                defaultValue: 0m);
+            migrationBuilder.Sql(@"
+                DO $$
+                BEGIN
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'dependents' AND column_name = 'IsProfileComplete') THEN
+                        ALTER TABLE dependents ALTER COLUMN ""IsProfileComplete"" SET DEFAULT false;
+                    END IF;
+                    IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'dependents' AND column_name = 'IsDeleted') THEN
+                        ALTER TABLE dependents ALTER COLUMN ""IsDeleted"" SET DEFAULT false;
+                    END IF;
+                END $$;
+            ");
 
-            migrationBuilder.AddColumn<int>(
-                name: "tax_year",
-                table: "income_sources",
-                type: "integer",
-                nullable: false,
-                defaultValue: 0);
-
-            migrationBuilder.AddColumn<decimal>(
-                name: "total_income",
-                table: "income_sources",
-                type: "numeric(18,2)",
-                nullable: false,
-                defaultValue: 0m);
-
-            migrationBuilder.AlterColumn<bool>(
-                name: "IsProfileComplete",
-                table: "dependents",
-                type: "boolean",
-                nullable: false,
-                defaultValue: false,
-                oldClrType: typeof(bool),
-                oldType: "boolean");
-
-            migrationBuilder.AlterColumn<bool>(
-                name: "IsDeleted",
-                table: "dependents",
-                type: "boolean",
-                nullable: false,
-                defaultValue: false,
-                oldClrType: typeof(bool),
-                oldType: "boolean");
-
-            migrationBuilder.CreateTable(
-                name: "dependent_document_rules",
-                columns: table => new
-                {
-                    rule_id = table.Column<Guid>(type: "uuid", nullable: false),
-                    target_group = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
-                    doc_type = table.Column<string>(type: "character varying(50)", maxLength: 50, nullable: false),
-                    is_mandatory = table.Column<bool>(type: "boolean", nullable: false, defaultValue: true),
-                    description = table.Column<string>(type: "text", nullable: true),
-                    is_active = table.Column<bool>(type: "boolean", nullable: false, defaultValue: true),
-                    created_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
-                    updated_at = table.Column<DateTime>(type: "timestamp with time zone", nullable: false)
-                },
-                constraints: table =>
-                {
-                    table.PrimaryKey("PK_dependent_document_rules", x => x.rule_id);
-                });
-
-            migrationBuilder.CreateIndex(
-                name: "uq_group_doc_rule",
-                table: "dependent_document_rules",
-                columns: new[] { "target_group", "doc_type" },
-                unique: true);
+            migrationBuilder.Sql(@"
+                CREATE TABLE IF NOT EXISTS dependent_document_rules (
+                    rule_id uuid NOT NULL,
+                    target_group character varying(50) NOT NULL,
+                    doc_type character varying(50) NOT NULL,
+                    is_mandatory boolean NOT NULL DEFAULT true,
+                    description text,
+                    is_active boolean NOT NULL DEFAULT true,
+                    created_at timestamp with time zone NOT NULL,
+                    updated_at timestamp with time zone NOT NULL,
+                    CONSTRAINT ""PK_dependent_document_rules"" PRIMARY KEY (rule_id)
+                );
+                CREATE UNIQUE INDEX IF NOT EXISTS uq_group_doc_rule ON dependent_document_rules (target_group, doc_type);
+            ");
         }
 
         /// <inheritdoc />
