@@ -409,5 +409,119 @@ namespace TaxKeepVN.Application.Service.Implementations
                 Documents = docDtos
             };
         }
+
+        // ─────────────────────────────────────────────────────────────────────────
+        // PATCH /api/v1/dependents/{id}/group — Chuyển nhóm NPT
+        // ─────────────────────────────────────────────────────────────────────────
+        public async Task<UpdateDependentGroupResponse> UpdateGroupAsync(
+            Guid taxpayerId, Guid dependentId, UpdateDependentGroupRequest request)
+        {
+            var dependentRepo = _unitOfWork.Repository<Dependent>();
+
+            // ── 1. Tìm NPT theo id ───────────────────────────────────────────────
+            var dependent = await dependentRepo.GetByIdAsync(dependentId);
+
+            if (dependent == null || dependent.IsDeleted)
+                throw new NotFoundException($"Không tìm thấy người phụ thuộc với Id '{dependentId}'.");
+
+            // ── 2. Kiểm tra chủ sở hữu ──────────────────────────────────────────
+            if (dependent.TaxpayerId != taxpayerId)
+                throw new ForbiddenException(
+                    "Bạn không có quyền cập nhật thông tin người phụ thuộc này.");
+
+            // ── 3. Parse và validate NewGroup enum ──────────────────────────────
+            if (!Enum.TryParse<DependentGroup>(request.NewGroup, true, out var newGroup))
+            {
+                throw new BadRequestException(
+                    "INVALID_GROUP",
+                    $"Nhóm điều kiện '{request.NewGroup}' không hợp lệ. " +
+                    "Các giá trị hợp lệ: CHILD_UNDER_18, CHILD_OVER_18_DISABLED, CHILD_OVER_18_STUDYING, " +
+                    "SPOUSE_DISABLED, SPOUSE_RETIRED, PARENT_DISABLED, PARENT_RETIRED, OTHER_HELPLESS."
+                );
+            }
+
+            // ── 4. Không cho phép chuyển cùng nhóm ──────────────────────────────
+            if (newGroup == dependent.CurrentGroup)
+            {
+                throw new BadRequestException(
+                    "SAME_GROUP",
+                    $"Người phụ thuộc đã ở nhóm '{newGroup}'. Vui lòng chọn nhóm khác để chuyển."
+                );
+            }
+
+            // ── 5. Validate NewGroup phải thuộc cùng Relationship ───────────────
+            ValidateGroupMatchesRelationship(dependent.Relationship, newGroup);
+
+            // ── 6. Lưu nhóm cũ để đưa vào response ─────────────────────────────
+            var previousGroup = dependent.CurrentGroup;
+
+            // ── 7. Cập nhật entity ───────────────────────────────────────────────
+            dependent.CurrentGroup = newGroup;
+            dependent.IsProfileComplete = false;
+            dependent.Status = DependentStatus.PENDING_DOCUMENTS;
+            dependent.Note = request.Note ?? dependent.Note; // null giữ nguyên ghi chú cũ
+            dependent.UpdatedAt = DateTimeOffset.UtcNow;
+
+            dependentRepo.Update(dependent);
+
+            // ── 8. Tạo SystemNotification thông báo cho user ─────────────────────
+            var requiredDocs = GetRequiredDocuments(newGroup);
+            var docList = string.Join(", ", requiredDocs);
+
+            var notification = new SystemNotification
+            {
+                NotificationId = Guid.NewGuid(),
+                UserId = taxpayerId,
+                Title = $"Hồ sơ người phụ thuộc '{dependent.FullName}' cần cập nhật giấy tờ",
+                Message = $"Người phụ thuộc '{dependent.FullName}' vừa được chuyển từ nhóm " +
+                          $"'{previousGroup}' sang nhóm '{newGroup}'. " +
+                          $"Vui lòng bổ sung các giấy tờ cần thiết: {docList}.",
+                NotificationType = "DEPENDENT_GROUP_TRANSITION",
+                IsRead = false,
+                TargetActionUrl = $"/dependents/{dependentId}/documents",
+                CreatedAt = DateTime.UtcNow
+            };
+
+            await _unitOfWork.Repository<SystemNotification>().AddAsync(notification);
+            await _unitOfWork.SaveChangesAsync();
+
+            // ── 9. Lấy danh sách documents đã upload ───────────────────────────
+            var docRepo = _unitOfWork.Repository<DependentDocument>();
+            var documents = (await docRepo.FindAsync(doc => doc.DependentId == dependentId)).ToList();
+
+            var docDtos = documents.Select(doc => new DependentDocumentDto
+            {
+                DocId = doc.Id,
+                DocType = doc.DocType.ToString(),
+                FileUrl = doc.FileUrl,
+                FileMimeType = doc.FileMimeType,
+                IsReadable = doc.IsReadable,
+                UploadedAt = doc.UploadedAt
+            }).ToList();
+
+            // ── 10. Trả về response ─────────────────────────────────────────────
+            return new UpdateDependentGroupResponse
+            {
+                DependentId = dependent.Id,
+                TaxpayerId = dependent.TaxpayerId,
+                FullName = dependent.FullName,
+                BirthDate = dependent.BirthDate,
+                CitizenId = dependent.CitizenId,
+                BirthCertNumber = dependent.BirthCertNumber,
+                TaxIdNumber = dependent.TaxIdNumber,
+                Relationship = dependent.Relationship.ToString(),
+                EffectiveFromMonth = dependent.EffectiveFromMonth,
+                EffectiveToMonth = dependent.EffectiveToMonth,
+                Note = dependent.Note,
+                CreatedAt = dependent.CreatedAt,
+                UpdatedAt = dependent.UpdatedAt,
+                PreviousGroup = previousGroup.ToString(),
+                CurrentGroup = dependent.CurrentGroup.ToString(),
+                Status = dependent.Status.ToString(),
+                IsProfileComplete = false,
+                RequiredDocuments = requiredDocs,
+                Documents = docDtos
+            };
+        }
     }
 }

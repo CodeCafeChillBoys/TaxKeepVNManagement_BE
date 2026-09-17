@@ -26,5 +26,13 @@ namespace TaxKeepVN.Application.Service.Interfaces
         /// Ném ForbiddenException nếu không đúng chủ sở hữu, NotFoundException nếu không tồn tại.
         /// </summary>
         Task<DependentDetailResponse> GetDependentByIdAsync(Guid taxpayerId, Guid dependentId);
+
+        /// <summary>
+        /// Chuyển nhóm điều kiện của người phụ thuộc (ví dụ: CHILD_UNDER_18 → CHILD_OVER_18_STUDYING).
+        /// Reset IsProfileComplete = false và Status = PENDING_DOCUMENTS để yêu cầu upload lại tài liệu.
+        /// Tạo SystemNotification thông báo cho người dùng.
+        /// Cho phép cập nhật Note cùng lúc.
+        /// </summary>
+        Task<UpdateDependentGroupResponse> UpdateGroupAsync(Guid taxpayerId, Guid dependentId, UpdateDependentGroupRequest request);
     }
 }
