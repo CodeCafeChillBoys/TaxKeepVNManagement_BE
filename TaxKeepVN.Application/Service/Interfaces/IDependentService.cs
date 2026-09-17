@@ -34,5 +34,14 @@ namespace TaxKeepVN.Application.Service.Interfaces
         /// Cho phép cập nhật Note cùng lúc.
         /// </summary>
         Task<UpdateDependentGroupResponse> UpdateGroupAsync(Guid taxpayerId, Guid dependentId, UpdateDependentGroupRequest request);
+
+        /// <summary>
+        /// Xóa mềm (vô hiệu hóa) người phụ thuộc: set IsDeleted = true, Status = INACTIVE.
+        /// Dùng khi người phụ thuộc không còn đủ điều kiện hoặc đã mất.
+        /// Dữ liệu vẫn được giữ lại trong DB để phục vụ tra cứu lịch sử.
+        /// Tạo SystemNotification thông báo cho người dùng.
+        /// Ném ForbiddenException nếu không đúng chủ sở hữu, NotFoundException nếu không tồn tại.
+        /// </summary>
+        Task<DeleteDependentResponse> DeleteDependentAsync(Guid taxpayerId, Guid dependentId, DeleteDependentRequest request);
     }
 }

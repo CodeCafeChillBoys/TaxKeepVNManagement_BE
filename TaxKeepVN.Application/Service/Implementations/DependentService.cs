@@ -523,5 +523,73 @@ namespace TaxKeepVN.Application.Service.Implementations
                 Documents = docDtos
             };
         }
+
+        // ─────────────────────────────────────────────────────────────────────────
+        // DELETE /api/v1/dependents/{id} — Xóa mềm người phụ thuộc
+        // ─────────────────────────────────────────────────────────────────────────
+        public async Task<DeleteDependentResponse> DeleteDependentAsync(
+            Guid taxpayerId, Guid dependentId, DeleteDependentRequest request)
+        {
+            var dependentRepo = _unitOfWork.Repository<Dependent>();
+
+            // ── 1. Tìm NPT ──────────────────────────────────────────────────────
+            var dependent = await dependentRepo.GetByIdAsync(dependentId);
+
+            if (dependent == null || dependent.IsDeleted)
+                throw new NotFoundException($"Không tìm thấy người phụ thuộc với Id '{dependentId}'.");
+
+            // ── 2. Kiểm tra chủ sở hữu ──────────────────────────────────────────
+            if (dependent.TaxpayerId != taxpayerId)
+                throw new ForbiddenException(
+                    "Bạn không có quyền vô hiệu hóa người phụ thuộc này.");
+
+            var deletedAt = DateTimeOffset.UtcNow;
+
+            // ── 3. Soft delete ───────────────────────────────────────────────────
+            dependent.IsDeleted  = true;
+            dependent.Status     = DependentStatus.INACTIVE;
+            dependent.UpdatedAt  = deletedAt;
+
+            // Ghi lý do vào Note nếu có (giữ nguyên note cũ nếu không cung cấp)
+            if (!string.IsNullOrWhiteSpace(request?.Reason))
+                dependent.Note = $"[Vô hiệu hóa] {request.Reason}";
+
+            dependentRepo.Update(dependent);
+
+            // ── 4. Tạo SystemNotification ────────────────────────────────────────
+            var reasonText = string.IsNullOrWhiteSpace(request?.Reason)
+                ? "Không có lý do cụ thể."
+                : request.Reason;
+
+            var notification = new SystemNotification
+            {
+                NotificationId    = Guid.NewGuid(),
+                UserId            = taxpayerId,
+                Title             = $"Người phụ thuộc '{dependent.FullName}' đã bị vô hiệu hóa",
+                Message           = $"Hồ sơ người phụ thuộc '{dependent.FullName}' " +
+                                    $"đã được vô hiệu hóa và không còn được tính giảm trừ gia cảnh. " +
+                                    $"Lý do: {reasonText}",
+                NotificationType  = "DEPENDENT_DEACTIVATED",
+                IsRead            = false,
+                TargetActionUrl   = $"/dependents/{dependentId}",
+                CreatedAt         = deletedAt.UtcDateTime
+            };
+
+            await _unitOfWork.Repository<SystemNotification>().AddAsync(notification);
+            await _unitOfWork.SaveChangesAsync();
+
+            // ── 5. Trả về response ───────────────────────────────────────────────
+            return new DeleteDependentResponse
+            {
+                DependentId  = dependent.Id,
+                FullName     = dependent.FullName,
+                Relationship = dependent.Relationship.ToString(),
+                CurrentGroup = dependent.CurrentGroup.ToString(),
+                Status       = dependent.Status.ToString(),
+                IsDeleted    = true,
+                Reason       = request?.Reason,
+                DeletedAt    = deletedAt
+            };
+        }
     }
 }

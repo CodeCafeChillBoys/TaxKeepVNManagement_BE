@@ -141,5 +141,31 @@ namespace TaxKeepVNManagementSystem.Controllers
                 $"Chuyển nhóm người phụ thuộc thành công. " +
                 $"Vui lòng bổ sung giấy tờ minh chứng cho nhóm mới '{result.CurrentGroup}'."));
         }
+
+        /// <summary>
+        /// Vô hiệu hóa (xóa mềm) người phụ thuộc khi không còn đủ điều kiện hoặc đã mất.
+        /// Dữ liệu vẫn được lưu trong hệ thống phục vụ tra cứu lịch sử.
+        /// Có thể cung cấp lý do trong body: "Không còn là người phụ thuộc", "Đã mất", v.v.
+        /// DELETE /api/v1/dependents/{dependentId}
+        /// </summary>
+        [HttpDelete("{dependentId:guid}", Name = "DeleteDependent")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> DeleteDependent(
+            [FromRoute] Guid dependentId,
+            [FromBody] DeleteDependentRequest? request)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ApiResponse<object>.ValidationFail(ModelState));
+
+            var taxpayerId = GetUserIdFromToken();
+            var result = await _dependentService.DeleteDependentAsync(taxpayerId, dependentId, request ?? new DeleteDependentRequest());
+
+            return Ok(ApiResponse<object>.Ok(result,
+                $"Người phụ thuộc '{result.FullName}' đã được vô hiệu hóa thành công."));
+        }
     }
 }
