@@ -130,5 +130,59 @@ namespace TaxKeepVNManagementSystem.Controllers
             }
             return userId;
         }
+
+        /// <summary>
+        /// Chuyển nhóm điều kiện của người phụ thuộc khi có sự thay đổi (ví dụ: con đủ 18 tuổi).
+        /// Giữ nguyên toàn bộ thông tin định danh, chỉ cập nhật CurrentGroup và tùy chọn Note.
+        /// Tự động reset trạng thái hồ sơ về PENDING_DOCUMENTS và gửi thông báo yêu cầu bổ sung giấy tờ.
+        /// Response trả về đủ thông tin để FE điều hướng thẳng tới trang upload giấy tờ mới.
+        /// PATCH /api/v1/dependents/{dependentId}/group
+        /// </summary>
+        [HttpPatch("{dependentId:guid}/group", Name = "UpdateDependentGroup")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> UpdateDependentGroup(
+            [FromRoute] Guid dependentId,
+            [FromBody] UpdateDependentGroupRequest request)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ApiResponse<object>.ValidationFail(ModelState));
+
+            var taxpayerId = GetUserIdFromToken();
+            var result = await _dependentService.UpdateGroupAsync(taxpayerId, dependentId, request);
+
+            return Ok(ApiResponse<object>.Ok(result,
+                $"Chuyển nhóm người phụ thuộc thành công. " +
+                $"Vui lòng bổ sung giấy tờ minh chứng cho nhóm mới '{result.CurrentGroup}'."));
+        }
+
+        /// <summary>
+        /// Vô hiệu hóa (xóa mềm) người phụ thuộc khi không còn đủ điều kiện hoặc đã mất.
+        /// Dữ liệu vẫn được lưu trong hệ thống phục vụ tra cứu lịch sử.
+        /// Có thể cung cấp lý do trong body: "Không còn là người phụ thuộc", "Đã mất", v.v.
+        /// DELETE /api/v1/dependents/{dependentId}
+        /// </summary>
+        [HttpDelete("{dependentId:guid}", Name = "DeleteDependent")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> DeleteDependent(
+            [FromRoute] Guid dependentId,
+            [FromBody] DeleteDependentRequest? request)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ApiResponse<object>.ValidationFail(ModelState));
+
+            var taxpayerId = GetUserIdFromToken();
+            var result = await _dependentService.DeleteDependentAsync(taxpayerId, dependentId, request ?? new DeleteDependentRequest());
+
+            return Ok(ApiResponse<object>.Ok(result,
+                $"Người phụ thuộc '{result.FullName}' đã được vô hiệu hóa thành công."));
+        }
     }
 }
