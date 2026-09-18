@@ -237,19 +237,14 @@ namespace TaxKeepVN.Application.Service.Implementations
                 var normalizedCode = dto.DocTypeCode.Trim().ToUpperInvariant();
                 var docTypeRepo = _unitOfWork.Repository<TaxDocumentType>();
                 var existingDocType = (await docTypeRepo.FindAsync(t => t.Code == normalizedCode)).FirstOrDefault();
+
                 if (existingDocType == null)
                 {
-                    await docTypeRepo.AddAsync(new TaxDocumentType
-                    {
-                        Code = normalizedCode,
-                        Name = normalizedCode,
-                        IsTaxEligible = true
-                    });
-                    await _unitOfWork.SaveChangesAsync();
+                    throw new BadRequestException("INVALID_DOC_TYPE", $"Mã loại chứng từ '{normalizedCode}' không tồn tại trong hệ thống.");
                 }
-                document.DocTypeCode = normalizedCode;
-            }
 
+                document.DocTypeCode = existingDocType.Code;
+            }
             document.InvoiceSeries = dto.InvoiceSeries;
             document.InvoiceNumber = dto.InvoiceNumber;
             document.InvoiceDate = dto.InvoiceDate;

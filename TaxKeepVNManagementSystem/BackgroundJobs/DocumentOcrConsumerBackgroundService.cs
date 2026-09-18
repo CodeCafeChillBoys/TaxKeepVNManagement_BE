@@ -175,17 +175,15 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
                 var normalizedCode = data.DocTypeCode.Trim().ToUpperInvariant();
                 var docTypeRepo = unitOfWork.Repository<TaxDocumentType>();
                 var existingDocType = (await docTypeRepo.FindAsync(t => t.Code == normalizedCode)).FirstOrDefault();
-                if (existingDocType == null)
+                if (existingDocType != null)
                 {
-                    await docTypeRepo.AddAsync(new TaxDocumentType
-                    {
-                        Code = normalizedCode,
-                        Name = normalizedCode,
-                        IsTaxEligible = true
-                    });
-                    await unitOfWork.SaveChangesAsync();
+                    document.DocTypeCode = existingDocType.Code;
                 }
-                document.DocTypeCode = normalizedCode;
+                else
+                {
+                    _logger.LogWarning("AI returned unknown DocTypeCode '{Code}', not in system catalog. Leaving as null for user to select.", normalizedCode);
+                    document.DocTypeCode = null;
+                }
             }
 
             // Lưu toàn bộ dữ liệu bóc tách từ AI vào bảng documents

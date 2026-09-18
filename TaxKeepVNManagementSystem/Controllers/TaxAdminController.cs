@@ -15,7 +15,7 @@ namespace TaxKeepVNManagementSystem.Controllers
 {
     [ApiController]
     [Route("api/v1/admin/tax-rules")]
-    [Authorize] 
+    [Authorize]
     public class TaxAdminController : ControllerBase
     {
         private readonly ITaxAIProducerService _producerService;
@@ -43,7 +43,7 @@ namespace TaxKeepVNManagementSystem.Controllers
             var adminIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("userId")?.Value;
             Guid? adminId = Guid.TryParse(adminIdClaim, out var parsedGuid) ? parsedGuid : null;
 
-            // 2. Chuyển đổi file sang Base64 để gửi qua RabbitMQ (hoặc upload lên Cloud/S3 lấy URL)
+            // 2. Chuyển đổi file sang Base64 để gửi qua RabbitMQ 
             string fileBase64;
             using (var memoryStream = new MemoryStream())
             {

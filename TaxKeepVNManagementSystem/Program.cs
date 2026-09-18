@@ -102,7 +102,7 @@ builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 
 // ── Application & Infrastructure Services ───────────────────────────────────
-builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
+builder.Services.AddHttpClient<IFileStorageService, SupabaseStorageService>();
 builder.Services.AddScoped<IDependentDocumentService, DependentDocumentService>();
 builder.Services.AddScoped<IDependentReminderService, DependentReminderService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
