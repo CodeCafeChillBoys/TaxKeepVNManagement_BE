@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TaxKeepVN.Infrastructure.Contexts;
@@ -11,9 +12,11 @@ using TaxKeepVN.Infrastructure.Contexts;
 namespace TaxKeepVN.Infrastructure.Migrations
 {
     [DbContext(typeof(TaxKeepDbContext))]
-    partial class TaxKeepDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260917072707_FixDatabaseConventionsAndRelations")]
+    partial class FixDatabaseConventionsAndRelations
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -212,195 +215,6 @@ namespace TaxKeepVN.Infrastructure.Migrations
                     b.ToTable("dependent_document_rules", (string)null);
                 });
 
-            modelBuilder.Entity("TaxKeepVN.Domain.Entities.Document", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<string>("BuyerAddress")
-                        .HasColumnType("text")
-                        .HasColumnName("buyer_address");
-
-                    b.Property<string>("BuyerIdCard")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("buyer_id_card");
-
-                    b.Property<string>("BuyerName")
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)")
-                        .HasColumnName("buyer_name");
-
-                    b.Property<string>("BuyerTaxCode")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("buyer_tax_code");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("DocTypeCode")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("doc_type_code");
-
-                    b.Property<short?>("ExtractedYear")
-                        .HasColumnType("smallint")
-                        .HasColumnName("extracted_year");
-
-                    b.Property<string>("FileUrl")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("file_url");
-
-                    b.Property<DateOnly?>("InvoiceDate")
-                        .HasColumnType("date")
-                        .HasColumnName("invoice_date");
-
-                    b.Property<string>("InvoiceNumber")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("invoice_number");
-
-                    b.Property<string>("InvoiceSeries")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("invoice_series");
-
-                    b.Property<bool?>("IsIdentityValid")
-                        .HasColumnType("boolean")
-                        .HasColumnName("is_identity_valid");
-
-                    b.Property<bool?>("IsYearValid")
-                        .HasColumnType("boolean")
-                        .HasColumnName("is_year_valid");
-
-                    b.Property<string>("LookupCode")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("lookup_code");
-
-                    b.Property<string>("LookupUrl")
-                        .HasColumnType("text")
-                        .HasColumnName("lookup_url");
-
-                    b.Property<string>("OriginalFilename")
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)")
-                        .HasColumnName("original_filename");
-
-                    b.Property<string>("PaymentMethod")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("payment_method");
-
-                    b.Property<Guid>("PeriodId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("period_id");
-
-                    b.Property<string>("SellerAddress")
-                        .HasColumnType("text")
-                        .HasColumnName("seller_address");
-
-                    b.Property<string>("SellerName")
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)")
-                        .HasColumnName("seller_name");
-
-                    b.Property<string>("SellerPhone")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("seller_phone");
-
-                    b.Property<string>("SellerTaxCode")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("seller_tax_code");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasDefaultValue("UPLOADED")
-                        .HasColumnName("status");
-
-                    b.Property<decimal?>("TotalAmount")
-                        .HasColumnType("numeric(18,2)")
-                        .HasColumnName("total_amount");
-
-                    b.Property<string>("TotalAmountInWords")
-                        .HasColumnType("text")
-                        .HasColumnName("total_amount_in_words");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DocTypeCode")
-                        .HasDatabaseName("idx_documents_doc_type_code");
-
-                    b.HasIndex("PeriodId")
-                        .HasDatabaseName("idx_documents_period_id");
-
-                    b.ToTable("documents", (string)null);
-                });
-
-            modelBuilder.Entity("TaxKeepVN.Domain.Entities.DocumentItem", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("bigint")
-                        .HasColumnName("id");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
-
-                    b.Property<Guid>("DocumentId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("document_id");
-
-                    b.Property<string>("ItemName")
-                        .IsRequired()
-                        .HasMaxLength(500)
-                        .HasColumnType("character varying(500)")
-                        .HasColumnName("item_name");
-
-                    b.Property<int>("ItemOrder")
-                        .HasColumnType("integer")
-                        .HasColumnName("item_order");
-
-                    b.Property<decimal>("Quantity")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("numeric(18,4)")
-                        .HasDefaultValue(0m)
-                        .HasColumnName("quantity");
-
-                    b.Property<decimal>("TotalPrice")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("numeric(18,2)")
-                        .HasDefaultValue(0m)
-                        .HasColumnName("total_price");
-
-                    b.Property<string>("Unit")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("unit");
-
-                    b.Property<decimal>("UnitPrice")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("numeric(18,2)")
-                        .HasDefaultValue(0m)
-                        .HasColumnName("unit_price");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("DocumentId")
-                        .HasDatabaseName("idx_document_items_document_id");
-
-                    b.ToTable("document_items", (string)null);
-                });
-
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.IncomeSource", b =>
                 {
                     b.Property<Guid>("Id")
@@ -524,94 +338,9 @@ namespace TaxKeepVN.Infrastructure.Migrations
 
                     b.HasKey("NotificationId");
 
-                    b.ToTable("system_notifications");
-                });
+                    b.HasIndex("UserId");
 
-            modelBuilder.Entity("TaxKeepVN.Domain.Entities.TaxDocumentType", b =>
-                {
-                    b.Property<string>("Code")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("code");
-
-                    b.Property<bool>("IsTaxEligible")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true)
-                        .HasColumnName("is_tax_eligible");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)")
-                        .HasColumnName("name");
-
-                    b.HasKey("Code");
-
-                    b.ToTable("document_types", (string)null);
-
-                    b.HasData(
-                        new
-                        {
-                            Code = "SALES_INVOICE",
-                            IsTaxEligible = true,
-                            Name = "Hóa đơn bán hàng"
-                        },
-                        new
-                        {
-                            Code = "VAT_INVOICE",
-                            IsTaxEligible = true,
-                            Name = "Hóa đơn GTGT"
-                        },
-                        new
-                        {
-                            Code = "WITHHOLDING_VOUCHER",
-                            IsTaxEligible = true,
-                            Name = "Chứng từ khấu trừ thuế TNCN"
-                        });
-                });
-
-            modelBuilder.Entity("TaxKeepVN.Domain.Entities.TaxPeriod", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasDefaultValue("DRAFT")
-                        .HasColumnName("status");
-
-                    b.Property<short>("TaxYear")
-                        .HasColumnType("smallint")
-                        .HasColumnName("tax_year");
-
-                    b.Property<DateTimeOffset?>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId")
-                        .HasDatabaseName("idx_tax_periods_user_id");
-
-                    b.HasIndex("UserId", "TaxYear")
-                        .IsUnique()
-                        .HasDatabaseName("uq_tax_periods_user_year");
-
-                    b.ToTable("tax_periods", (string)null);
+                    b.ToTable("system_notifications", (string)null);
                 });
 
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.User", b =>
@@ -718,69 +447,27 @@ namespace TaxKeepVN.Infrastructure.Migrations
                     b.Navigation("Dependent");
                 });
 
-            modelBuilder.Entity("TaxKeepVN.Domain.Entities.Document", b =>
+            modelBuilder.Entity("TaxKeepVN.Domain.Entities.IncomeSource", b =>
                 {
-                    b.HasOne("TaxKeepVN.Domain.Entities.TaxDocumentType", "DocType")
-                        .WithMany("Documents")
-                        .HasForeignKey("DocTypeCode")
-                        .OnDelete(DeleteBehavior.Restrict);
-
-                    b.HasOne("TaxKeepVN.Domain.Entities.TaxPeriod", "Period")
-                        .WithMany("Documents")
-                        .HasForeignKey("PeriodId")
+                    b.HasOne("TaxKeepVN.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("TaxpayerId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("DocType");
-
-                    b.Navigation("Period");
                 });
 
-            modelBuilder.Entity("TaxKeepVN.Domain.Entities.DocumentItem", b =>
+            modelBuilder.Entity("TaxKeepVN.Domain.Entities.SystemNotification", b =>
                 {
-                    b.HasOne("TaxKeepVN.Domain.Entities.Document", "Document")
-                        .WithMany("Items")
-                        .HasForeignKey("DocumentId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Document");
-                });
-
-            modelBuilder.Entity("TaxKeepVN.Domain.Entities.TaxPeriod", b =>
-                {
-                    b.HasOne("TaxKeepVN.Domain.Entities.User", "User")
-                        .WithMany("TaxPeriods")
+                    b.HasOne("TaxKeepVN.Domain.Entities.User", null)
+                        .WithMany()
                         .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
+                        .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
-
-                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.Dependent", b =>
                 {
                     b.Navigation("Documents");
-                });
-
-            modelBuilder.Entity("TaxKeepVN.Domain.Entities.Document", b =>
-                {
-                    b.Navigation("Items");
-                });
-
-            modelBuilder.Entity("TaxKeepVN.Domain.Entities.TaxDocumentType", b =>
-                {
-                    b.Navigation("Documents");
-                });
-
-            modelBuilder.Entity("TaxKeepVN.Domain.Entities.TaxPeriod", b =>
-                {
-                    b.Navigation("Documents");
-                });
-
-            modelBuilder.Entity("TaxKeepVN.Domain.Entities.User", b =>
-                {
-                    b.Navigation("TaxPeriods");
                 });
 #pragma warning restore 612, 618
         }

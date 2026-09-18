@@ -86,12 +86,18 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(d => d.CreatedAt).HasColumnName("created_at");
                 entity.Property(d => d.UpdatedAt).HasColumnName("updated_at");
 
-                // Our fields matching exact DB column names
-                entity.Property(d => d.CurrentGroup).HasColumnName("CurrentGroup")
+                // Standardized snake_case column names
+                entity.Property(d => d.CurrentGroup).HasColumnName("current_group")
                     .HasConversion<string>();
-                entity.Property(d => d.BirthDate).HasColumnName("BirthDate");
-                entity.Property(d => d.IsDeleted).HasColumnName("IsDeleted").HasDefaultValue(false);
-                entity.Property(d => d.IsProfileComplete).HasColumnName("IsProfileComplete").HasDefaultValue(false);
+                entity.Property(d => d.BirthDate).HasColumnName("birth_date");
+                entity.Property(d => d.IsDeleted).HasColumnName("is_deleted").HasDefaultValue(false);
+                entity.Property(d => d.IsProfileComplete).HasColumnName("is_profile_complete").HasDefaultValue(false);
+
+                // Foreign key relationship to User
+                entity.HasOne<User>()
+                    .WithMany()
+                    .HasForeignKey(d => d.TaxpayerId)
+                    .OnDelete(DeleteBehavior.Cascade);
 
                 // Index để query overlap nhanh theo CitizenId và BirthCertNumber
                 entity.HasIndex(d => d.CitizenId).HasDatabaseName("idx_dependents_citizen_id");
@@ -102,11 +108,66 @@ namespace TaxKeepVN.Infrastructure.Contexts
             // ── DependentDocument ────────────────────────────────────────────────
             modelBuilder.Entity<DependentDocument>(entity =>
             {
-                entity.Property(d => d.DocType).HasConversion<string>();
+                entity.ToTable("dependent_documents");
+                entity.HasKey(d => d.Id);
+
+                entity.Property(d => d.Id).HasColumnName("id");
+                entity.Property(d => d.DependentId).HasColumnName("dependent_id");
+                entity.Property(d => d.DocType).HasColumnName("doc_type").HasConversion<string>().IsRequired();
+                entity.Property(d => d.FileUrl).HasColumnName("file_url").IsRequired();
+                entity.Property(d => d.FileMimeType).HasColumnName("file_mime_type").IsRequired();
+                entity.Property(d => d.IsReadable).HasColumnName("is_readable");
+                entity.Property(d => d.UploadedAt).HasColumnName("uploaded_at");
 
                 entity.HasOne(d => d.Dependent)
                     .WithMany(d => d.Documents)
                     .HasForeignKey(d => d.DependentId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // ── IncomeSource ─────────────────────────────────────────────────────
+            modelBuilder.Entity<IncomeSource>(entity =>
+            {
+                entity.ToTable("income_sources");
+                entity.HasKey(i => i.Id);
+
+                entity.Property(i => i.Id).HasColumnName("id");
+                entity.Property(i => i.TaxpayerId).HasColumnName("taxpayer_id");
+                entity.Property(i => i.CompanyName).HasColumnName("company_name").HasMaxLength(255).IsRequired();
+                entity.Property(i => i.CompanyTaxCode).HasColumnName("company_tax_code").HasMaxLength(20).IsRequired();
+                entity.Property(i => i.TaxYear).HasColumnName("tax_year");
+                entity.Property(i => i.TotalIncome).HasColumnName("total_income").HasColumnType("decimal(18,2)");
+                entity.Property(i => i.TaxWithheld).HasColumnName("tax_withheld").HasColumnType("decimal(18,2)");
+                entity.Property(i => i.IsActive).HasColumnName("is_active");
+                entity.Property(i => i.CreatedAt).HasColumnName("created_at");
+                entity.Property(i => i.UpdatedAt).HasColumnName("updated_at");
+
+                // Foreign key relationship to User
+                entity.HasOne<User>()
+                    .WithMany()
+                    .HasForeignKey(i => i.TaxpayerId)
+                    .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            // ── SystemNotification ───────────────────────────────────────────────
+            modelBuilder.Entity<SystemNotification>(entity =>
+            {
+                entity.ToTable("system_notifications");
+                entity.HasKey(n => n.NotificationId);
+
+                entity.Property(n => n.NotificationId).HasColumnName("notification_id");
+                entity.Property(n => n.UserId).HasColumnName("user_id");
+                entity.Property(n => n.Title).HasColumnName("title").HasMaxLength(255).IsRequired();
+                entity.Property(n => n.Message).HasColumnName("message").IsRequired();
+                entity.Property(n => n.NotificationType).HasColumnName("notification_type").HasMaxLength(100).IsRequired();
+                entity.Property(n => n.IsRead).HasColumnName("is_read");
+                entity.Property(n => n.TargetActionUrl).HasColumnName("target_action_url");
+                entity.Property(n => n.CreatedAt).HasColumnName("created_at");
+
+                // Foreign key relationship to User
+                entity.HasOne<User>()
+                    .WithMany()
+                    .HasForeignKey(n => n.UserId)
                     .OnDelete(DeleteBehavior.Cascade);
             });
 

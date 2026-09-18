@@ -13,16 +13,35 @@ using TaxKeepVN.Application.Service.Interfaces;
 namespace TaxKeepVNManagementSystem.Controllers
 {
     [ApiController]
-    [Route("api/auth")]
+    [Route("api/v1/auth")]
     public class AuthController : ControllerBase
     {
         private readonly IAuthService _authService;
         private readonly ITokenRevocationService _tokenRevocationService;
+        private readonly IOcrService _ocrService;
 
-        public AuthController(IAuthService authService, ITokenRevocationService tokenRevocationService)
+        public AuthController(
+            IAuthService authService, 
+            ITokenRevocationService tokenRevocationService,
+            IOcrService ocrService)
         {
             _authService = authService;
             _tokenRevocationService = tokenRevocationService;
+            _ocrService = ocrService;
+        }
+
+        /// <summary>
+        /// Bóc tách thông tin CCCD khi đăng ký người nộp thuế (eKYC / Onboarding).
+        /// Tự động kiểm tra trùng lặp tài khoản và trả dữ liệu để FE tự điền Form đăng ký.
+        /// </summary>
+        [HttpPost("cccd-extractions", Name = "ExtractUserCccdOcr")]
+        [Consumes("multipart/form-data")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> ExtractUserCccd([FromForm] TaxKeepVN.Application.DTOs.OcrAI.OcrDocumentUploadRequestDto request)
+        {
+            var result = await _ocrService.ProcessUserCccdOcrAsync(request.File, request.BackFile);
+            return Ok(ApiResponse<TaxKeepVN.Application.DTOs.OcrAI.UserCccdOcrResponseDto>.Ok(result, "Bóc tách thông tin CCCD người nộp thuế thành công."));
         }
 
         /// <summary>Đăng ký tài khoản mới bằng số CCCD</summary>
