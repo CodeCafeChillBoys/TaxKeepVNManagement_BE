@@ -103,6 +103,7 @@ builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepositor
 
 // ── Application & Infrastructure Services ───────────────────────────────────
 builder.Services.AddHttpClient<IFileStorageService, SupabaseStorageService>();
+builder.Services.AddScoped<IOcrService, OcrService>();
 builder.Services.AddScoped<IDependentDocumentService, DependentDocumentService>();
 builder.Services.AddScoped<IDependentReminderService, DependentReminderService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
@@ -131,7 +132,7 @@ builder.Services.AddSignalR();
 builder.Services.AddSingleton<Microsoft.AspNetCore.SignalR.IUserIdProvider, CustomUserIdProvider>();
 // ── JWT Authentication ───────────────────────────────────────────────────────
 var jwtSection = builder.Configuration.GetSection("Jwt");
-var jwtKey = jwtSection["Key"];
+var jwtKey = jwtSection["Key"] ?? "TaxKeepVN@SecretKey#2026!Must32CharsLong";
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
