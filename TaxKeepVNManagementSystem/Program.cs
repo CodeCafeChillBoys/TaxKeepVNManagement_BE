@@ -1,5 +1,5 @@
-using TaxKeepVNManagementSystem.Hubs;
-using TaxKeepVNManagementSystem.BackgroundJobs;
+using System;
+using System.Text;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -9,8 +9,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
-using System;
-using System.Text;
 using TaxKeepVN.Application.Service.Implementations;
 using TaxKeepVN.Application.Service.Interfaces;
 using TaxKeepVN.Application.Validators;
@@ -19,6 +17,8 @@ using TaxKeepVN.Infrastructure.Contexts;
 using TaxKeepVN.Infrastructure.Repositories;
 using TaxKeepVN.Infrastructure.Services;
 using TaxKeepVN.Infrastructure.Storage;
+using TaxKeepVNManagementSystem.BackgroundJobs;
+using TaxKeepVNManagementSystem.Hubs;
 using TaxKeepVNManagementSystem.Middlewares;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -31,6 +31,10 @@ builder.Services.AddControllers(options =>
 {
     // Return 406 Not Acceptable if client requests unsupported format
     options.ReturnHttpNotAcceptable = true;
+})
+.AddJsonOptions(options =>
+{
+    options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
 })
 .AddXmlSerializerFormatters() // Support application/xml
 .ConfigureApiBehaviorOptions(options =>
@@ -110,7 +114,10 @@ builder.Services.AddScoped<ITokenRevocationService, TokenRevocationService>();
 builder.Services.AddScoped<IProfileService, ProfileService>();
 builder.Services.AddScoped<IDependentService, DependentService>();
 builder.Services.AddScoped<ITaxAIProducerService, TaxAIProducerService>();
+builder.Services.AddScoped<IDocumentOcrProducerService, DocumentOcrProducerService>();
 builder.Services.AddScoped<IDependentRuleService, DependentRuleService>();
+builder.Services.AddScoped<ITaxPeriodService, TaxPeriodService>();
+builder.Services.AddScoped<ITaxDocumentTypeService, TaxDocumentTypeService>();
 
 // ── HTTP Clients ────────────────────────────────────────────────────────────
 builder.Services.AddHttpClient("TaxAIService", client =>
@@ -174,6 +181,7 @@ builder.Services.AddAuthorization();
 // ── Background Jobs ─────────────────────────────────────────────────────────
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.AgeTransitionReminderJob>();
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.TaxAIConsumerBackgroundService>();
+builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.DocumentOcrConsumerBackgroundService>();
 
 var app = builder.Build();
 

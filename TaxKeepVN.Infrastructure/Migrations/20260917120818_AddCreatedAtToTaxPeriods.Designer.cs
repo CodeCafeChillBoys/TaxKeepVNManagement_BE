@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TaxKeepVN.Infrastructure.Contexts;
@@ -11,9 +12,11 @@ using TaxKeepVN.Infrastructure.Contexts;
 namespace TaxKeepVN.Infrastructure.Migrations
 {
     [DbContext(typeof(TaxKeepDbContext))]
-    partial class TaxKeepDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260917120818_AddCreatedAtToTaxPeriods")]
+    partial class AddCreatedAtToTaxPeriods
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -236,6 +239,7 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         .HasColumnName("created_at");
 
                     b.Property<string>("DocTypeCode")
+                        .IsRequired()
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)")
                         .HasColumnName("doc_type_code");
@@ -705,7 +709,8 @@ namespace TaxKeepVN.Infrastructure.Migrations
                     b.HasOne("TaxKeepVN.Domain.Entities.TaxDocumentType", "DocType")
                         .WithMany("Documents")
                         .HasForeignKey("DocTypeCode")
-                        .OnDelete(DeleteBehavior.Restrict);
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
 
                     b.HasOne("TaxKeepVN.Domain.Entities.TaxPeriod", "Period")
                         .WithMany("Documents")

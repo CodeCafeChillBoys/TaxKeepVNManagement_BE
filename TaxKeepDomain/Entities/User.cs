@@ -35,5 +35,9 @@ namespace TaxKeepVN.Domain.Entities
 
         /// <summary>active | inactive | suspended</summary>
         public string Status { get; set; } = "active";
+
+        // Navigation properties
+        public ICollection<TaxPeriod> TaxPeriods { get; set; } = new List<TaxPeriod>();
     }
 }
+
