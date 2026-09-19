@@ -202,6 +202,46 @@ namespace TaxKeepVN.Application.Service.Implementations
             }
         }
 
+        // ── Helper: thứ tự ưu tiên của nhóm trong cùng một Relationship ──────────
+        // Số cao hơn = điều kiện "lớn hơn" (không thể đảo ngược theo thời gian).
+        // Trả về -1 nếu group không thuộc relationship (trường hợp không xảy ra vì đã validate trước).
+        private static int GetGroupOrder(DependentRelationship relationship, DependentGroup group)
+        {
+            return relationship switch
+            {
+                // Con: dưới 18 (0) → over-18 khuyết tật hoặc đang học (1). Hai trường hợp over-18
+                // được coi ngang hàng nhau (cùng thứ tự 1) vì chỉ khác điều kiện, không phải tuổi.
+                DependentRelationship.CHILD => group switch
+                {
+                    DependentGroup.CHILD_UNDER_18         => 0,
+                    DependentGroup.CHILD_OVER_18_DISABLED => 1,
+                    DependentGroup.CHILD_OVER_18_STUDYING => 1,
+                    _                                     => -1
+                },
+
+                // Vợ/Chồng: trong độ tuổi lao động - khuyết tật (0) → ngoài độ tuổi lao động / hưu (1).
+                DependentRelationship.SPOUSE => group switch
+                {
+                    DependentGroup.SPOUSE_DISABLED => 0,
+                    DependentGroup.SPOUSE_RETIRED  => 1,
+                    _                              => -1
+                },
+
+                // Cha/Mẹ: trong độ tuổi lao động - khuyết tật (0) → ngoài độ tuổi lao động / hưu (1).
+                DependentRelationship.PARENT => group switch
+                {
+                    DependentGroup.PARENT_DISABLED => 0,
+                    DependentGroup.PARENT_RETIRED  => 1,
+                    _                              => -1
+                },
+
+                // Cá nhân khác: chỉ có 1 nhóm, luôn trả về 0.
+                DependentRelationship.OTHER_DEPENDENT => 0,
+
+                _ => -1
+            };
+        }
+
         // ── Helper: danh sách giấy tờ bắt buộc theo DependentGroup ───────────────
         private static string[] GetRequiredDocuments(DependentGroup group)
         {
@@ -446,6 +486,22 @@ namespace TaxKeepVN.Application.Service.Implementations
                 throw new BadRequestException(
                     "SAME_GROUP",
                     $"Người phụ thuộc đã ở nhóm '{newGroup}'. Vui lòng chọn nhóm khác để chuyển."
+                );
+            }
+
+            // ── 4.5. Không cho phép chuyển xuống nhóm thấp hơn (downgrade) ──────
+            // Ví dụ: CHILD_OVER_18_STUDYING → CHILD_UNDER_18 là không hợp lệ vì
+            // độ tuổi chỉ tăng theo thời gian, không thể trẻ lại.
+            var currentOrder = GetGroupOrder(dependent.Relationship, dependent.CurrentGroup);
+            var newOrder     = GetGroupOrder(dependent.Relationship, newGroup);
+
+            if (newOrder < currentOrder)
+            {
+                throw new BadRequestException(
+                    "GROUP_DOWNGRADE_NOT_ALLOWED",
+                    $"Không thể chuyển người phụ thuộc từ nhóm '{dependent.CurrentGroup}' " +
+                    $"xuống nhóm thấp hơn '{newGroup}'. " +
+                    "Nhóm mới phải tương đương hoặc cao hơn nhóm hiện tại."
                 );
             }
 
