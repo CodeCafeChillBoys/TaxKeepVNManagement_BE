@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel.DataAnnotations;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -43,6 +44,28 @@ namespace TaxKeepVNManagementSystem.Controllers
         {
             var result = await _ocrService.ProcessDependentOcrAsync(request.File, request.BackFile);
             return Ok(ApiResponse<TaxKeepVN.Application.DTOs.OcrAI.DependentOcrResponseDto>.Ok(result, "Bóc tách thông tin người phụ thuộc thành công."));
+        }
+
+        /// <summary>
+        /// [Public] Lấy danh sách các nhóm điều kiện người phụ thuộc.
+        /// Dùng để hiển thị dropdown trên Mobile/Web. Không cần đăng nhập.
+        /// Hỗ trợ filter theo Relationship: ?relationship=CHILD | SPOUSE | PARENT | OTHER_DEPENDENT
+        /// GET /api/v1/dependents/groups
+        /// </summary>
+        [HttpGet("groups", Name = "GetDependentGroups")]
+        [AllowAnonymous]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public IActionResult GetDependentGroups([FromQuery] string? relationship = null)
+        {
+            var groups = Enum.GetNames(typeof(TaxKeepVN.Domain.Enums.DependentGroup));
+
+            var result = string.IsNullOrWhiteSpace(relationship)
+                ? groups
+                : groups.Where(g => g.StartsWith(relationship.Trim().ToUpper() + "_",
+                                    StringComparison.OrdinalIgnoreCase)).ToArray();
+
+            return Ok(ApiResponse<object>.Ok(result,
+                "Lấy danh sách nhóm người phụ thuộc thành công."));
         }
 
         /// <summary>
