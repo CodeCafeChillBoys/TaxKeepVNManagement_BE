@@ -35,39 +35,6 @@ namespace TaxKeepVN.Infrastructure.Services
             };
         }
 
-        public void PublishOcrTask(DocumentOcrExtractRequestMessage message)
-        {
-            var queueName = GetQueueName();
-            var factory = CreateFactory();
-
-            using var connection = factory.CreateConnection();
-            using var channel = connection.CreateModel();
-
-            channel.QueueDeclare(
-                queue: queueName,
-                durable: true,
-                exclusive: false,
-                autoDelete: false,
-                arguments: null
-            );
-
-            var json = JsonSerializer.Serialize(message);
-            var body = Encoding.UTF8.GetBytes(json);
-
-            var properties = channel.CreateBasicProperties();
-            properties.Persistent = true;
-
-            channel.BasicPublish(
-                exchange: "",
-                routingKey: queueName,
-                basicProperties: properties,
-                body: body
-            );
-
-            _logger.LogInformation("Published OCR task to queue '{Queue}' for document taskId={TaskId}, periodId={PeriodId}",
-                queueName, message.TaskId, message.PeriodId);
-        }
-
         public void PublishBatchOcrTasks(IEnumerable<DocumentOcrExtractRequestMessage> messages)
         {
             var queueName = GetQueueName();

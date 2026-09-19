@@ -61,12 +61,12 @@ namespace TaxKeepVN.Infrastructure.Storage
             request.Headers.Add("apikey", _apiKey);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
 
-            // Gán binary content của file vào request body
-            using var stream = file.OpenReadStream();
-            using var content = new StreamContent(stream);
-            var mimeType = string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType;
-            content.Headers.ContentType = new MediaTypeHeaderValue(mimeType);
-            request.Content = content;
+                // Gán binary content của file vào request body
+                using var stream = file.OpenReadStream();
+                using var content = new StreamContent(stream);
+                var mimeType = string.IsNullOrWhiteSpace(file.ContentType) ? "application/octet-stream" : file.ContentType;
+                content.Headers.ContentType = new MediaTypeHeaderValue(mimeType);
+                request.Content = content;
 
             // 3. Gửi request lên Supabase
             var response = await _httpClient.SendAsync(request);
