@@ -489,7 +489,12 @@ namespace TaxKeepVN.Application.Service.Implementations
                 );
             }
 
-            // ── 4.5. Không cho phép chuyển xuống nhóm thấp hơn (downgrade) ──────
+            // ── 4.5. Validate NewGroup phải thuộc cùng Relationship ────────────
+            // Phải kiểm tra trước: nếu chọn sai Relationship thì báo lỗi GROUP_RELATIONSHIP_MISMATCH
+            // rõ ràng hơn là bị lọt xuống check downgrade (ra lỗi sai ngữ nghĩa).
+            ValidateGroupMatchesRelationship(dependent.Relationship, newGroup);
+
+            // ── 5. Không cho phép chuyển xuống nhóm thấp hơn (downgrade) ─────────
             // Ví dụ: CHILD_OVER_18_STUDYING → CHILD_UNDER_18 là không hợp lệ vì
             // độ tuổi chỉ tăng theo thời gian, không thể trẻ lại.
             var currentOrder = GetGroupOrder(dependent.Relationship, dependent.CurrentGroup);
@@ -504,9 +509,6 @@ namespace TaxKeepVN.Application.Service.Implementations
                     "Nhóm mới phải tương đương hoặc cao hơn nhóm hiện tại."
                 );
             }
-
-            // ── 5. Validate NewGroup phải thuộc cùng Relationship ───────────────
-            ValidateGroupMatchesRelationship(dependent.Relationship, newGroup);
 
             // ── 6. Lưu nhóm cũ để đưa vào response ─────────────────────────────
             var previousGroup = dependent.CurrentGroup;
