@@ -1,7 +1,6 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using TaxKeepVN.Application.DTOs.TaxDocumentTypes;
-using TaxKeepVN.Domain.Entities;
 
 namespace TaxKeepVN.Application.Service.Interfaces
 {
@@ -11,6 +10,5 @@ namespace TaxKeepVN.Application.Service.Interfaces
         Task<TaxDocumentTypeDto> GetByCodeAsync(string code);
         Task<TaxDocumentTypeDto> CreateAsync(CreateTaxDocumentTypeDto dto);
         Task<TaxDocumentTypeDto> UpdateAsync(string code, UpdateTaxDocumentTypeDto dto);
-        Task<TaxDocumentType> EnsureExistsAsync(string code, string? defaultName = null);
     }
 }

@@ -2,6 +2,7 @@ using System.IO;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
 using PdfSharpCore.Pdf.IO;
+using TaxKeepVN.Application.Constants;
 using TaxKeepVN.Application.DTOs.Documents;
 using TaxKeepVN.Application.DTOs.TaxAI;
 using TaxKeepVN.Application.DTOs.TaxPeriods;
@@ -37,7 +38,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             int currentYear = DateTime.UtcNow.Year;
             if (taxYear < 2015 || taxYear > currentYear)
             {
-                throw new BadRequestException("INVALID_TAX_YEAR", $"Invalid tax year. Must be between 2015 and {currentYear}.");
+                throw new BadRequestException(ErrorCodes.InvalidTaxYear, ErrorMessages.InvalidTaxYear(currentYear));
             }
             var repo = _unitOfWork.Repository<TaxPeriod>();
             var periods = await repo.FindAsync(p => p.UserId == userId && p.TaxYear == (short)taxYear);
@@ -47,7 +48,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 // Kiểm tra trạng thái nếu kỳ kê khai đã nộp / hoàn tất
                 if (string.Equals(period.Status, TaxPeriodStatus.SUBMITTED, StringComparison.OrdinalIgnoreCase))
                 {
-                    throw new ForbiddenException($"Tax filing for year {taxYear} has been submitted and is locked.");
+                    throw new ForbiddenException(ErrorMessages.TaxPeriodSubmittedForYear(taxYear));
                 }
 
                 return new TaxPeriodResponseDto
@@ -88,18 +89,18 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             if (period == null || period.UserId != userId)
             {
-                throw new NotFoundException("Tax period not found. Please select a valid tax year first.");
+                throw new NotFoundException(ErrorMessages.TaxPeriodNotFound);
             }
 
             if (string.Equals(period.Status, TaxPeriodStatus.SUBMITTED, StringComparison.OrdinalIgnoreCase))
             {
-                throw new ForbiddenException("The tax filing for this year has already been submitted and is locked.");
+                throw new ForbiddenException(ErrorMessages.TaxPeriodSubmitted);
             }
 
             // 2. Kiểm tra files payload
             if (files == null || files.Count == 0)
             {
-                throw new BadRequestException("FILES_REQUIRED", "At least one document file is required.");
+                throw new BadRequestException(ErrorCodes.FilesRequired, ErrorMessages.FilesRequired);
             }
 
             var allowedExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".jpg", ".jpeg", ".png", ".pdf" };
@@ -115,18 +116,18 @@ namespace TaxKeepVN.Application.Service.Implementations
             {
                 if (file == null || file.Length == 0)
                 {
-                    throw new BadRequestException("FILES_REQUIRED", "At least one document file is required.");
+                    throw new BadRequestException(ErrorCodes.FilesRequired, ErrorMessages.FilesRequired);
                 }
 
                 var ext = Path.GetExtension(file.FileName).ToLowerInvariant();
                 if (!allowedExtensions.Contains(ext) || (!string.IsNullOrEmpty(file.ContentType) && !allowedMimeTypes.Contains(file.ContentType)))
                 {
-                    throw new BadRequestException("UNSUPPORTED_FORMAT", "Unsupported file format. Only JPG, PNG, and PDF files are permitted.");
+                    throw new BadRequestException(ErrorCodes.UnsupportedFormat, ErrorMessages.UnsupportedFormat);
                 }
 
                 if (file.Length > 10 * 1024 * 1024)
                 {
-                    throw new BadRequestException("FILE_SIZE_EXCEEDED", "Only JPG, PNG, and PDF files under 10MB are permitted.");
+                    throw new BadRequestException(ErrorCodes.FileSizeExceeded, ErrorMessages.FileSizeExceeded);
                 }
             }
 
@@ -216,12 +217,12 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             if (period == null || period.UserId != userId)
             {
-                throw new NotFoundException("Tax period not found. Please select a valid tax year first.");
+                throw new NotFoundException(ErrorMessages.TaxPeriodNotFound);
             }
 
             if (string.Equals(period.Status, TaxPeriodStatus.SUBMITTED, StringComparison.OrdinalIgnoreCase))
             {
-                throw new ForbiddenException("The tax filing for this year has already been submitted and is locked.");
+                throw new ForbiddenException(ErrorMessages.TaxPeriodSubmitted);
             }
 
             var docRepo = _unitOfWork.Repository<Document>();
@@ -229,7 +230,7 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             if (document == null || document.PeriodId != periodId)
             {
-                throw new NotFoundException("Không tìm thấy chứng từ cần duyệt.");
+                throw new NotFoundException(ErrorMessages.DocumentNotFound);
             }
 
             if (!string.IsNullOrWhiteSpace(dto.DocTypeCode))
@@ -240,7 +241,7 @@ namespace TaxKeepVN.Application.Service.Implementations
 
                 if (existingDocType == null)
                 {
-                    throw new BadRequestException("INVALID_DOC_TYPE", $"Mã loại chứng từ '{normalizedCode}' không tồn tại trong hệ thống.");
+                    throw new BadRequestException(ErrorCodes.InvalidDocType, ErrorMessages.InvalidDocType(normalizedCode));
                 }
 
                 document.DocTypeCode = existingDocType.Code;

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
+using TaxKeepVN.Application.Constants;
 using TaxKeepVN.Application.DTOs.TaxDocumentTypes;
 using TaxKeepVN.Application.Exceptions;
 using TaxKeepVN.Application.Service.Interfaces;
@@ -55,7 +56,7 @@ namespace TaxKeepVN.Application.Service.Implementations
         public async Task<TaxDocumentTypeDto> GetByCodeAsync(string code)
         {
             if (string.IsNullOrWhiteSpace(code))
-                throw new BadRequestException("INVALID_CODE", "Mã loại chứng từ không được để trống.");
+                throw new BadRequestException(ErrorCodes.InvalidCode, ErrorMessages.DocTypeCodeRequired);
 
             var normalizedCode = code.Trim().ToUpperInvariant();
             var repo = _unitOfWork.Repository<TaxDocumentType>();
@@ -63,7 +64,7 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             if (item == null)
             {
-                throw new NotFoundException($"Không tìm thấy loại chứng từ với mã '{code}'.");
+                throw new NotFoundException(ErrorMessages.DocTypeNotFound(code));
             }
 
             return new TaxDocumentTypeDto
@@ -82,7 +83,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             var existing = (await repo.FindAsync(t => t.Code == normalizedCode)).FirstOrDefault();
             if (existing != null)
             {
-                throw new ConflictException("DUPLICATE_CODE", $"Mã loại chứng từ '{normalizedCode}' đã tồn tại trong hệ thống.");
+                throw new ConflictException(ErrorCodes.DuplicateCode, ErrorMessages.DuplicateDocTypeCode(normalizedCode));
             }
 
             var entity = new TaxDocumentType
@@ -113,7 +114,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             var entity = (await repo.FindAsync(t => t.Code == normalizedCode)).FirstOrDefault();
             if (entity == null)
             {
-                throw new NotFoundException($"Không tìm thấy loại chứng từ với mã '{code}'.");
+                throw new NotFoundException(ErrorMessages.DocTypeNotFound(code));
             }
 
             entity.Name = dto.Name.Trim();
@@ -130,34 +131,6 @@ namespace TaxKeepVN.Application.Service.Implementations
                 Name = entity.Name,
                 IsTaxEligible = entity.IsTaxEligible
             };
-        }
-
-        public async Task<TaxDocumentType> EnsureExistsAsync(string code, string? defaultName = null)
-        {
-            if (string.IsNullOrWhiteSpace(code))
-                throw new ArgumentException("Mã loại chứng từ không được rỗng.", nameof(code));
-
-            var normalizedCode = code.Trim().ToUpperInvariant();
-            var repo = _unitOfWork.Repository<TaxDocumentType>();
-
-            var existing = (await repo.FindAsync(t => t.Code == normalizedCode)).FirstOrDefault();
-            if (existing != null)
-            {
-                return existing;
-            }
-
-            var newType = new TaxDocumentType
-            {
-                Code = normalizedCode,
-                Name = !string.IsNullOrWhiteSpace(defaultName) ? defaultName.Trim() : normalizedCode,
-                IsTaxEligible = true
-            };
-
-            await repo.AddAsync(newType);
-            await _unitOfWork.SaveChangesAsync();
-
-            _logger.LogInformation("Auto-created TaxDocumentType '{Code}' for OCR classification mapping", normalizedCode);
-            return newType;
         }
     }
 }

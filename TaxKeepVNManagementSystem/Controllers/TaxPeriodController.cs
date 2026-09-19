@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using TaxKeepVN.Application.Constants;
 using TaxKeepVN.Application.DTOs.Documents;
 using TaxKeepVN.Application.DTOs.Responses;
 using TaxKeepVN.Application.DTOs.TaxPeriods;
@@ -33,7 +34,7 @@ namespace TaxKeepVNManagementSystem.Controllers
             }
 
             var result = await _service.InitOrGetPeriodAsync(request.UserId!.Value, request.TaxYear!.Value);
-            return Ok(ApiResponse<TaxPeriodResponseDto>.Ok(result, "Tax year period initialized successfully."));
+            return Ok(ApiResponse<TaxPeriodResponseDto>.Ok(result, SuccessMessages.TaxPeriodInitialized));
         }
 
         /// <summary>
@@ -49,7 +50,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         {
             var userId = GetUserIdFromToken();
             var result = await _service.BatchUploadDocumentsAsync(userId, periodId, files);
-            return Ok(ApiResponse<BatchUploadDocumentsResponseDto>.Ok(result, "Documents uploaded successfully."));
+            return Ok(ApiResponse<BatchUploadDocumentsResponseDto>.Ok(result, SuccessMessages.DocumentsUploaded));
         }
 
         /// <summary>
@@ -65,7 +66,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         {
             var userId = GetUserIdFromToken();
             var result = await _service.ConfirmDocumentReviewAsync(userId, periodId, documentId, dto);
-            return Ok(ApiResponse<DocumentReviewResponseDto>.Ok(result, "Xác nhận và lưu trữ dữ liệu chứng từ thành công."));
+            return Ok(ApiResponse<DocumentReviewResponseDto>.Ok(result, SuccessMessages.DocumentReviewConfirmed));
         }
 
         private Guid GetUserIdFromToken()
@@ -75,8 +76,7 @@ namespace TaxKeepVNManagementSystem.Controllers
 
             if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
             {
-                throw new UnauthorizedException("INVALID_TOKEN",
-                    "Không thể xác định danh tính người dùng từ token. Vui lòng đăng nhập lại.");
+                throw new UnauthorizedException(ErrorCodes.InvalidToken, ErrorMessages.InvalidToken);
             }
             return userId;
         }

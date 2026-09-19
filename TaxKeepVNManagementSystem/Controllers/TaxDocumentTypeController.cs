@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System.Collections.Generic;
 using System.Threading.Tasks;
+using TaxKeepVN.Application.Constants;
 using TaxKeepVN.Application.DTOs.Responses;
 using TaxKeepVN.Application.DTOs.TaxDocumentTypes;
 using TaxKeepVN.Application.Service.Interfaces;
@@ -30,7 +31,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         public async Task<IActionResult> GetAll([FromQuery] TaxDocumentTypeQueryParameters query)
         {
             var data = await _service.GetAllAsync(query);
-            return Ok(ApiResponse<IEnumerable<TaxDocumentTypeDto>>.Ok(data, "Lấy danh sách loại chứng từ thuế thành công."));
+            return Ok(ApiResponse<IEnumerable<TaxDocumentTypeDto>>.Ok(data, SuccessMessages.DocTypeListRetrieved));
         }
 
         /// <summary>
@@ -43,7 +44,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         public async Task<IActionResult> GetByCode([FromRoute] string code)
         {
             var data = await _service.GetByCodeAsync(code);
-            return Ok(ApiResponse<TaxDocumentTypeDto>.Ok(data, "Lấy chi tiết loại chứng từ thuế thành công."));
+            return Ok(ApiResponse<TaxDocumentTypeDto>.Ok(data, SuccessMessages.DocTypeDetailRetrieved));
         }
 
         /// <summary>
@@ -61,7 +62,7 @@ namespace TaxKeepVNManagementSystem.Controllers
 
             var data = await _service.CreateAsync(dto);
             return CreatedAtRoute("GetTaxDocumentTypeByCode", new { code = data.Code },
-                ApiResponse<TaxDocumentTypeDto>.Ok(data, "Thêm mới loại chứng từ thuế thành công."));
+                ApiResponse<TaxDocumentTypeDto>.Ok(data, SuccessMessages.DocTypeCreated));
         }
 
         /// <summary>
@@ -78,7 +79,7 @@ namespace TaxKeepVNManagementSystem.Controllers
                 return BadRequest(ApiResponse<object>.ValidationFail(ModelState));
 
             var data = await _service.UpdateAsync(code, dto);
-            return Ok(ApiResponse<TaxDocumentTypeDto>.Ok(data, "Cập nhật loại chứng từ thuế thành công."));
+            return Ok(ApiResponse<TaxDocumentTypeDto>.Ok(data, SuccessMessages.DocTypeUpdated));
         }
     }
 }
