@@ -26,7 +26,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         [HttpGet(Name = "GetIncomeSources")]
         public async Task<IActionResult> GetAll([FromQuery] IncomeSourceQueryParameters query)
         {
-            Guid userId = GetMockUserId();
+            Guid userId = GetUserIdFromToken();
             var data = await _service.GetAllByUserIdAsync(userId, query);
             return Ok(ApiResponse<object>.Ok(data, "Lấy danh sách nơi chi trả thu nhập thành công."));
         }
@@ -35,7 +35,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         [HttpGet("summary", Name = "GetIncomeSourcesSummary")]
         public async Task<IActionResult> GetSummary([FromQuery] int taxYear = 2026)
         {
-            Guid userId = GetMockUserId();
+            Guid userId = GetUserIdFromToken();
             var data = await _service.GetSummaryByUserIdAsync(userId, taxYear);
             return Ok(ApiResponse<object>.Ok(data, $"Lấy bảng tổng hợp thu nhập năm {taxYear} thành công."));
         }
@@ -44,7 +44,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         [HttpGet("{id:guid}", Name = "GetIncomeSourceById")]
         public async Task<IActionResult> GetById(Guid id)
         {
-            Guid userId = GetMockUserId();
+            Guid userId = GetUserIdFromToken();
             var data = await _service.GetByIdAsync(id, userId);
             return Ok(ApiResponse<object>.Ok(data, "Lấy thông tin nơi chi trả thu nhập thành công."));
         }
@@ -56,7 +56,7 @@ namespace TaxKeepVNManagementSystem.Controllers
             if (!ModelState.IsValid)
                 return BadRequest(ApiResponse<object>.ValidationFail(ModelState));
 
-            Guid userId = GetMockUserId();
+            Guid userId = GetUserIdFromToken();
             var data = await _service.CreateAsync(userId, dto);
             return StatusCode(StatusCodes.Status201Created,
                 ApiResponse<object>.Ok(data, "Khai báo nơi chi trả thu nhập thành công."));
@@ -69,7 +69,7 @@ namespace TaxKeepVNManagementSystem.Controllers
             if (!ModelState.IsValid)
                 return BadRequest(ApiResponse<object>.ValidationFail(ModelState));
 
-            Guid userId = GetMockUserId();
+            Guid userId = GetUserIdFromToken();
             var data = await _service.UpdateAsync(id, userId, dto);
             return Ok(ApiResponse<object>.Ok(data, "Cập nhật nơi chi trả thu nhập thành công."));
         }
@@ -78,21 +78,18 @@ namespace TaxKeepVNManagementSystem.Controllers
         [HttpDelete("{id:guid}", Name = "DeleteIncomeSource")]
         public async Task<IActionResult> Delete(Guid id)
         {
-            Guid userId = GetMockUserId();
+            Guid userId = GetUserIdFromToken();
             await _service.DeleteAsync(id, userId);
             return Ok(ApiResponse<object>.Ok(null, "Xóa nơi chi trả thu nhập thành công."));
         }
 
-        private Guid GetMockUserId()
+        private Guid GetUserIdFromToken()
         {
             var userIdClaim = User.FindFirst("userId")?.Value
                 ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
 
             if (string.IsNullOrEmpty(userIdClaim) || !Guid.TryParse(userIdClaim, out var userId))
             {
-                if (Guid.TryParse("c1234567-89ab-cdef-0123-456789abcdef", out var mockId))
-                    return mockId;
-
                 throw new TaxKeepVN.Application.Exceptions.UnauthorizedException("INVALID_TOKEN",
                     "Không thể xác định danh tính người dùng từ token.");
             }
