@@ -120,6 +120,7 @@ builder.Services.AddScoped<IDependentRuleService, DependentRuleService>();
 builder.Services.AddScoped<ITaxPeriodService, TaxPeriodService>();
 builder.Services.AddScoped<ITaxDocumentTypeService, TaxDocumentTypeService>();
 builder.Services.AddScoped<ITaxAiConfigService, TaxAiConfigService>();
+builder.Services.AddScoped<IUrlRuleService, UrlRuleService>();
 
 // ── HTTP Clients ────────────────────────────────────────────────────────────
 builder.Services.AddHttpClient("TaxAIService", client =>
