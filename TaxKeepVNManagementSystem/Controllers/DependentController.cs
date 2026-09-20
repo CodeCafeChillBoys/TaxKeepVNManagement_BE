@@ -1,10 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Extensions.Configuration;
 using TaxKeepVN.Application.DTOs.Common;
 using TaxKeepVN.Application.DTOs.Requests.Dependent;
 using TaxKeepVN.Application.DTOs.Responses;
@@ -21,15 +23,18 @@ namespace TaxKeepVNManagementSystem.Controllers
         private readonly IDependentService _dependentService;
         private readonly IDependentReminderService _reminderService;
         private readonly IOcrService _ocrService;
+        private readonly IConfiguration _configuration;
 
         public DependentController(
             IDependentService dependentService,
             IDependentReminderService reminderService,
-            IOcrService ocrService)
+            IOcrService ocrService,
+            IConfiguration configuration)
         {
             _dependentService = dependentService;
             _reminderService = reminderService;
             _ocrService = ocrService;
+            _configuration = configuration;
         }
 
         /// <summary>
@@ -57,12 +62,35 @@ namespace TaxKeepVNManagementSystem.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         public IActionResult GetDependentGroups([FromQuery] string? relationship = null)
         {
-            var groups = Enum.GetNames(typeof(TaxKeepVN.Domain.Enums.DependentGroup));
+            // ── Đọc danh sách nhóm từ DependentSettings:GroupOrders trong appsettings.json ──
+            // Key cấp 1 = Relationship (CHILD, SPOUSE, PARENT, OTHER_DEPENDENT)
+            // Key cấp 2 = tên Group thực tế trong enum (CHILD_UNDER_18, OTHER_HELPLESS, ...)
+            // Ưu điểm: không hardcode, đồng bộ với config mềm; sửa bug OTHER_DEPENDENT trả về rỗng.
+            var section = _configuration.GetSection("DependentSettings:GroupOrders");
 
-            var result = string.IsNullOrWhiteSpace(relationship)
-                ? groups
-                : groups.Where(g => g.StartsWith(relationship.Trim().ToUpper() + "_",
-                                    StringComparison.OrdinalIgnoreCase)).ToArray();
+            var allGroups = new List<string>();
+            foreach (var rel in section.GetChildren())
+                foreach (var grp in rel.GetChildren())
+                    allGroups.Add(grp.Key);
+
+            string[] result;
+            if (string.IsNullOrWhiteSpace(relationship))
+            {
+                result = allGroups.ToArray();
+            }
+            else
+            {
+                // Lọc theo Relationship: lấy các group nằm dưới key relationship tương ứng
+                var relKey = relationship.Trim().ToUpper();
+                var relSection = section.GetSection(relKey);
+                result = relSection.GetChildren().Select(g => g.Key).ToArray();
+
+                if (result.Length == 0)
+                    return BadRequest(ApiResponse<object>.Fail(
+                        "INVALID_RELATIONSHIP",
+                        $"Nhóm quan hệ '{relKey}' không hợp lệ. Các giá trị hợp lệ: " +
+                        string.Join(", ", section.GetChildren().Select(r => r.Key))));
+            }
 
             return Ok(ApiResponse<object>.Ok(result,
                 "Lấy danh sách nhóm người phụ thuộc thành công."));
