@@ -22,5 +22,21 @@ namespace TaxKeepVN.Application.Service.Interfaces
         /// Xác nhận và lưu chính thức dữ liệu sau khi người dùng review kết quả bóc tách từ AI.
         /// </summary>
         Task<TaxKeepVN.Application.DTOs.Documents.DocumentReviewResponseDto> ConfirmDocumentReviewAsync(Guid userId, Guid periodId, Guid documentId, TaxKeepVN.Application.DTOs.Documents.ConfirmDocumentReviewRequestDto dto);
+
+        /// <summary>
+        /// Kích hoạt lại bóc tách OCR cho một chứng từ cụ thể (chỉ cho phép khi ở trạng thái UPLOADED).
+        /// </summary>
+        Task TriggerDocumentOcrAsync(Guid userId, Guid periodId, Guid documentId);
+
+
+        /// <summary>
+        /// Lấy danh sách chứng từ theo kỳ kê khai (hỗ trợ phân trang, lọc theo DocType, Status, tìm kiếm, mặc định sắp xếp mới nhất lên đầu).
+        /// </summary>
+        Task<TaxKeepVN.Application.DTOs.Common.PagedResult<TaxKeepVN.Application.DTOs.Documents.DocumentReviewResponseDto>> GetDocumentsAsync(Guid userId, Guid periodId, TaxKeepVN.Application.DTOs.Documents.DocumentQueryParameters query);
+
+        /// <summary>
+        /// Xem chi tiết một chứng từ cụ thể theo ID kèm theo items và thông tin loại chứng từ.
+        /// </summary>
+        Task<TaxKeepVN.Application.DTOs.Documents.DocumentReviewResponseDto> GetDocumentByIdAsync(Guid userId, Guid periodId, Guid documentId);
     }
 }

@@ -11,6 +11,9 @@ namespace TaxKeepVN.Application.Constants
         public const string UnsupportedFormat = "UNSUPPORTED_FORMAT";
         public const string FileSizeExceeded = "FILE_SIZE_EXCEEDED";
         public const string InvalidDocType = "INVALID_DOC_TYPE";
+        public const string InvalidDocumentStatus = "ERR_INVALID_STATUS";
+        public const string DuplicateDocument = "ERR_DUPLICATE_DOCUMENT";
+        public const string IdentityMismatch = "ERR_IDENTITY_MISMATCH";
 
         // Tax Document Types
         public const string InvalidCode = "INVALID_CODE";
@@ -31,6 +34,9 @@ namespace TaxKeepVN.Application.Constants
         public const string UnsupportedFormat = "Unsupported file format. Only JPG, PNG, and PDF files are permitted.";
         public const string FileSizeExceeded = "Only JPG, PNG, and PDF files under 10MB are permitted.";
         public const string DocumentNotFound = "Không tìm thấy chứng từ cần duyệt.";
+        public const string DocumentAlreadyVerified = "Document has already been extracted or verified.";
+        public static string DuplicateDocumentExists(string invNum, string taxCode) => $"Duplicate document: Invoice number {invNum} from seller {taxCode} already exists.";
+        public static string IdentityMismatch(string buyer) => $"Thông tin người mua trên chứng từ ('{buyer}') không trùng khớp với Người nộp thuế hoặc bất kỳ Người phụ thuộc nào đã đăng ký.";
         public static string InvalidDocType(string code) => $"Mã loại chứng từ '{code}' không tồn tại trong hệ thống.";
 
         // Tax Document Types
@@ -44,6 +50,7 @@ namespace TaxKeepVN.Application.Constants
         // Tax Period & Documents
         public const string TaxPeriodInitialized = "Tax year period initialized successfully.";
         public const string DocumentsUploaded = "Documents uploaded successfully.";
+        public const string DocumentOcrTriggered = "Yêu cầu bóc tách lại OCR chứng từ đã được gửi thành công.";
         public const string DocumentReviewConfirmed = "Xác nhận và lưu trữ dữ liệu chứng từ thành công.";
 
         // Tax Document Types

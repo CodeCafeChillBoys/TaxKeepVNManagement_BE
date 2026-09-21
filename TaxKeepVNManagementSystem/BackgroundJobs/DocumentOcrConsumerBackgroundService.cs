@@ -87,14 +87,10 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
                             {
                                 await ProcessOcrResultAsync(response.Data, stoppingToken);
 
-                                // Gửi SignalR thông báo real-time tới Client
-                                var eventName = response.Data.Status switch
-                                {
-                                    "EXTRACTED" => "OnDocumentOcrCompleted",
-                                    "NEEDS_REVIEW" => "OnDocumentOcrNeedsReview",
-                                    "FAILED" => "OnDocumentOcrFailed",
-                                    _ => "OnDocumentOcrCompleted"
-                                };
+                                // Gửi SignalR thông báo real-time tới Client (chỉ có 2 trường hợp: Thành công hoặc Thất bại)
+                                var eventName = string.Equals(response.Data.Status, "FAILED", StringComparison.OrdinalIgnoreCase)
+                                    ? "OnDocumentOcrFailed"
+                                    : "OnDocumentOcrCompleted";
 
                                 if (response.Data.UserId.HasValue)
                                 {
@@ -169,6 +165,12 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
                 return;
             }
 
+            if (string.Equals(document.Status, "CONFIRMED", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning("Document {DocId} is already CONFIRMED. Skipping OCR extraction update.", data.Id);
+                return;
+            }
+
             // Đảm bảo doc_type_code hợp lệ trong bảng document_types nếu có
             if (!string.IsNullOrWhiteSpace(data.DocTypeCode))
             {
@@ -217,7 +219,10 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
                 document.IsIdentityValid = data.ValidationStatus.IsIdentityValid;
             }
 
-            document.Status = "EXTRACTED";
+            document.Status = string.Equals(data.Status, "FAILED", StringComparison.OrdinalIgnoreCase)
+                ? "FAILED"
+                : "EXTRACTED";
+
             docRepo.Update(document);
 
             // Lưu danh sách chi tiết các dòng viện phí / hàng hóa vào bảng document_items

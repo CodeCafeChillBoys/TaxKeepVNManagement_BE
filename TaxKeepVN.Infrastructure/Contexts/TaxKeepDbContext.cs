@@ -86,12 +86,12 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(d => d.CreatedAt).HasColumnName("created_at");
                 entity.Property(d => d.UpdatedAt).HasColumnName("updated_at");
 
-                // Our fields matching exact DB column names
-                entity.Property(d => d.CurrentGroup).HasColumnName("CurrentGroup")
+                // Cột trong database PostgreSQL sử dụng quy ước snake_case
+                entity.Property(d => d.CurrentGroup).HasColumnName("current_group")
                     .HasConversion<string>();
-                entity.Property(d => d.BirthDate).HasColumnName("BirthDate");
-                entity.Property(d => d.IsDeleted).HasColumnName("IsDeleted").HasDefaultValue(false);
-                entity.Property(d => d.IsProfileComplete).HasColumnName("IsProfileComplete").HasDefaultValue(false);
+                entity.Property(d => d.BirthDate).HasColumnName("birth_date");
+                entity.Property(d => d.IsDeleted).HasColumnName("is_deleted").HasDefaultValue(false);
+                entity.Property(d => d.IsProfileComplete).HasColumnName("is_profile_complete").HasDefaultValue(false);
 
                 // Index để query overlap nhanh theo CitizenId và BirthCertNumber
                 entity.HasIndex(d => d.CitizenId).HasDatabaseName("idx_dependents_citizen_id");
@@ -102,12 +102,23 @@ namespace TaxKeepVN.Infrastructure.Contexts
             // ── DependentDocument ────────────────────────────────────────────────
             modelBuilder.Entity<DependentDocument>(entity =>
             {
-                entity.Property(d => d.DocType).HasConversion<string>();
+                entity.ToTable("dependent_documents");
+                entity.HasKey(d => d.Id);
+
+                entity.Property(d => d.Id).HasColumnName("id");
+                entity.Property(d => d.DependentId).HasColumnName("dependent_id").IsRequired();
+                entity.Property(d => d.DocType).HasColumnName("doc_type").HasConversion<string>().IsRequired();
+                entity.Property(d => d.FileMimeType).HasColumnName("file_mime_type").IsRequired();
+                entity.Property(d => d.FileUrl).HasColumnName("file_url").IsRequired();
+                entity.Property(d => d.IsReadable).HasColumnName("is_readable");
+                entity.Property(d => d.UploadedAt).HasColumnName("uploaded_at");
 
                 entity.HasOne(d => d.Dependent)
                     .WithMany(d => d.Documents)
                     .HasForeignKey(d => d.DependentId)
                     .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(d => d.DependentId).HasDatabaseName("idx_dependent_documents_dependent_id");
             });
 
             // ── DependentDocumentRule ────────────────────────────────────────────

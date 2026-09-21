@@ -69,6 +69,50 @@ namespace TaxKeepVNManagementSystem.Controllers
             return Ok(ApiResponse<DocumentReviewResponseDto>.Ok(result, SuccessMessages.DocumentReviewConfirmed));
         }
 
+        /// <summary>
+        /// Kích hoạt lại bóc tách OCR cho một chứng từ cụ thể (chỉ cho phép khi ở trạng thái UPLOADED).
+        /// POST /api/v1/tax-periods/{periodId}/documents/{documentId}/extract
+        /// </summary>
+        [HttpPost("{periodId:guid}/documents/{documentId:guid}/extract")]
+        public async Task<IActionResult> TriggerDocumentOcr(
+            [FromRoute] Guid periodId,
+            [FromRoute] Guid documentId)
+        {
+            var userId = GetUserIdFromToken();
+            await _service.TriggerDocumentOcrAsync(userId, periodId, documentId);
+            return Ok(ApiResponse<object>.Ok(null, SuccessMessages.DocumentOcrTriggered));
+        }
+
+
+        /// <summary>
+        /// Lấy danh sách chứng từ theo kỳ tính thuế (hỗ trợ phân trang, tìm kiếm, lọc theo DocType/Status, mặc định mới nhất lên đầu).
+        /// GET /api/v1/tax-periods/{periodId}/documents?page=1&size=10&docTypeCode=VAT_INVOICE&status=CONFIRMED&search=congty
+        /// </summary>
+        [HttpGet("{periodId:guid}/documents")]
+        public async Task<IActionResult> GetDocumentsByPeriod(
+            [FromRoute] Guid periodId,
+            [FromQuery] DocumentQueryParameters query)
+        {
+            query ??= new DocumentQueryParameters();
+            var userId = GetUserIdFromToken();
+            var result = await _service.GetDocumentsAsync(userId, periodId, query);
+            return Ok(ApiResponse<TaxKeepVN.Application.DTOs.Common.PagedResult<DocumentReviewResponseDto>>.Ok(result, "Lấy danh sách chứng từ thành công."));
+        }
+
+        /// <summary>
+        /// Xem thông tin chi tiết của một chứng từ cụ thể theo ID (kèm thông tin DocType và các dòng chi tiết Items).
+        /// GET /api/v1/tax-periods/{periodId}/documents/{documentId}
+        /// </summary>
+        [HttpGet("{periodId:guid}/documents/{documentId:guid}")]
+        public async Task<IActionResult> GetDocumentById(
+            [FromRoute] Guid periodId,
+            [FromRoute] Guid documentId)
+        {
+            var userId = GetUserIdFromToken();
+            var result = await _service.GetDocumentByIdAsync(userId, periodId, documentId);
+            return Ok(ApiResponse<DocumentReviewResponseDto>.Ok(result, "Lấy chi tiết chứng từ thành công."));
+        }
+
         private Guid GetUserIdFromToken()
         {
             var userIdClaim = User.FindFirst("userId")?.Value

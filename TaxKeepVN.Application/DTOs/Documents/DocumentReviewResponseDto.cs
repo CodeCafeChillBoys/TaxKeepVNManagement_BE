@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace TaxKeepVN.Application.DTOs.Documents
@@ -8,6 +8,8 @@ namespace TaxKeepVN.Application.DTOs.Documents
         public Guid Id { get; set; }
         public Guid PeriodId { get; set; }
         public string? DocTypeCode { get; set; }
+        public string? DocTypeName { get; set; }
+        public bool? IsTaxEligible { get; set; }
         public string FileUrl { get; set; } = string.Empty;
         public string? OriginalFilename { get; set; }
         public string? InvoiceSeries { get; set; }
