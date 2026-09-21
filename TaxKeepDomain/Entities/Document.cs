@@ -76,6 +76,9 @@ namespace TaxKeepVN.Domain.Entities
         /// <summary>Có khớp CCCD/Tên với User</summary>
         public bool? IsIdentityValid { get; set; }
 
+        /// <summary>Cam kết: Khoản chi phí này chưa được bồi hoàn từ bảo hiểm y tế hoặc nguồn tài trợ khác</summary>
+        public bool? IsNotReimbursed { get; set; } = false;
+
         /// <summary>UPLOADED, EXTRACTED, CONFIRMED</summary>
         public string Status { get; set; } = "UPLOADED";
 

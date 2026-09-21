@@ -291,6 +291,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             document.ExtractedYear = dto.ExtractedYear;
             document.IsYearValid = dto.IsYearValid;
             document.IsIdentityValid = dto.IsIdentityValid;
+            document.IsNotReimbursed = dto.IsNotReimbursed;
 
             // Đánh dấu người dùng đã review và lưu chính thức
             document.Status = "CONFIRMED";
@@ -364,6 +365,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 ExtractedYear = document.ExtractedYear,
                 IsYearValid = document.IsYearValid,
                 IsIdentityValid = document.IsIdentityValid,
+                IsNotReimbursed = document.IsNotReimbursed,
                 Status = document.Status,
                 CreatedAt = document.CreatedAt,
                 Items = savedItems.Select(i => new DocumentItemResponseDto
@@ -536,6 +538,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                     ExtractedYear = doc.ExtractedYear,
                     IsYearValid = doc.IsYearValid,
                     IsIdentityValid = doc.IsIdentityValid,
+                    IsNotReimbursed = doc.IsNotReimbursed,
                     Status = doc.Status,
                     CreatedAt = doc.CreatedAt,
                     Items = (itemsList ?? new List<DocumentItem>()).Select(i => new DocumentItemResponseDto
@@ -642,6 +645,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 ExtractedYear = doc.ExtractedYear,
                 IsYearValid = doc.IsYearValid,
                 IsIdentityValid = doc.IsIdentityValid,
+                IsNotReimbursed = doc.IsNotReimbursed,
                 Status = doc.Status,
                 CreatedAt = doc.CreatedAt,
                 Items = items

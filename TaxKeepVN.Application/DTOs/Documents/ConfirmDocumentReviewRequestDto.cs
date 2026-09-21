@@ -64,6 +64,9 @@ namespace TaxKeepVN.Application.DTOs.Documents
         /// <summary>Hợp lệ danh tính</summary>
         public bool? IsIdentityValid { get; set; }
 
+        /// <summary>Cam kết: Khoản chi phí này chưa được bồi hoàn từ bảo hiểm y tế hoặc nguồn tài trợ khác</summary>
+        public bool? IsNotReimbursed { get; set; }
+
         /// <summary>Bảng chi tiết các mặt hàng, dịch vụ, viện phí, học phí</summary>
         public System.Collections.Generic.List<TaxKeepVN.Application.DTOs.TaxAI.InvoiceLineItemDto>? Items { get; set; }
     }
