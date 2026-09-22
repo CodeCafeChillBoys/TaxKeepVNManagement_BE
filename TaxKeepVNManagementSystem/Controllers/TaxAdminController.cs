@@ -20,13 +20,16 @@ namespace TaxKeepVNManagementSystem.Controllers
     {
         private readonly ITaxAIProducerService _producerService;
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IFileStorageService _fileStorageService;
 
         public TaxAdminController(
             ITaxAIProducerService producerService,
-            IHttpClientFactory httpClientFactory)
+            IHttpClientFactory httpClientFactory,
+            IFileStorageService fileStorageService)
         {
             _producerService = producerService;
             _httpClientFactory = httpClientFactory;
+            _fileStorageService = fileStorageService;
         }
 
         [HttpPost("upload")]
@@ -43,13 +46,8 @@ namespace TaxKeepVNManagementSystem.Controllers
             var adminIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? User.FindFirst("userId")?.Value;
             Guid? adminId = Guid.TryParse(adminIdClaim, out var parsedGuid) ? parsedGuid : null;
 
-            // 2. Chuyển đổi file sang Base64 để gửi qua RabbitMQ 
-            string fileBase64;
-            using (var memoryStream = new MemoryStream())
-            {
-                await request.File.CopyToAsync(memoryStream);
-                fileBase64 = Convert.ToBase64String(memoryStream.ToArray());
-            }
+            // 2. Upload file lên Supabase Storage
+            var fileUrl = await _fileStorageService.SaveFileAsync(request.File, "tax-rules");
 
             var taskId = Guid.NewGuid();
 
@@ -59,7 +57,8 @@ namespace TaxKeepVNManagementSystem.Controllers
                 TaskId = taskId,
                 AdminId = adminId,
                 FileName = request.File.FileName,
-                FileBase64 = fileBase64,
+                FileUrl = fileUrl,
+                FileBase64 = null,
                 TaxYear = request.TaxYear,
                 Name = request.Name,
                 SourceUrl = request.SourceUrl
@@ -73,6 +72,7 @@ namespace TaxKeepVNManagementSystem.Controllers
             {
                 message = "Tài liệu đang được AI phân tích trong nền.",
                 taskId = taskId,
+                fileUrl = fileUrl,
                 adminId = adminId
             });
         }
