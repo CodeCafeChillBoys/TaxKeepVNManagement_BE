@@ -6,11 +6,13 @@ using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using System;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using TaxKeepVN.Application.DTOs.TaxAI;
+using TaxKeepVN.Application.Helpers;
 using TaxKeepVN.Application.Service.Interfaces;
 using TaxKeepVN.Domain.Entities;
 using TaxKeepVN.Domain.IRepositories;
@@ -213,10 +215,44 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
             document.LookupUrl = data.LookupUrl;
             document.LookupCode = data.LookupCode;
 
+            // 1. Cập nhật trạng thái năm tính thuế từ AI
             if (data.ValidationStatus != null)
             {
                 document.IsYearValid = data.ValidationStatus.IsYearValid;
-                document.IsIdentityValid = data.ValidationStatus.IsIdentityValid;
+            }
+
+            // 2. Tự động kiểm tra đối soát thông tin người mua với tài khoản (User & Dependents)
+            Guid? effectiveUserId = data.UserId;
+            if (!effectiveUserId.HasValue && document.PeriodId != Guid.Empty)
+            {
+                var periodRepo = unitOfWork.Repository<TaxPeriod>();
+                var period = await periodRepo.GetByIdAsync(document.PeriodId);
+                effectiveUserId = period?.UserId;
+            }
+
+            if (effectiveUserId.HasValue)
+            {
+                bool isIdentityValid = await CheckIdentityMatchAsync(
+                    unitOfWork,
+                    effectiveUserId.Value,
+                    data.BuyerTaxCode,
+                    data.BuyerIdCard,
+                    data.BuyerName);
+
+                document.IsIdentityValid = isIdentityValid;
+
+                if (data.ValidationStatus == null)
+                {
+                    data.ValidationStatus = new DocumentValidationStatus();
+                }
+                data.ValidationStatus.IsIdentityValid = isIdentityValid;
+
+                _logger.LogInformation("Identity validation for Document {DocId}: IsIdentityValid={IsValid} (Buyer: '{Buyer}', MST: '{TaxCode}', CCCD: '{IdCard}')",
+                    document.Id, isIdentityValid, data.BuyerName, data.BuyerTaxCode, data.BuyerIdCard);
+            }
+            else
+            {
+                document.IsIdentityValid = data.ValidationStatus?.IsIdentityValid;
             }
 
             document.Status = string.Equals(data.Status, "FAILED", StringComparison.OrdinalIgnoreCase)
@@ -254,6 +290,88 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
             await unitOfWork.SaveChangesAsync();
 
             _logger.LogInformation("Document {DocId} full data saved to DB with status EXTRACTED. Dispatched for client review.", document.Id);
+        }
+
+        /// <summary>
+        /// Tự động so khớp thông tin người mua trên chứng từ (MST, CCCD, Họ tên) với thông tin Người nộp thuế và Người phụ thuộc trong DB
+        /// </summary>
+        private async Task<bool> CheckIdentityMatchAsync(
+            IUnitOfWork unitOfWork,
+            Guid userId,
+            string? buyerTaxCode,
+            string? buyerIdCard,
+            string? buyerName)
+        {
+            // Nếu cả 3 thông tin định danh đều trống -> Không thể xác thực -> false
+            if (string.IsNullOrWhiteSpace(buyerTaxCode) &&
+                string.IsNullOrWhiteSpace(buyerIdCard) &&
+                string.IsNullOrWhiteSpace(buyerName))
+            {
+                return false;
+            }
+
+            // 1. Lấy thông tin tài khoản người nộp thuế (User)
+            var userRepo = unitOfWork.Repository<User>();
+            var user = await userRepo.GetByIdAsync(userId);
+            if (user == null) return false;
+
+            // 2. Lấy danh sách Người phụ thuộc của User
+            var depRepo = unitOfWork.Repository<Dependent>();
+            var dependents = (await depRepo.FindAsync(d => d.TaxpayerId == userId && !d.IsDeleted)).ToList();
+
+            // Chuẩn hóa dữ liệu OCR
+            var cleanTaxCode = buyerTaxCode?.Trim().Replace(" ", "").Replace("-", "");
+            var cleanIdCard = buyerIdCard?.Trim().Replace(" ", "");
+            var cleanName = buyerName?.Trim();
+
+            // 3. So khớp với Người nộp thuế
+            if (!string.IsNullOrEmpty(cleanTaxCode) &&
+                !string.IsNullOrEmpty(user.TaxIdNumber) &&
+                string.Equals(cleanTaxCode, user.TaxIdNumber.Trim().Replace(" ", "").Replace("-", ""), StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (!string.IsNullOrEmpty(cleanIdCard) &&
+                !string.IsNullOrEmpty(user.CitizenId) &&
+                string.Equals(cleanIdCard, user.CitizenId.Trim().Replace(" ", ""), StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (!string.IsNullOrEmpty(cleanName) &&
+                !string.IsNullOrEmpty(user.FullName) &&
+                StringComparisonHelper.IsNameMatching(cleanName, user.FullName))
+            {
+                return true;
+            }
+
+            // 4. So khớp với Người phụ thuộc
+            foreach (var dep in dependents)
+            {
+                if (!string.IsNullOrEmpty(cleanTaxCode) &&
+                    !string.IsNullOrEmpty(dep.TaxIdNumber) &&
+                    string.Equals(cleanTaxCode, dep.TaxIdNumber.Trim().Replace(" ", "").Replace("-", ""), StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                if (!string.IsNullOrEmpty(cleanIdCard) &&
+                    !string.IsNullOrEmpty(dep.CitizenId) &&
+                    string.Equals(cleanIdCard, dep.CitizenId.Trim().Replace(" ", ""), StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                if (!string.IsNullOrEmpty(cleanName) &&
+                    !string.IsNullOrEmpty(dep.FullName) &&
+                    StringComparisonHelper.IsNameMatching(cleanName, dep.FullName))
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
     }
 }

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using TaxKeepVN.Application.DTOs.Documents;
 using TaxKeepVN.Application.DTOs.TaxPeriods;
 
 namespace TaxKeepVN.Application.Service.Interfaces
@@ -32,11 +33,15 @@ namespace TaxKeepVN.Application.Service.Interfaces
         /// <summary>
         /// Lấy danh sách chứng từ theo kỳ kê khai (hỗ trợ phân trang, lọc theo DocType, Status, tìm kiếm, mặc định sắp xếp mới nhất lên đầu).
         /// </summary>
-        Task<TaxKeepVN.Application.DTOs.Common.PagedResult<TaxKeepVN.Application.DTOs.Documents.DocumentReviewResponseDto>> GetDocumentsAsync(Guid userId, Guid periodId, TaxKeepVN.Application.DTOs.Documents.DocumentQueryParameters query);
-
+        Task<List<DocumentReviewResponseDto>> GetDocumentsAsync(Guid userId, Guid periodId);
         /// <summary>
         /// Xem chi tiết một chứng từ cụ thể theo ID kèm theo items và thông tin loại chứng từ.
         /// </summary>
-        Task<TaxKeepVN.Application.DTOs.Documents.DocumentReviewResponseDto> GetDocumentByIdAsync(Guid userId, Guid periodId, Guid documentId);
+        Task<DocumentReviewResponseDto> GetDocumentByIdAsync(Guid userId, Guid periodId, Guid documentId);
+
+        /// <summary>
+        /// Nộp / hoàn tất kỳ kê khai thuế (chuyển status sang SUBMITTED và khóa chỉnh sửa chứng từ).
+        /// </summary>
+        Task<TaxPeriodResponseDto> SubmitTaxPeriodAsync(Guid userId, Guid periodId);
     }
 }

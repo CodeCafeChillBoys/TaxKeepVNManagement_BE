@@ -1,9 +1,4 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using TaxKeepVN.Application.Constants;
 using TaxKeepVN.Application.DTOs.Documents;
@@ -35,6 +30,18 @@ namespace TaxKeepVNManagementSystem.Controllers
 
             var result = await _service.InitOrGetPeriodAsync(request.UserId!.Value, request.TaxYear!.Value);
             return Ok(ApiResponse<TaxPeriodResponseDto>.Ok(result, SuccessMessages.TaxPeriodInitialized));
+        }
+
+        /// <summary>
+        /// Nộp và khóa kỳ tính thuế (chuyển trạng thái sang SUBMITTED).
+        /// POST /api/v1/tax-periods/{periodId}/submit
+        /// </summary>
+        [HttpPost("{periodId:guid}/submit")]
+        public async Task<IActionResult> SubmitTaxPeriod([FromRoute] Guid periodId)
+        {
+            var userId = GetUserIdFromToken();
+            var result = await _service.SubmitTaxPeriodAsync(userId, periodId);
+            return Ok(ApiResponse<TaxPeriodResponseDto>.Ok(result, "Nộp kỳ kê khai thuế thành công. Kỳ tính thuế đã được khóa."));
         }
 
         /// <summary>
@@ -85,18 +92,16 @@ namespace TaxKeepVNManagementSystem.Controllers
 
 
         /// <summary>
-        /// Lấy danh sách chứng từ theo kỳ tính thuế (hỗ trợ phân trang, tìm kiếm, lọc theo DocType/Status, mặc định mới nhất lên đầu).
-        /// GET /api/v1/tax-periods/{periodId}/documents?page=1&size=10&docTypeCode=VAT_INVOICE&status=CONFIRMED&search=congty
+        /// Lấy danh sách chứng từ theo kỳ tính thuế (mặc định mới nhất lên đầu).
+        /// GET /api/v1/tax-periods/{periodId}/documents
         /// </summary>
         [HttpGet("{periodId:guid}/documents")]
         public async Task<IActionResult> GetDocumentsByPeriod(
-            [FromRoute] Guid periodId,
-            [FromQuery] DocumentQueryParameters query)
+            [FromRoute] Guid periodId)
         {
-            query ??= new DocumentQueryParameters();
             var userId = GetUserIdFromToken();
-            var result = await _service.GetDocumentsAsync(userId, periodId, query);
-            return Ok(ApiResponse<TaxKeepVN.Application.DTOs.Common.PagedResult<DocumentReviewResponseDto>>.Ok(result, "Lấy danh sách chứng từ thành công."));
+            var result = await _service.GetDocumentsAsync(userId, periodId);
+            return Ok(ApiResponse<List<DocumentReviewResponseDto>>.Ok(result, "Lấy danh sách chứng từ thành công."));
         }
 
         /// <summary>
