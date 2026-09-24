@@ -1,0 +1,45 @@
+{
+  "document": {
+    "documentNumber": "111/2013/TT-BTC",
+    "documentType": "THONG_TU",
+    "issuer": "BỘ TÀI CHÍNH",
+    "title": "Thông tư hướng dẫn thực hiện Luật Thuế thu nhập cá nhân",
+    "issuedDate": "2013-08-15",
+    "effectiveDate": "2013-10-01"
+  },
+  "relations": [],
+  "operations": [
+    {
+      "opKey": "op-1",
+      "op": "ADD",
+      "ruleCode": "PIT_DEPENDENT_MAX_MONTHLY_INCOME",
+      "after": { "valueNumber": 1000000, "unit": "VND/month" },
+      "applyFrom": "2013-07-01",
+      "citation": { "article": "9" }
+    },
+    {
+      "opKey": "op-2",
+      "op": "ADD",
+      "ruleCode": "PIT_WITHHOLD_CASUAL_RATE",
+      "after": { "valueNumber": 0.1 },
+      "applyFrom": "2013-07-01",
+      "citation": { "article": "25" }
+    },
+    {
+      "opKey": "op-3",
+      "op": "ADD",
+      "ruleCode": "PIT_WITHHOLD_CASUAL_MIN_PAYMENT",
+      "after": { "valueNumber": 2000000, "unit": "VND/payment" },
+      "applyFrom": "2013-07-01",
+      "citation": { "article": "25" }
+    },
+    {
+      "opKey": "op-4",
+      "op": "ADD",
+      "ruleCode": "PIT_DEPENDENT_GROUPS",
+      "after": { "groups": ["CHILD", "SPOUSE", "PARENT"] },
+      "applyFrom": "2013-07-01",
+      "citation": { "article": "9" }
+    }
+  ]
+}

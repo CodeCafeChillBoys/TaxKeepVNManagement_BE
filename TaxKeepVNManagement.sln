@@ -13,6 +13,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TaxKeepVN.Infrastructure", 
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TaxKeepVN.ApiGateway", "TaxKeepVN.ApiGateway\TaxKeepVN.ApiGateway.csproj", "{6A19564B-62FB-4289-ABE2-9E8D3A2C39E9}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TaxKeepVN.Application.Tests", "TaxKeepVN.Application.Tests\TaxKeepVN.Application.Tests.csproj", "{FBF73BE2-FB64-479A-BFCF-F373D0CF1AA1}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -83,6 +85,18 @@ Global
 		{6A19564B-62FB-4289-ABE2-9E8D3A2C39E9}.Release|x64.Build.0 = Release|Any CPU
 		{6A19564B-62FB-4289-ABE2-9E8D3A2C39E9}.Release|x86.ActiveCfg = Release|Any CPU
 		{6A19564B-62FB-4289-ABE2-9E8D3A2C39E9}.Release|x86.Build.0 = Release|Any CPU
+		{FBF73BE2-FB64-479A-BFCF-F373D0CF1AA1}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FBF73BE2-FB64-479A-BFCF-F373D0CF1AA1}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FBF73BE2-FB64-479A-BFCF-F373D0CF1AA1}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{FBF73BE2-FB64-479A-BFCF-F373D0CF1AA1}.Debug|x64.Build.0 = Debug|Any CPU
+		{FBF73BE2-FB64-479A-BFCF-F373D0CF1AA1}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{FBF73BE2-FB64-479A-BFCF-F373D0CF1AA1}.Debug|x86.Build.0 = Debug|Any CPU
+		{FBF73BE2-FB64-479A-BFCF-F373D0CF1AA1}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FBF73BE2-FB64-479A-BFCF-F373D0CF1AA1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{FBF73BE2-FB64-479A-BFCF-F373D0CF1AA1}.Release|x64.ActiveCfg = Release|Any CPU
+		{FBF73BE2-FB64-479A-BFCF-F373D0CF1AA1}.Release|x64.Build.0 = Release|Any CPU
+		{FBF73BE2-FB64-479A-BFCF-F373D0CF1AA1}.Release|x86.ActiveCfg = Release|Any CPU
+		{FBF73BE2-FB64-479A-BFCF-F373D0CF1AA1}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

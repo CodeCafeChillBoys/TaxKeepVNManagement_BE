@@ -19,6 +19,14 @@ using TaxKeepVN.Infrastructure.Contexts;
 using TaxKeepVN.Infrastructure.Repositories;
 using TaxKeepVN.Infrastructure.Services;
 using TaxKeepVN.Infrastructure.Storage;
+using TaxKeepVN.Application.Law.Query;
+using TaxKeepVN.Application.Law.Changeset;
+using TaxKeepVN.Application.Law.Document;
+using TaxKeepVN.Application.Law.Merge;
+using TaxKeepVN.Application.Law.Messaging;
+using TaxKeepVN.Application.Law.Notification;
+using TaxKeepVN.Infrastructure.Law;
+using TaxKeepVNManagementSystem.Services;
 using TaxKeepVNManagementSystem.Middlewares;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -113,6 +121,12 @@ builder.Services.AddScoped<ITaxAIProducerService, TaxAIProducerService>();
 builder.Services.AddScoped<IOcrAIProducerService, OcrAIProducerService>();
 builder.Services.AddScoped<IOcrService, OcrService>();
 builder.Services.AddScoped<IDependentRuleService, DependentRuleService>();
+builder.Services.AddScoped<ISystemLawQueryService, SystemLawQueryService>();
+builder.Services.AddScoped<ILawMergeExecutor, LawMergeExecutor>();
+builder.Services.AddScoped<ILawChangesetService, LawChangesetService>();
+builder.Services.AddScoped<ILawDocumentService, LawDocumentService>();
+builder.Services.AddScoped<ILawChangesetProducer, LawChangesetProducer>();
+builder.Services.AddScoped<ILawNotificationService, LawNotificationService>();
 
 // ── HTTP Clients ────────────────────────────────────────────────────────────
 builder.Services.AddHttpClient("TaxAIService", client =>
@@ -177,6 +191,8 @@ builder.Services.AddAuthorization();
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.AgeTransitionReminderJob>();
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.TaxAIConsumerBackgroundService>();
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.OcrAIConsumerBackgroundService>();
+builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.LawChangesetConsumerBackgroundService>();
+builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.LawChangesetTimeoutJob>();
 
 var app = builder.Build();
 

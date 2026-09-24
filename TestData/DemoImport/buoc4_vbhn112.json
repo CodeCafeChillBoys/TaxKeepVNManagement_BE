@@ -1,0 +1,48 @@
+{
+  "document": {
+    "documentNumber": "112/VBHN-VPQH",
+    "documentType": "VBHN",
+    "issuer": "VĂN PHÒNG QUỐC HỘI",
+    "title": "Văn bản hợp nhất Luật Thuế thu nhập cá nhân sửa đổi"
+  },
+  "relations": [
+    {
+      "relationKey": "rel-1",
+      "type": "REPLACES",
+      "targetDocumentNumber": "04/2007/QH12",
+      "effectiveDate": "2026-01-01"
+    }
+  ],
+  "operations": [
+    {
+      "opKey": "op-1",
+      "op": "UPDATE",
+      "ruleCode": "PIT_TAX_SCHEDULE",
+      "after": [
+        { "toAnnual": 120000000, "rate": 0.05 },
+        { "toAnnual": 360000000, "rate": 0.1 },
+        { "toAnnual": 720000000, "rate": 0.2 },
+        { "toAnnual": 1200000000, "rate": 0.3 },
+        { "toAnnual": null, "rate": 0.35 }
+      ],
+      "applyFrom": "2026-01-01",
+      "citation": { "article": "9" }
+    },
+    {
+      "opKey": "op-2",
+      "op": "UPDATE",
+      "ruleCode": "PIT_DEDUCTION_PERSONAL",
+      "after": { "valueNumber": 15500000, "unit": "VND/month" },
+      "applyFrom": "2026-01-01",
+      "citation": { "article": "10" }
+    },
+    {
+      "opKey": "op-3",
+      "op": "UPDATE",
+      "ruleCode": "PIT_DEDUCTION_DEPENDENT",
+      "after": { "valueNumber": 6200000, "unit": "VND/person/month" },
+      "applyFrom": "2026-01-01",
+      "citation": { "article": "10" }
+    }
+  ]
+}
