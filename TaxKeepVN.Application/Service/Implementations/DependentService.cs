@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Configuration;
 using TaxKeepVN.Application.DTOs.Common;
 using TaxKeepVN.Application.DTOs.Requests.Dependent;
 using TaxKeepVN.Application.DTOs.Responses.Dependent;
@@ -16,10 +18,17 @@ namespace TaxKeepVN.Application.Service.Implementations
     public class DependentService : IDependentService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IMemoryCache _cache;
+        private readonly IConfiguration _configuration;
 
-        public DependentService(IUnitOfWork unitOfWork)
+        public DependentService(
+            IUnitOfWork unitOfWork,
+            IMemoryCache cache,
+            IConfiguration configuration)
         {
             _unitOfWork = unitOfWork;
+            _cache = cache;
+            _configuration = configuration;
         }
 
         public async Task<DependentResponse> CreateDependentAsync(Guid taxpayerId, CreateDependentRequest request)
@@ -162,143 +171,81 @@ namespace TaxKeepVN.Application.Service.Implementations
                 Status = newDependent.Status.ToString(),
                 CreatedAt = newDependent.CreatedAt,
                 UpdatedAt = newDependent.UpdatedAt,
-                RequiredDocuments = GetRequiredDocuments(currentGroup)
+                RequiredDocuments = await GetRequiredDocumentsAsync(currentGroup)
             };
         }
 
         // ── Helper: validate CurrentGroup phải khớp Relationship ─────────────────
-        private static void ValidateGroupMatchesRelationship(
+        // Đọc từ DependentSettings:GroupOrders trong appsettings.json.
+        // Không hardcode cặp Relationship-Group: thêm nhóm mới chỉ cần chỉnh config.
+        private void ValidateGroupMatchesRelationship(
             DependentRelationship relationship,
             DependentGroup currentGroup)
         {
-            var isValid = relationship switch
+            var relKey   = relationship.ToString();   // Ví dụ: "CHILD"
+            var groupKey = currentGroup.ToString();   // Ví dụ: "CHILD_UNDER_18"
+
+            // Lấy danh sách các group hợp lệ cho relationship này từ config
+            var section = _configuration.GetSection($"DependentSettings:GroupOrders:{relKey}");
+
+            // section.Exists() = false nghĩa là relationship không có trong config (không xảy ra nếu seed đủ)
+            // Kiểm tra groupKey có phải là một key con không
+            var validGroups = section.GetChildren().Select(g => g.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            if (validGroups.Count == 0 || !validGroups.Contains(groupKey))
             {
-                DependentRelationship.CHILD => currentGroup is
-                    DependentGroup.CHILD_UNDER_18 or
-                    DependentGroup.CHILD_OVER_18_DISABLED or
-                    DependentGroup.CHILD_OVER_18_STUDYING,
+                // Lấy danh sách hợp lệ để hiển thị trong thông báo lỗi
+                var validList = validGroups.Count > 0
+                    ? string.Join(", ", validGroups)
+                    : "(chưa cấu hình)";
 
-                DependentRelationship.SPOUSE => currentGroup is
-                    DependentGroup.SPOUSE_DISABLED or
-                    DependentGroup.SPOUSE_RETIRED,
-
-                DependentRelationship.PARENT => currentGroup is
-                    DependentGroup.PARENT_DISABLED or
-                    DependentGroup.PARENT_RETIRED,
-
-                DependentRelationship.OTHER_DEPENDENT => currentGroup is
-                    DependentGroup.OTHER_HELPLESS,
-
-                _ => false
-            };
-
-            if (!isValid)
-            {
                 throw new BadRequestException(
                     "GROUP_RELATIONSHIP_MISMATCH",
                     $"Điều kiện đăng ký '{currentGroup}' không thuộc nhóm quan hệ '{relationship}'. " +
-                    "Vui lòng kiểm tra lại điều kiện phù hợp với loại người phụ thuộc."
+                    $"Các điều kiện hợp lệ cho nhóm này: {validList}."
                 );
             }
         }
 
-        // ── Helper: thứ tự ưu tiên của nhóm trong cùng một Relationship ──────────
+        // ── Helper: thứ tự ưu tiên của nhóm — đọc từ appsettings.json ──────────
         // Số cao hơn = điều kiện "lớn hơn" (không thể đảo ngược theo thời gian).
-        // Trả về -1 nếu group không thuộc relationship (trường hợp không xảy ra vì đã validate trước).
-        private static int GetGroupOrder(DependentRelationship relationship, DependentGroup group)
+        // Cấu hình tại: DependentSettings:GroupOrders:{Relationship}:{Group}
+        // Trả về -1 nếu không tìm thấy (nhóm không thuộc relationship này).
+        private int GetGroupOrder(DependentRelationship relationship, DependentGroup group)
         {
-            return relationship switch
-            {
-                // Con: dưới 18 (0) → over-18 khuyết tật hoặc đang học (1). Hai trường hợp over-18
-                // được coi ngang hàng nhau (cùng thứ tự 1) vì chỉ khác điều kiện, không phải tuổi.
-                DependentRelationship.CHILD => group switch
-                {
-                    DependentGroup.CHILD_UNDER_18         => 0,
-                    DependentGroup.CHILD_OVER_18_DISABLED => 1,
-                    DependentGroup.CHILD_OVER_18_STUDYING => 1,
-                    _                                     => -1
-                },
-
-                // Vợ/Chồng: trong độ tuổi lao động - khuyết tật (0) → ngoài độ tuổi lao động / hưu (1).
-                DependentRelationship.SPOUSE => group switch
-                {
-                    DependentGroup.SPOUSE_DISABLED => 0,
-                    DependentGroup.SPOUSE_RETIRED  => 1,
-                    _                              => -1
-                },
-
-                // Cha/Mẹ: trong độ tuổi lao động - khuyết tật (0) → ngoài độ tuổi lao động / hưu (1).
-                DependentRelationship.PARENT => group switch
-                {
-                    DependentGroup.PARENT_DISABLED => 0,
-                    DependentGroup.PARENT_RETIRED  => 1,
-                    _                              => -1
-                },
-
-                // Cá nhân khác: chỉ có 1 nhóm, luôn trả về 0.
-                DependentRelationship.OTHER_DEPENDENT => 0,
-
-                _ => -1
-            };
+            var configPath = $"DependentSettings:GroupOrders:{relationship}:{group}";
+            return _configuration.GetValue<int?>(configPath) ?? -1;
         }
 
-        // ── Helper: danh sách giấy tờ bắt buộc theo DependentGroup ───────────────
-        private static string[] GetRequiredDocuments(DependentGroup group)
+        // ── Helper: danh sách giấy tờ bắt buộc — đọc từ DB + IMemoryCache ────────
+        // Nguồn dữ liệu: bảng dependent_document_rules (is_mandatory=true, is_active=true).
+        // Cache key: DependentRules_{groupName} — hết hạn sau 1 tiếng.
+        // FE không cần thay đổi: response shape (string[]) giữ nguyên.
+        private async Task<string[]> GetRequiredDocumentsAsync(DependentGroup group)
         {
-            return group switch
+            var groupString = group.ToString();
+            var cacheKey = $"DependentRules_Required_{groupString}";
+
+            if (!_cache.TryGetValue(cacheKey, out string[]? requiredDocs) || requiredDocs == null)
             {
-                // ── Nhóm 1: Con ──────────────────────────────────────────────────
-                DependentGroup.CHILD_UNDER_18 => new[]
-                {
-                    "BIRTH_CERTIFICATE",    // Giấy khai sinh (bắt buộc)
-                    "CITIZEN_ID"            // CCCD (nếu đã có, không bắt buộc với trẻ nhỏ)
-                },
+                var ruleRepo = _unitOfWork.Repository<DependentDocumentRule>();
+                var rules = await ruleRepo.FindAsync(r =>
+                    r.TargetGroup == groupString &&
+                    r.IsMandatory &&
+                    r.IsActive
+                );
 
-                DependentGroup.CHILD_OVER_18_DISABLED => new[]
-                {
-                    "DISABILITY_CERTIFICATE" // Giấy xác nhận mức độ khuyết tật hoặc hồ sơ bệnh án
-                },
+                requiredDocs = rules.Select(r => r.DocType).ToArray();
 
-                DependentGroup.CHILD_OVER_18_STUDYING => new[]
-                {
-                    "STUDENT_CARD"          // Thẻ học sinh/sinh viên hoặc Giấy xác nhận đang theo học
-                },
+                // Fallback an toàn: nếu DB chưa có rule cho nhóm này
+                if (requiredDocs.Length == 0)
+                    requiredDocs = new[] { "OTHER" };
 
-                // ── Nhóm 2: Vợ/Chồng ─────────────────────────────────────────────
-                DependentGroup.SPOUSE_DISABLED => new[]
-                {
-                    "CITIZEN_ID",           // CCCD của vợ/chồng (bắt buộc)
-                    "OTHER"                 // Giấy chứng nhận kết hôn (bắt buộc)
-                },
+                _cache.Set(cacheKey, requiredDocs,
+                    new MemoryCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromHours(1)));
+            }
 
-                DependentGroup.SPOUSE_RETIRED => new[]
-                {
-                    "CITIZEN_ID",           // CCCD của vợ/chồng (bắt buộc)
-                    "OTHER"                 // Giấy chứng nhận kết hôn (bắt buộc)
-                },
-
-                // ── Nhóm 3: Cha/Mẹ ───────────────────────────────────────────────
-                DependentGroup.PARENT_DISABLED => new[]
-                {
-                    "CITIZEN_ID",           // CCCD của cha/mẹ (bắt buộc)
-                    "OTHER"                 // Giấy tờ chứng minh quan hệ phụ tử/mẫu tử (GKS của NNT hoặc quyết định nhận con nuôi)
-                },
-
-                DependentGroup.PARENT_RETIRED => new[]
-                {
-                    "CITIZEN_ID",           // CCCD của cha/mẹ (bắt buộc)
-                    "OTHER"                 // Giấy tờ chứng minh quan hệ phụ tử/mẫu tử
-                },
-
-                // ── Nhóm 4: Cá nhân khác không nơi nương tựa ─────────────────────
-                DependentGroup.OTHER_HELPLESS => new[]
-                {
-                    "CITIZEN_ID",           // CCCD của người phụ thuộc (bắt buộc)
-                    "OTHER"                 // Giấy tờ pháp lý chứng minh quan hệ huyết thống/họ hàng + Mẫu số 07/XN-NPT-TNCN
-                },
-
-                _ => new[] { "OTHER" }
-            };
+            return requiredDocs;
         }
 
         // ── Helper: map Dependent entity → DependentListItemResponse ─────────────
@@ -445,7 +392,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 Note = dependent.Note,
                 CreatedAt = dependent.CreatedAt,
                 UpdatedAt = dependent.UpdatedAt,
-                RequiredDocuments = GetRequiredDocuments(dependent.CurrentGroup),
+                RequiredDocuments = await GetRequiredDocumentsAsync(dependent.CurrentGroup),
                 Documents = docDtos
             };
         }
@@ -523,7 +470,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             dependentRepo.Update(dependent);
 
             // ── 8. Tạo SystemNotification thông báo cho user ─────────────────────
-            var requiredDocs = GetRequiredDocuments(newGroup);
+            var requiredDocs = await GetRequiredDocumentsAsync(newGroup);
             var docList = string.Join(", ", requiredDocs);
 
             var notification = new SystemNotification
