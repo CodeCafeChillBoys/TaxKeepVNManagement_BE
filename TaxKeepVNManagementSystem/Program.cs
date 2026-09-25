@@ -121,6 +121,7 @@ builder.Services.AddScoped<ITaxPeriodService, TaxPeriodService>();
 builder.Services.AddScoped<ITaxDocumentTypeService, TaxDocumentTypeService>();
 builder.Services.AddScoped<ITaxAiConfigService, TaxAiConfigService>();
 builder.Services.AddScoped<IUrlRuleService, UrlRuleService>();
+builder.Services.AddScoped<IOcrAIProducerService, OcrAIProducerService>();
 
 // ── HTTP Clients ────────────────────────────────────────────────────────────
 builder.Services.AddHttpClient("TaxAIService", client =>
