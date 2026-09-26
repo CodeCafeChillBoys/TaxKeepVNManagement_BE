@@ -33,6 +33,18 @@ namespace TaxKeepVNManagementSystem.Controllers
         }
 
         /// <summary>
+        /// Lấy danh sách năm tính thuế của người dùng hiện tại.
+        /// GET /api/v1/tax-periods
+        /// </summary>
+        [HttpGet]
+        public async Task<IActionResult> GetTaxPeriods()
+        {
+            var userId = GetUserIdFromToken();
+            var result = await _service.GetTaxPeriodsAsync(userId);
+            return Ok(ApiResponse<List<TaxPeriodResponseDto>>.Ok(result, "Lấy danh sách năm tính thuế thành công."));
+        }
+
+        /// <summary>
         /// Nộp và khóa kỳ tính thuế (chuyển trạng thái sang SUBMITTED).
         /// POST /api/v1/tax-periods/{periodId}/submit
         /// </summary>
@@ -88,6 +100,20 @@ namespace TaxKeepVNManagementSystem.Controllers
             var userId = GetUserIdFromToken();
             await _service.TriggerDocumentOcrAsync(userId, periodId, documentId);
             return Ok(ApiResponse<object>.Ok(null, SuccessMessages.DocumentOcrTriggered));
+        }
+
+        /// <summary>
+        /// Xóa chứng từ chưa được người dùng xác nhận.
+        /// DELETE /api/v1/tax-periods/{periodId}/documents/{documentId}
+        /// </summary>
+        [HttpDelete("{periodId:guid}/documents/{documentId:guid}")]
+        public async Task<IActionResult> DeleteDocument(
+            [FromRoute] Guid periodId,
+            [FromRoute] Guid documentId)
+        {
+            var userId = GetUserIdFromToken();
+            await _service.DeleteDocumentAsync(userId, periodId, documentId);
+            return Ok(ApiResponse<object>.Ok(null, SuccessMessages.DocumentDeleted));
         }
 
 

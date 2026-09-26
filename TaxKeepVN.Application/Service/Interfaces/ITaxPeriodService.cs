@@ -15,6 +15,11 @@ namespace TaxKeepVN.Application.Service.Interfaces
         Task<TaxPeriodResponseDto> InitOrGetPeriodAsync(Guid userId, int taxYear);
 
         /// <summary>
+        /// Lấy danh sách các kỳ kê khai của người dùng.
+        /// </summary>
+        Task<List<TaxPeriodResponseDto>> GetTaxPeriodsAsync(Guid userId);
+
+        /// <summary>
         /// Tải lên nhiều chứng từ thuế theo kỳ kê khai và kích hoạt bóc tách OCR qua RabbitMQ.
         /// </summary>
         Task<TaxKeepVN.Application.DTOs.Documents.BatchUploadDocumentsResponseDto> BatchUploadDocumentsAsync(Guid userId, Guid periodId, IList<Microsoft.AspNetCore.Http.IFormFile> files);
@@ -28,6 +33,11 @@ namespace TaxKeepVN.Application.Service.Interfaces
         /// Kích hoạt lại bóc tách OCR cho một chứng từ cụ thể (chỉ cho phép khi ở trạng thái UPLOADED).
         /// </summary>
         Task TriggerDocumentOcrAsync(Guid userId, Guid periodId, Guid documentId);
+
+        /// <summary>
+        /// Xóa chứng từ chưa được người dùng xác nhận.
+        /// </summary>
+        Task DeleteDocumentAsync(Guid userId, Guid periodId, Guid documentId);
 
 
         /// <summary>

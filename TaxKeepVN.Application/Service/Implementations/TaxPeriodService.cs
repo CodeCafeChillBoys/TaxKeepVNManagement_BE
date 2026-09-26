@@ -68,6 +68,17 @@ namespace TaxKeepVN.Application.Service.Implementations
             return newPeriod.ToResponseDto();
         }
 
+        public async Task<List<TaxPeriodResponseDto>> GetTaxPeriodsAsync(Guid userId)
+        {
+            var repo = _unitOfWork.Repository<TaxPeriod>();
+            var periods = await repo.FindAsync(period => period.UserId == userId);
+
+            return periods
+                .OrderByDescending(period => period.TaxYear)
+                .Select(period => period.ToResponseDto())
+                .ToList();
+        }
+
         public async Task<TaxPeriodResponseDto> SubmitTaxPeriodAsync(Guid userId, Guid periodId)
         {
             var repo = _unitOfWork.Repository<TaxPeriod>();

@@ -168,19 +168,21 @@ namespace TaxKeepVN.Application.Service.Implementations
             // 409: Trùng số hóa đơn & MST người bán trong cùng kỳ tính thuế
             if (!string.IsNullOrWhiteSpace(dto.SellerTaxCode) && !string.IsNullOrWhiteSpace(dto.InvoiceNumber))
             {
-                var normTaxCode = dto.SellerTaxCode.Trim();
-                var normInvNum = dto.InvoiceNumber.Trim();
-                // Tìm các document khác trong cùng kỳ có cùng MST người bán và số hóa đơn
-                var duplicateDocs = await docRepo.FindAsync(d =>
+                var normTaxCode = NormalizeTaxCode(dto.SellerTaxCode);
+                var normInvNum = NormalizeInvoiceNumber(dto.InvoiceNumber);
+                // Chuẩn hóa cả dữ liệu cũ trong DB để bắt được khác biệt về khoảng trắng, dấu gạch và hoa thường.
+                var periodDocuments = await docRepo.FindAsync(d =>
                     d.PeriodId == periodId &&
-                    d.Id != documentId &&
-                    d.SellerTaxCode == normTaxCode &&
-                    d.InvoiceNumber == normInvNum);
+                    d.Id != documentId);
+                var duplicateDocs = periodDocuments.Where(d =>
+                    string.Equals(d.Status, "CONFIRMED", StringComparison.OrdinalIgnoreCase) &&
+                    NormalizeTaxCode(d.SellerTaxCode) == normTaxCode &&
+                    NormalizeInvoiceNumber(d.InvoiceNumber) == normInvNum);
 
                 if (duplicateDocs.Any())
                 {
                     throw new ConflictException(ErrorCodes.DuplicateDocument,
-                        ErrorMessages.DuplicateDocumentExists(normInvNum, normTaxCode));
+                        ErrorMessages.DuplicateDocumentExists(dto.InvoiceNumber.Trim(), dto.SellerTaxCode.Trim()));
                 }
             }
 
@@ -196,6 +198,12 @@ namespace TaxKeepVN.Application.Service.Implementations
                 if (existingDocType == null)
                 {
                     throw new BadRequestException(ErrorCodes.InvalidDocType, ErrorMessages.InvalidDocType(normalizedCode));
+                }
+
+                if (!existingDocType.IsTaxEligible)
+                {
+                    throw new BadRequestException(ErrorCodes.NonTaxDocumentType,
+                        ErrorMessages.NonTaxDocumentType(normalizedCode));
                 }
 
                 document.DocTypeCode = existingDocType.Code;
@@ -309,6 +317,49 @@ namespace TaxKeepVN.Application.Service.Implementations
             _logger.LogInformation("Re-triggered OCR task for document {DocId} in period {PeriodId}", documentId, periodId);
         }
 
+        public async Task DeleteDocumentAsync(Guid userId, Guid periodId, Guid documentId)
+        {
+            var periodRepo = _unitOfWork.Repository<TaxPeriod>();
+            var period = await periodRepo.GetByIdAsync(periodId);
+
+            if (period == null || period.UserId != userId)
+            {
+                throw new NotFoundException(ErrorMessages.TaxPeriodNotFound);
+            }
+
+            if (string.Equals(period.Status, TaxPeriodStatus.SUBMITTED, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ForbiddenException(ErrorMessages.TaxPeriodSubmitted);
+            }
+
+            var documentRepo = _unitOfWork.Repository<Document>();
+            var document = await documentRepo.GetByIdAsync(documentId);
+
+            if (document == null || document.PeriodId != periodId)
+            {
+                throw new NotFoundException(ErrorMessages.DocumentNotFound);
+            }
+
+            if (string.Equals(document.Status, "CONFIRMED", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new BadRequestException(ErrorCodes.InvalidDocumentStatus, ErrorMessages.DocumentAlreadyVerified);
+            }
+
+            await _fileStorageService.DeleteFileAsync(document.FileUrl);
+
+            var itemRepo = _unitOfWork.Repository<DocumentItem>();
+            var items = await itemRepo.FindAsync(item => item.DocumentId == documentId);
+            foreach (var item in items)
+            {
+                itemRepo.Remove(item);
+            }
+
+            documentRepo.Remove(document);
+            await _unitOfWork.SaveChangesAsync();
+
+            _logger.LogInformation("Document {DocId} deleted by user {UserId}", documentId, userId);
+        }
+
         public async Task<List<DocumentReviewResponseDto>> GetDocumentsAsync(
             Guid userId,
             Guid periodId)
@@ -418,6 +469,20 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             // 5. Map Document -> DocumentReviewResponseDto qua DocumentMapper
             return document.ToReviewDto(docType, items);
+        }
+
+        private static string NormalizeTaxCode(string? taxCode)
+        {
+            return string.Concat((taxCode ?? string.Empty)
+                .Where(character => !char.IsWhiteSpace(character) && character != '-'))
+                .ToUpperInvariant();
+        }
+
+        private static string NormalizeInvoiceNumber(string? invoiceNumber)
+        {
+            return string.Concat((invoiceNumber ?? string.Empty)
+                .Where(character => !char.IsWhiteSpace(character)))
+                .ToUpperInvariant();
         }
     }
 }

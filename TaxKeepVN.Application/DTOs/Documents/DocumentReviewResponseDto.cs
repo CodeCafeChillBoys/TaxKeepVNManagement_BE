@@ -31,6 +31,7 @@ namespace TaxKeepVN.Application.DTOs.Documents
         public short? ExtractedYear { get; set; }
         public bool? IsYearValid { get; set; }
         public bool? IsIdentityValid { get; set; }
+        public List<string> ValidationErrors { get; set; } = new();
         public bool? IsNotReimbursed { get; set; }
         public string Status { get; set; } = "CONFIRMED";
         public DateTime CreatedAt { get; set; }

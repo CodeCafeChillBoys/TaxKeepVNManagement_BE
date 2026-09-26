@@ -457,7 +457,7 @@ namespace TaxKeepVN.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("income_sources");
+                    b.ToTable("income_sources", (string)null);
                 });
 
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.RevokedToken", b =>
@@ -529,7 +529,7 @@ namespace TaxKeepVN.Infrastructure.Migrations
 
                     b.HasKey("NotificationId");
 
-                    b.ToTable("system_notifications");
+                    b.ToTable("system_notifications", (string)null);
                 });
 
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.TaxDocumentType", b =>

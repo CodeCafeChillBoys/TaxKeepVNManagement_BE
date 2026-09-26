@@ -29,5 +29,31 @@ namespace TaxKeepVN.Infrastructure.Storage
             // Adjust base URL as needed based on configuration
             return $"/uploads/{folderName}/{uniqueFileName}";
         }
+
+        public Task DeleteFileAsync(string fileUrl)
+        {
+            const string uploadsPrefix = "/uploads/";
+            if (!fileUrl.StartsWith(uploadsPrefix, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ArgumentException("URL file local không hợp lệ.", nameof(fileUrl));
+            }
+
+            var relativePath = fileUrl[1..].Replace('/', Path.DirectorySeparatorChar);
+            var filePath = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", relativePath));
+            var uploadsRoot = Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "uploads"))
+                .TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+
+            if (!filePath.StartsWith(uploadsRoot, StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ArgumentException("File không nằm trong thư mục uploads.", nameof(fileUrl));
+            }
+
+            if (File.Exists(filePath))
+            {
+                File.Delete(filePath);
+            }
+
+            return Task.CompletedTask;
+        }
     }
 }

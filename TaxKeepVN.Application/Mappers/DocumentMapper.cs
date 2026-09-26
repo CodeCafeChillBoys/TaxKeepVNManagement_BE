@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json;
 using TaxKeepVN.Application.DTOs.Documents;
 using TaxKeepVN.Application.DTOs.TaxAI;
 using TaxKeepVN.Domain.Entities;
@@ -104,6 +108,7 @@ namespace TaxKeepVN.Application.Mappers
                 ExtractedYear = doc.ExtractedYear,
                 IsYearValid = doc.IsYearValid,
                 IsIdentityValid = doc.IsIdentityValid,
+                ValidationErrors = BuildValidationErrors(doc),
                 IsNotReimbursed = doc.IsNotReimbursed,
                 Status = doc.Status,
                 CreatedAt = doc.CreatedAt,
@@ -111,6 +116,24 @@ namespace TaxKeepVN.Application.Mappers
                     ? itemsList.Select(i => i.ToItemDto()).ToList()
                     : new List<DocumentItemResponseDto>()
             };
+        }
+
+        private static List<string> BuildValidationErrors(Document doc)
+        {
+            var errors = new List<string>();
+            if (doc.IsYearValid == false)
+            {
+                errors.Add("Năm trên hóa đơn không khớp với kỳ tính thuế.");
+            }
+            if (doc.IsIdentityValid == false)
+            {
+                errors.Add("Thông tin người mua không khớp với người nộp thuế hoặc người phụ thuộc.");
+            }
+            if (string.Equals(doc.Status, "FAILED", StringComparison.OrdinalIgnoreCase) && errors.Count == 0)
+            {
+                errors.Add("AI không thể xác nhận tính hợp lệ của chứng từ.");
+            }
+            return errors;
         }
     }
 }

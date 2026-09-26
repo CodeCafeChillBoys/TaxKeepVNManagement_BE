@@ -179,14 +179,23 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
                 var normalizedCode = data.DocTypeCode.Trim().ToUpperInvariant();
                 var docTypeRepo = unitOfWork.Repository<TaxDocumentType>();
                 var existingDocType = (await docTypeRepo.FindAsync(t => t.Code == normalizedCode)).FirstOrDefault();
-                if (existingDocType != null)
+                if (existingDocType != null && existingDocType.IsTaxEligible)
                 {
                     document.DocTypeCode = existingDocType.Code;
                 }
                 else
                 {
-                    _logger.LogWarning("AI returned unknown DocTypeCode '{Code}', not in system catalog. Leaving as null for user to select.", normalizedCode);
+                    var reason = existingDocType == null
+                        ? $"AI nhận diện loại chứng từ '{normalizedCode}' không có trong danh mục admin."
+                        : $"Loại chứng từ '{normalizedCode}' không được admin cho phép kê khai thuế.";
+
+                    _logger.LogWarning("Document {DocId} rejected after OCR: {Reason}", document.Id, reason);
                     document.DocTypeCode = null;
+                    data.Status = "FAILED";
+                    data.ValidationErrors ??= new System.Collections.Generic.List<string>();
+                    data.ValidationErrors.Add(reason);
+                    data.ValidationStatus ??= new DocumentValidationStatus();
+                    data.ValidationStatus.IsDocTypeValid = false;
                 }
             }
 
@@ -255,7 +264,22 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
                 document.IsIdentityValid = data.ValidationStatus?.IsIdentityValid;
             }
 
-            document.Status = string.Equals(data.Status, "FAILED", StringComparison.OrdinalIgnoreCase)
+            if (data.ValidationStatus?.IsYearValid == false)
+            {
+                data.ValidationErrors ??= new System.Collections.Generic.List<string>();
+                data.ValidationErrors.Add("Năm trên hóa đơn không khớp với kỳ tính thuế.");
+            }
+
+            if (data.ValidationStatus?.IsIdentityValid == false)
+            {
+                data.ValidationErrors ??= new System.Collections.Generic.List<string>();
+                data.ValidationErrors.Add("Thông tin người mua không khớp với người nộp thuế hoặc người phụ thuộc.");
+            }
+
+            document.Status = string.Equals(data.Status, "FAILED", StringComparison.OrdinalIgnoreCase) ||
+                data.ValidationStatus?.IsYearValid == false ||
+                data.ValidationStatus?.IsDocTypeValid == false ||
+                data.ValidationStatus?.IsIdentityValid == false
                 ? "FAILED"
                 : "EXTRACTED";
 
@@ -289,7 +313,11 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
 
             await unitOfWork.SaveChangesAsync();
 
-            _logger.LogInformation("Document {DocId} full data saved to DB with status EXTRACTED. Dispatched for client review.", document.Id);
+            _logger.LogInformation(
+                "Document {DocId} OCR data saved to DB with status {Status}. Validation errors: {ValidationErrors}",
+                document.Id,
+                document.Status,
+                data.ValidationErrors == null ? "none" : string.Join(" | ", data.ValidationErrors));
         }
 
         /// <summary>

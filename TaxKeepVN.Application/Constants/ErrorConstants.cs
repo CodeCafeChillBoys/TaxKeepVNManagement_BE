@@ -11,6 +11,7 @@ namespace TaxKeepVN.Application.Constants
         public const string UnsupportedFormat = "UNSUPPORTED_FORMAT";
         public const string FileSizeExceeded = "FILE_SIZE_EXCEEDED";
         public const string InvalidDocType = "INVALID_DOC_TYPE";
+        public const string NonTaxDocumentType = "NON_TAX_DOCUMENT_TYPE";
         public const string InvalidDocumentStatus = "ERR_INVALID_STATUS";
         public const string DuplicateDocument = "ERR_DUPLICATE_DOCUMENT";
         public const string IdentityMismatch = "ERR_IDENTITY_MISMATCH";
@@ -38,6 +39,7 @@ namespace TaxKeepVN.Application.Constants
         public static string DuplicateDocumentExists(string invNum, string taxCode) => $"Duplicate document: Invoice number {invNum} from seller {taxCode} already exists.";
         public static string IdentityMismatch(string buyer) => $"Thông tin người mua trên chứng từ ('{buyer}') không trùng khớp với Người nộp thuế hoặc bất kỳ Người phụ thuộc nào đã đăng ký.";
         public static string InvalidDocType(string code) => $"Mã loại chứng từ '{code}' không tồn tại trong hệ thống.";
+        public static string NonTaxDocumentType(string code) => $"Loại chứng từ '{code}' không thuộc nhóm chứng từ được phép kê khai thuế.";
 
         // Tax Document Types
         public const string DocTypeCodeRequired = "Mã loại chứng từ không được để trống.";
@@ -52,6 +54,7 @@ namespace TaxKeepVN.Application.Constants
         public const string DocumentsUploaded = "Documents uploaded successfully.";
         public const string DocumentOcrTriggered = "Yêu cầu bóc tách lại OCR chứng từ đã được gửi thành công.";
         public const string DocumentReviewConfirmed = "Xác nhận và lưu trữ dữ liệu chứng từ thành công.";
+        public const string DocumentDeleted = "Xóa chứng từ chưa xác nhận thành công.";
 
         // Tax Document Types
         public const string DocTypeListRetrieved = "Lấy danh sách loại chứng từ thuế thành công.";

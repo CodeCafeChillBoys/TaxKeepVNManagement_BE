@@ -85,5 +85,35 @@ namespace TaxKeepVN.Infrastructure.Storage
 
             return publicUrl;
         }
+
+        public async Task DeleteFileAsync(string fileUrl)
+        {
+            if (!Uri.TryCreate(fileUrl, UriKind.Absolute, out var uri))
+            {
+                throw new ArgumentException("URL file không hợp lệ.", nameof(fileUrl));
+            }
+
+            var publicPrefix = $"/storage/v1/object/public/{_bucketName}/";
+            if (!uri.AbsolutePath.StartsWith(publicPrefix, StringComparison.Ordinal))
+            {
+                throw new ArgumentException("File không thuộc Supabase Storage đã cấu hình.", nameof(fileUrl));
+            }
+
+            var storagePath = uri.AbsolutePath[publicPrefix.Length..];
+            var deleteUrl = $"{_supabaseUrl}/storage/v1/object/{_bucketName}/{storagePath}";
+
+            using var request = new HttpRequestMessage(HttpMethod.Delete, deleteUrl);
+            request.Headers.Add("apikey", _apiKey);
+            request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
+
+            var response = await _httpClient.SendAsync(request);
+            if (!response.IsSuccessStatusCode && response.StatusCode != System.Net.HttpStatusCode.NotFound)
+            {
+                var errorBody = await response.Content.ReadAsStringAsync();
+                _logger.LogError("Lỗi khi xóa file khỏi Supabase Storage. Status: {StatusCode}, Body: {ErrorBody}",
+                    response.StatusCode, errorBody);
+                throw new InvalidOperationException($"Lỗi xóa file khỏi Supabase Storage ({response.StatusCode}): {errorBody}");
+            }
+        }
     }
 }
