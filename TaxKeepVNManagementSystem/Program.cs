@@ -113,6 +113,7 @@ builder.Services.AddScoped<ITaxAIProducerService, TaxAIProducerService>();
 builder.Services.AddScoped<IOcrAIProducerService, OcrAIProducerService>();
 builder.Services.AddScoped<IOcrService, OcrService>();
 builder.Services.AddScoped<IDependentRuleService, DependentRuleService>();
+builder.Services.AddScoped<ISystemConfigService, SystemConfigService>();
 
 // ── HTTP Clients ────────────────────────────────────────────────────────────
 builder.Services.AddHttpClient("TaxAIService", client =>
@@ -177,6 +178,7 @@ builder.Services.AddAuthorization();
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.AgeTransitionReminderJob>();
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.TaxAIConsumerBackgroundService>();
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.OcrAIConsumerBackgroundService>();
+builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.TaxSettlementReminderJob>();
 
 var app = builder.Build();
 

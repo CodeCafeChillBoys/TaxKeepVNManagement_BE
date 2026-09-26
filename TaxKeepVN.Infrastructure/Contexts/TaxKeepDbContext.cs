@@ -16,6 +16,7 @@ namespace TaxKeepVN.Infrastructure.Contexts
         public DbSet<SystemNotification> SystemNotifications { get; set; }
         public DbSet<IncomeSource> IncomeSources { get; set; }
         public DbSet<DependentDocumentRule> DependentDocumentRules { get; set; }
+        public DbSet<SystemConfig> SystemConfigs { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -185,6 +186,25 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.HasIndex(r => new { r.TargetGroup, r.DocType })
                     .IsUnique()
                     .HasDatabaseName("uq_group_doc_rule");
+            });
+
+            // ── SystemConfig ─────────────────────────────────────────────────────
+            modelBuilder.Entity<SystemConfig>(entity =>
+            {
+                entity.ToTable("system_configs");
+                entity.HasKey(c => c.ConfigId);
+
+                entity.Property(c => c.ConfigId).HasColumnName("config_id");
+                entity.Property(c => c.ConfigKey).HasColumnName("config_key").HasMaxLength(100).IsRequired();
+                entity.Property(c => c.ConfigValue).HasColumnName("config_value").IsRequired();
+                entity.Property(c => c.Description).HasColumnName("description");
+                entity.Property(c => c.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+                entity.Property(c => c.CreatedAt).HasColumnName("created_at");
+                entity.Property(c => c.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasIndex(c => c.ConfigKey)
+                    .IsUnique()
+                    .HasDatabaseName("uq_system_configs_key");
             });
         }
     }
