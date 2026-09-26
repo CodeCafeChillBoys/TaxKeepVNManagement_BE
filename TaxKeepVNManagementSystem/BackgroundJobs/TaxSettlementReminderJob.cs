@@ -212,35 +212,21 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
 
         private static (string Title, string Message) BuildNotificationContent(string fullName, int taxYear, int daysRemaining, string milestone, DateTime deadlineDate)
         {
-            string formattedDeadline = deadlineDate.ToString("dd/MM");
+            string formattedDeadline = deadlineDate.ToString("dd/MM/yyyy");
 
+            // Mốc quá hạn sau ngày hạn chót
             if (milestone == "OVERDUE")
             {
                 return (
-                    "Hồ sơ quyết toán thuế đã quá hạn",
-                    $"Chào {fullName}, thời hạn nộp quyết toán thuế TNCN năm {taxYear} (hạn {formattedDeadline}) đã kết thúc. Vui lòng rà soát và nộp bổ sung hồ sơ sớm để tránh phát sinh tiền chậm nộp."
+                    $"[Quá hạn] Quyết toán thuế TNCN năm {taxYear}",
+                    $"Chào {fullName}, thời hạn nộp quyết toán thuế TNCN năm {taxYear} (hạn chót {formattedDeadline}) đã kết thúc. Vui lòng rà soát và hoàn thiện hồ sơ để nộp bổ sung sớm, tránh phát sinh tiền chậm nộp theo quy định."
                 );
             }
 
-            if (daysRemaining <= 3)
-            {
-                return (
-                    "Khẩn cấp: Chỉ còn 3 ngày quyết toán thuế",
-                    $"Chào {fullName}, hạn chót nộp hồ sơ quyết toán thuế TNCN năm {taxYear} là ngày {formattedDeadline} (chỉ còn {daysRemaining} ngày). Hãy kiểm tra lại chứng từ và nộp hồ sơ ngay!"
-                );
-            }
-
-            if (daysRemaining <= 15)
-            {
-                return (
-                    $"Sắp đến hạn quyết toán thuế năm {taxYear}",
-                    $"Chào {fullName}, còn {daysRemaining} ngày nữa là đến hạn chót quyết toán thuế TNCN ({formattedDeadline}). Bạn hãy kiểm tra lại các khoản giảm trừ người phụ thuộc và y tế/học phí."
-                );
-            }
-
+            // Mốc nhắc nhở hoàn toàn động theo số ngày thực tế cấu hình từ DB (Tuyệt đối không hardcode)
             return (
-                $"Nhắc chuẩn bị hồ sơ quyết toán thuế {taxYear}",
-                $"Chào {fullName}, còn {daysRemaining} ngày nữa là đến hạn quyết toán thuế TNCN năm {taxYear} ({formattedDeadline}). Hãy tải lên các chứng từ y tế, giáo dục để kịp thời tính giảm trừ."
+                $"Nhắc hạn nộp quyết toán thuế TNCN năm {taxYear} (Còn {daysRemaining} ngày)",
+                $"Chào {fullName}, thời hạn nộp hồ sơ quyết toán thuế TNCN năm {taxYear} là ngày {formattedDeadline} (còn {daysRemaining} ngày). Vui lòng kiểm tra lại các khoản thu nhập, chứng từ giảm trừ người phụ thuộc, y tế, giáo dục và chuẩn bị nộp hồ sơ đúng hạn."
             );
         }
 
