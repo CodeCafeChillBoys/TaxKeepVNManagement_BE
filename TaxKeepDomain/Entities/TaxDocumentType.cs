@@ -13,6 +13,9 @@ namespace TaxKeepVN.Domain.Entities
         /// <summary>Có được dùng giảm trừ/tính thuế không</summary>
         public bool IsTaxEligible { get; set; } = true;
 
+        /// <summary>Mô tả chi tiết đặc điểm nhận diện chứng từ (truyền cho AI và hiển thị cho Admin)</summary>
+        public string? Description { get; set; }
+
         // Navigation properties
         public ICollection<Document> Documents { get; set; } = new List<Document>();
     }

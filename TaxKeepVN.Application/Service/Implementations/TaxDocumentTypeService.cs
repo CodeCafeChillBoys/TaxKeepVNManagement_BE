@@ -45,6 +45,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             {
                 Code = t.Code,
                 Name = t.Name,
+                Description = t.Description,
                 IsTaxEligible = t.IsTaxEligible
             }).ToList();
         }
@@ -67,6 +68,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             {
                 Code = item.Code,
                 Name = item.Name,
+                Description = item.Description,
                 IsTaxEligible = item.IsTaxEligible
             };
         }
@@ -86,6 +88,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             {
                 Code = normalizedCode,
                 Name = dto.Name.Trim(),
+                Description = dto.Description?.Trim(),
                 IsTaxEligible = dto.IsTaxEligible
             };
 
@@ -98,6 +101,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             {
                 Code = entity.Code,
                 Name = entity.Name,
+                Description = entity.Description,
                 IsTaxEligible = entity.IsTaxEligible
             };
         }
@@ -114,6 +118,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             }
 
             entity.Name = dto.Name.Trim();
+            entity.Description = dto.Description?.Trim();
             entity.IsTaxEligible = dto.IsTaxEligible;
 
             repo.Update(entity);
@@ -125,6 +130,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             {
                 Code = entity.Code,
                 Name = entity.Name,
+                Description = entity.Description,
                 IsTaxEligible = entity.IsTaxEligible
             };
         }

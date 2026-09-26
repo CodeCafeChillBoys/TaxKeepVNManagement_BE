@@ -174,6 +174,7 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(t => t.Code).HasColumnName("code").HasMaxLength(50);
                 entity.Property(t => t.Name).HasColumnName("name").HasMaxLength(255).IsRequired();
                 entity.Property(t => t.IsTaxEligible).HasColumnName("is_tax_eligible").HasDefaultValue(true);
+                entity.Property(t => t.Description).HasColumnName("description");
 
             });
 

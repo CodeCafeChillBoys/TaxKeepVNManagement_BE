@@ -107,9 +107,10 @@ namespace TaxKeepVN.Application.Service.Implementations
                 throw;
             }
 
-            // 6. Publish sang RabbitMQ để kích hoạt AI OCR bất đồng bộ
+            // 6. Publish sang RabbitMQ để kích hoạt AI OCR bất đồng bộ (kèm danh mục động từ Admin)
             try
             {
+                var categories = await GetEligibleCategoriesForAiAsync();
                 var ocrMessages = createdDocuments.Select(doc => new DocumentOcrExtractRequestMessage
                 {
                     TaskId = doc.Id,
@@ -117,7 +118,8 @@ namespace TaxKeepVN.Application.Service.Implementations
                     UserId = period.UserId,
                     TargetYear = period.TaxYear,
                     FileUrl = doc.FileUrl,
-                    OriginalFilename = doc.OriginalFilename ?? string.Empty
+                    OriginalFilename = doc.OriginalFilename ?? string.Empty,
+                    Categories = categories
                 }).ToList();
 
                 _ocrProducerService.PublishBatchOcrTasks(ocrMessages);
@@ -303,6 +305,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 throw new BadRequestException(ErrorCodes.InvalidDocumentStatus, ErrorMessages.DocumentAlreadyVerified);
             }
 
+            var categories = await GetEligibleCategoriesForAiAsync();
             var message = new DocumentOcrExtractRequestMessage
             {
                 TaskId = document.Id,
@@ -310,7 +313,8 @@ namespace TaxKeepVN.Application.Service.Implementations
                 UserId = period.UserId,
                 TargetYear = period.TaxYear,
                 FileUrl = document.FileUrl,
-                OriginalFilename = document.OriginalFilename ?? string.Empty
+                OriginalFilename = document.OriginalFilename ?? string.Empty,
+                Categories = categories
             };
 
             _ocrProducerService.PublishBatchOcrTasks(new[] { message });
@@ -483,6 +487,30 @@ namespace TaxKeepVN.Application.Service.Implementations
             return string.Concat((invoiceNumber ?? string.Empty)
                 .Where(character => !char.IsWhiteSpace(character)))
                 .ToUpperInvariant();
+        }
+
+        private async Task<List<CategoryItemDto>> GetEligibleCategoriesForAiAsync()
+        {
+            var docTypeRepo = _unitOfWork.Repository<TaxDocumentType>();
+            var allDocTypes = (await docTypeRepo.GetAllAsync())
+                .OrderByDescending(t => t.IsTaxEligible)
+                .ThenBy(t => t.Code)
+                .ToList();
+
+            return allDocTypes.Select(t =>
+            {
+                var rawDesc = !string.IsNullOrWhiteSpace(t.Description) ? t.Description : t.Name;
+                var prefix = t.IsTaxEligible
+                    ? "[ĐƯỢC GIẢM TRỪ THUẾ TNCN]"
+                    : "[KHÔNG ĐƯỢC GIẢM TRỪ THUẾ TNCN]";
+
+                return new CategoryItemDto
+                {
+                    Code = t.Code,
+                    Name = t.Name,
+                    Description = $"{prefix} {rawDesc}"
+                };
+            }).ToList();
         }
     }
 }
