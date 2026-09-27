@@ -176,6 +176,11 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(t => t.IsTaxEligible).HasColumnName("is_tax_eligible").HasDefaultValue(true);
                 entity.Property(t => t.Description).HasColumnName("description");
 
+                entity.HasData(
+                    new TaxDocumentType { Code = "SALES_INVOICE", Name = "Hóa đơn bán hàng", IsTaxEligible = true },
+                    new TaxDocumentType { Code = "VAT_INVOICE", Name = "Hóa đơn GTGT", IsTaxEligible = true },
+                    new TaxDocumentType { Code = "WITHHOLDING_VOUCHER", Name = "Chứng từ khấu trừ thuế TNCN", IsTaxEligible = true }
+                );
             });
 
             // ── Document ─────────────────────────────────────────────────────────

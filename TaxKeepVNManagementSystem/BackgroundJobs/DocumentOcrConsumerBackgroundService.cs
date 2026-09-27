@@ -1,19 +1,10 @@
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
-using System;
-using System.Linq;
 using System.Text;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
 using TaxKeepVN.Application.DTOs.TaxAI;
 using TaxKeepVN.Application.Helpers;
-using TaxKeepVN.Application.Service.Interfaces;
 using TaxKeepVN.Domain.Entities;
 using TaxKeepVN.Domain.IRepositories;
 using TaxKeepVNManagementSystem.Hubs;
@@ -233,12 +224,12 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
             }
 
             // 2. Tự động kiểm tra đối soát thông tin người mua với tài khoản (User & Dependents)
-            // QUAN TRỌNG: Nếu loại chứng từ đã bị từ chối (IsDocTypeValid = false), KHÔNG kiểm tra danh tính
-            // vì lý do từ chối chính là danh mục không hợp lệ, không phải danh tính người mua.
-            // Kiểm tra danh tính trong trường hợp này dễ gây nhầm lẫn cho người dùng.
+            // QUAN TRỌNG: Nếu loại chứng từ đã bị từ chối (IsDocTypeValid = false) hoặc AI bóc tách thất bại (Status = FAILED),
+            // KHÔNG kiểm tra danh tính để tránh trường hợp các trường định danh bị null gây hiểu lầm là sai người nộp thuế/người phụ thuộc.
             bool isDocTypeAlreadyRejected = data.ValidationStatus?.IsDocTypeValid == false;
+            bool isAiProcessingFailed = string.Equals(data.Status, "FAILED", StringComparison.OrdinalIgnoreCase);
 
-            if (!isDocTypeAlreadyRejected)
+            if (!isDocTypeAlreadyRejected && !isAiProcessingFailed)
             {
                 Guid? effectiveUserId = data.UserId;
                 if (!effectiveUserId.HasValue && document.PeriodId != Guid.Empty)
