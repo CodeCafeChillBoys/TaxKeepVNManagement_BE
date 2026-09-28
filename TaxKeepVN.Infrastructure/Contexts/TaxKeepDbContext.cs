@@ -16,7 +16,15 @@ namespace TaxKeepVN.Infrastructure.Contexts
         public DbSet<SystemNotification> SystemNotifications { get; set; }
         public DbSet<IncomeSource> IncomeSources { get; set; }
         public DbSet<DependentDocumentRule> DependentDocumentRules { get; set; }
+        public DbSet<TaxPeriod> TaxPeriods { get; set; }
+        public DbSet<TaxDocumentType> DocumentTypes { get; set; }
+        public DbSet<Document> Documents { get; set; }
+        public DbSet<DocumentItem> DocumentItems { get; set; }
+
+        // Tax Settlement
         public DbSet<SystemConfig> SystemConfigs { get; set; }
+        public DbSet<TaxSettlementDossier> TaxSettlementDossiers { get; set; }
+        public DbSet<TaxSettlementIncomeItem> TaxSettlementIncomeItems { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -83,18 +91,12 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(d => d.CreatedAt).HasColumnName("created_at");
                 entity.Property(d => d.UpdatedAt).HasColumnName("updated_at");
 
-                // Standardized snake_case column names
+                // Cột trong database PostgreSQL sử dụng quy ước snake_case
                 entity.Property(d => d.CurrentGroup).HasColumnName("current_group")
                     .HasConversion<string>();
                 entity.Property(d => d.BirthDate).HasColumnName("birth_date");
                 entity.Property(d => d.IsDeleted).HasColumnName("is_deleted").HasDefaultValue(false);
                 entity.Property(d => d.IsProfileComplete).HasColumnName("is_profile_complete").HasDefaultValue(false);
-
-                // Foreign key relationship to User
-                entity.HasOne<User>()
-                    .WithMany()
-                    .HasForeignKey(d => d.TaxpayerId)
-                    .OnDelete(DeleteBehavior.Cascade);
 
                 // Index để query overlap nhanh theo CitizenId và BirthCertNumber
                 entity.HasIndex(d => d.CitizenId).HasDatabaseName("idx_dependents_citizen_id");
@@ -109,10 +111,10 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.HasKey(d => d.Id);
 
                 entity.Property(d => d.Id).HasColumnName("id");
-                entity.Property(d => d.DependentId).HasColumnName("dependent_id");
+                entity.Property(d => d.DependentId).HasColumnName("dependent_id").IsRequired();
                 entity.Property(d => d.DocType).HasColumnName("doc_type").HasConversion<string>().IsRequired();
-                entity.Property(d => d.FileUrl).HasColumnName("file_url").IsRequired();
                 entity.Property(d => d.FileMimeType).HasColumnName("file_mime_type").IsRequired();
+                entity.Property(d => d.FileUrl).HasColumnName("file_url").IsRequired();
                 entity.Property(d => d.IsReadable).HasColumnName("is_readable");
                 entity.Property(d => d.UploadedAt).HasColumnName("uploaded_at");
 
@@ -120,52 +122,8 @@ namespace TaxKeepVN.Infrastructure.Contexts
                     .WithMany(d => d.Documents)
                     .HasForeignKey(d => d.DependentId)
                     .OnDelete(DeleteBehavior.Cascade);
-            });
 
-            // ── IncomeSource ─────────────────────────────────────────────────────
-            modelBuilder.Entity<IncomeSource>(entity =>
-            {
-                entity.ToTable("income_sources");
-                entity.HasKey(i => i.Id);
-
-                entity.Property(i => i.Id).HasColumnName("id");
-                entity.Property(i => i.TaxpayerId).HasColumnName("taxpayer_id");
-                entity.Property(i => i.CompanyName).HasColumnName("company_name").HasMaxLength(255).IsRequired();
-                entity.Property(i => i.CompanyTaxCode).HasColumnName("company_tax_code").HasMaxLength(20).IsRequired();
-                entity.Property(i => i.TaxYear).HasColumnName("tax_year");
-                entity.Property(i => i.TotalIncome).HasColumnName("total_income").HasColumnType("decimal(18,2)");
-                entity.Property(i => i.TaxWithheld).HasColumnName("tax_withheld").HasColumnType("decimal(18,2)");
-                entity.Property(i => i.IsActive).HasColumnName("is_active");
-                entity.Property(i => i.CreatedAt).HasColumnName("created_at");
-                entity.Property(i => i.UpdatedAt).HasColumnName("updated_at");
-
-                // Foreign key relationship to User
-                entity.HasOne<User>()
-                    .WithMany()
-                    .HasForeignKey(i => i.TaxpayerId)
-                    .OnDelete(DeleteBehavior.Cascade);
-            });
-
-            // ── SystemNotification ───────────────────────────────────────────────
-            modelBuilder.Entity<SystemNotification>(entity =>
-            {
-                entity.ToTable("system_notifications");
-                entity.HasKey(n => n.NotificationId);
-
-                entity.Property(n => n.NotificationId).HasColumnName("notification_id");
-                entity.Property(n => n.UserId).HasColumnName("user_id");
-                entity.Property(n => n.Title).HasColumnName("title").HasMaxLength(255).IsRequired();
-                entity.Property(n => n.Message).HasColumnName("message").IsRequired();
-                entity.Property(n => n.NotificationType).HasColumnName("notification_type").HasMaxLength(100).IsRequired();
-                entity.Property(n => n.IsRead).HasColumnName("is_read");
-                entity.Property(n => n.TargetActionUrl).HasColumnName("target_action_url");
-                entity.Property(n => n.CreatedAt).HasColumnName("created_at");
-
-                // Foreign key relationship to User
-                entity.HasOne<User>()
-                    .WithMany()
-                    .HasForeignKey(n => n.UserId)
-                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasIndex(d => d.DependentId).HasDatabaseName("idx_dependent_documents_dependent_id");
             });
 
             // ── DependentDocumentRule ────────────────────────────────────────────
@@ -188,12 +146,120 @@ namespace TaxKeepVN.Infrastructure.Contexts
                     .HasDatabaseName("uq_group_doc_rule");
             });
 
+            // ── TaxPeriod ────────────────────────────────────────────────────────
+            modelBuilder.Entity<TaxPeriod>(entity =>
+            {
+                entity.ToTable("tax_periods");
+                entity.HasKey(p => p.Id);
+
+                entity.Property(p => p.Id).HasColumnName("id");
+                entity.Property(p => p.UserId).HasColumnName("user_id").IsRequired();
+                entity.Property(p => p.TaxYear).HasColumnName("tax_year").IsRequired();
+                entity.Property(p => p.Status).HasColumnName("status").HasMaxLength(50).HasDefaultValue("DRAFT").IsRequired();
+                entity.Property(p => p.CreatedAt).HasColumnName("created_at");
+                entity.Property(p => p.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasOne(p => p.User)
+                    .WithMany(u => u.TaxPeriods)
+                    .HasForeignKey(p => p.UserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasIndex(p => p.UserId).HasDatabaseName("idx_tax_periods_user_id");
+                entity.HasIndex(p => new { p.UserId, p.TaxYear })
+                    .IsUnique()
+                    .HasDatabaseName("uq_tax_periods_user_year");
+            });
+
+            // ── TaxDocumentType ──────────────────────────────────────────────────
+            modelBuilder.Entity<TaxDocumentType>(entity =>
+            {
+                entity.ToTable("document_types");
+                entity.HasKey(t => t.Code);
+
+                entity.Property(t => t.Code).HasColumnName("code").HasMaxLength(50);
+                entity.Property(t => t.Name).HasColumnName("name").HasMaxLength(255).IsRequired();
+                entity.Property(t => t.IsTaxEligible).HasColumnName("is_tax_eligible").HasDefaultValue(true);
+
+            });
+
+            // ── Document ─────────────────────────────────────────────────────────
+            // Trong method OnModelCreating:
+            modelBuilder.Entity<Document>(entity =>
+            {
+                entity.ToTable("documents");
+                entity.HasKey(d => d.Id);
+
+                entity.Property(d => d.Id).HasColumnName("id");
+                entity.Property(d => d.PeriodId).HasColumnName("period_id").IsRequired();
+                entity.Property(d => d.DocTypeCode).HasColumnName("doc_type_code").HasMaxLength(50).IsRequired(false);
+                entity.Property(d => d.FileUrl).HasColumnName("file_url").IsRequired();
+                entity.Property(d => d.OriginalFilename).HasColumnName("original_filename").HasMaxLength(255);
+                entity.Property(d => d.InvoiceSeries).HasColumnName("invoice_series").HasMaxLength(50);
+                entity.Property(d => d.InvoiceNumber).HasColumnName("invoice_number").HasMaxLength(50);
+                entity.Property(d => d.InvoiceDate).HasColumnName("invoice_date");
+                entity.Property(d => d.SellerName).HasColumnName("seller_name").HasMaxLength(255);
+                entity.Property(d => d.SellerTaxCode).HasColumnName("seller_tax_code").HasMaxLength(50);
+                entity.Property(d => d.SellerAddress).HasColumnName("seller_address");
+                entity.Property(d => d.SellerPhone).HasColumnName("seller_phone").HasMaxLength(50);
+                entity.Property(d => d.BuyerName).HasColumnName("buyer_name").HasMaxLength(255);
+                entity.Property(d => d.BuyerTaxCode).HasColumnName("buyer_tax_code").HasMaxLength(50);
+                entity.Property(d => d.BuyerIdCard).HasColumnName("buyer_id_card").HasMaxLength(50);
+                entity.Property(d => d.BuyerAddress).HasColumnName("buyer_address");
+                entity.Property(d => d.PaymentMethod).HasColumnName("payment_method").HasMaxLength(100);
+                entity.Property(d => d.TotalAmount).HasColumnName("total_amount").HasColumnType("numeric(18,2)");
+                entity.Property(d => d.TotalAmountInWords).HasColumnName("total_amount_in_words");
+                entity.Property(d => d.LookupUrl).HasColumnName("lookup_url");
+                entity.Property(d => d.LookupCode).HasColumnName("lookup_code").HasMaxLength(100);
+                entity.Property(d => d.ExtractedYear).HasColumnName("extracted_year");
+                entity.Property(d => d.IsYearValid).HasColumnName("is_year_valid");
+                entity.Property(d => d.IsIdentityValid).HasColumnName("is_identity_valid");
+                entity.Property(d => d.IsNotReimbursed).HasColumnName("is_not_reimbursed").HasDefaultValue(false);
+                entity.Property(d => d.Status).HasColumnName("status").HasMaxLength(50).HasDefaultValue("UPLOADED").IsRequired();
+                entity.Property(d => d.CreatedAt).HasColumnName("created_at");
+
+                entity.HasOne(d => d.Period)
+                    .WithMany(p => p.Documents)
+                    .HasForeignKey(d => d.PeriodId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(d => d.DocType)
+                    .WithMany(t => t.Documents)
+                    .HasForeignKey(d => d.DocTypeCode)
+                    .IsRequired(false)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasIndex(d => d.PeriodId).HasDatabaseName("idx_documents_period_id");
+                entity.HasIndex(d => d.DocTypeCode).HasDatabaseName("idx_documents_doc_type_code");
+            });
+
+            // ── DocumentItem ─────────────────────────────────────────────────────
+            modelBuilder.Entity<DocumentItem>(entity =>
+            {
+                entity.ToTable("document_items");
+                entity.HasKey(i => i.Id);
+
+                entity.Property(i => i.Id).HasColumnName("id").UseIdentityByDefaultColumn();
+                entity.Property(i => i.DocumentId).HasColumnName("document_id").IsRequired();
+                entity.Property(i => i.ItemOrder).HasColumnName("item_order").IsRequired();
+                entity.Property(i => i.ItemName).HasColumnName("item_name").HasMaxLength(500).IsRequired();
+                entity.Property(i => i.Unit).HasColumnName("unit").HasMaxLength(50);
+                entity.Property(i => i.Quantity).HasColumnName("quantity").HasColumnType("numeric(18,4)").HasDefaultValue(0m);
+                entity.Property(i => i.UnitPrice).HasColumnName("unit_price").HasColumnType("numeric(18,2)").HasDefaultValue(0m);
+                entity.Property(i => i.TotalPrice).HasColumnName("total_price").HasColumnType("numeric(18,2)").HasDefaultValue(0m);
+
+                entity.HasOne(i => i.Document)
+                    .WithMany(d => d.Items)
+                    .HasForeignKey(i => i.DocumentId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(i => i.DocumentId).HasDatabaseName("idx_document_items_document_id");
+            });
+
             // ── SystemConfig ─────────────────────────────────────────────────────
             modelBuilder.Entity<SystemConfig>(entity =>
             {
                 entity.ToTable("system_configs");
                 entity.HasKey(c => c.ConfigId);
-
                 entity.Property(c => c.ConfigId).HasColumnName("config_id");
                 entity.Property(c => c.ConfigKey).HasColumnName("config_key").HasMaxLength(100).IsRequired();
                 entity.Property(c => c.ConfigValue).HasColumnName("config_value").IsRequired();
@@ -201,10 +267,28 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(c => c.IsActive).HasColumnName("is_active").HasDefaultValue(true);
                 entity.Property(c => c.CreatedAt).HasColumnName("created_at");
                 entity.Property(c => c.UpdatedAt).HasColumnName("updated_at");
+                entity.HasIndex(c => c.ConfigKey).IsUnique().HasDatabaseName("uq_system_configs_key");
+            });
 
-                entity.HasIndex(c => c.ConfigKey)
-                    .IsUnique()
-                    .HasDatabaseName("uq_system_configs_key");
+            // ── TaxSettlementDossier ─────────────────────────────────────────────
+            modelBuilder.Entity<TaxSettlementDossier>(entity =>
+            {
+                entity.ToTable("tax_settlement_dossiers");
+                entity.HasKey(d => d.Id);
+                entity.HasMany(d => d.IncomeItems)
+                    .WithOne(i => i.Dossier)
+                    .HasForeignKey(i => i.DossierId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasIndex(d => new { d.TaxpayerId, d.TaxYear })
+                    .HasDatabaseName("idx_settlement_taxpayer_year");
+            });
+
+            // ── TaxSettlementIncomeItem ──────────────────────────────────────────
+            modelBuilder.Entity<TaxSettlementIncomeItem>(entity =>
+            {
+                entity.ToTable("tax_settlement_income_items");
+                entity.HasKey(i => i.Id);
+                entity.Property(i => i.IsSelected).HasDefaultValue(true);
             });
         }
     }
