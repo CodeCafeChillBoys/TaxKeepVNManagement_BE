@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TaxKeepVN.Infrastructure.Contexts;
@@ -11,9 +12,11 @@ using TaxKeepVN.Infrastructure.Contexts;
 namespace TaxKeepVN.Infrastructure.Migrations
 {
     [DbContext(typeof(TaxKeepDbContext))]
-    partial class TaxKeepDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260929093200_AddExpertRegistrationEntities")]
+    partial class AddExpertRegistrationEntities
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -964,6 +967,12 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("description");
 
+                    b.Property<int>("DisplayOrder")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("display_order");
+
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -989,6 +998,7 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         {
                             Id = 1,
                             Code = "PIT",
+                            DisplayOrder = 1,
                             IsActive = true,
                             Name = "Thuế thu nhập cá nhân (TNCN)"
                         },
@@ -996,6 +1006,7 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         {
                             Id = 2,
                             Code = "CIT",
+                            DisplayOrder = 2,
                             IsActive = true,
                             Name = "Thuế thu nhập doanh nghiệp (TNDN)"
                         },
@@ -1003,6 +1014,7 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         {
                             Id = 3,
                             Code = "FINALIZATION",
+                            DisplayOrder = 3,
                             IsActive = true,
                             Name = "Quyết toán thuế"
                         },
@@ -1010,6 +1022,7 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         {
                             Id = 4,
                             Code = "TAX_REFUND",
+                            DisplayOrder = 4,
                             IsActive = true,
                             Name = "Hoàn thuế"
                         },
@@ -1017,6 +1030,7 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         {
                             Id = 5,
                             Code = "INTERNAL_ACCOUNTING",
+                            DisplayOrder = 5,
                             IsActive = true,
                             Name = "Kế toán nội bộ"
                         },
@@ -1024,6 +1038,7 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         {
                             Id = 6,
                             Code = "TRANSFER_PRICING",
+                            DisplayOrder = 6,
                             IsActive = true,
                             Name = "Chuyển giá"
                         },
@@ -1031,6 +1046,7 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         {
                             Id = 7,
                             Code = "TAX_AGENT",
+                            DisplayOrder = 7,
                             IsActive = true,
                             Name = "Đại lý thuế"
                         },
@@ -1038,6 +1054,7 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         {
                             Id = 8,
                             Code = "CORPORATE_TAX_LEGAL",
+                            DisplayOrder = 8,
                             IsActive = true,
                             Name = "Pháp lý thuế doanh nghiệp"
                         });
@@ -1159,6 +1176,26 @@ namespace TaxKeepVN.Infrastructure.Migrations
                     b.HasKey("Code");
 
                     b.ToTable("document_types", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Code = "SALES_INVOICE",
+                            IsTaxEligible = true,
+                            Name = "Hóa đơn bán hàng"
+                        },
+                        new
+                        {
+                            Code = "VAT_INVOICE",
+                            IsTaxEligible = true,
+                            Name = "Hóa đơn GTGT"
+                        },
+                        new
+                        {
+                            Code = "WITHHOLDING_VOUCHER",
+                            IsTaxEligible = true,
+                            Name = "Chứng từ khấu trừ thuế TNCN"
+                        });
                 });
 
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.TaxPeriod", b =>

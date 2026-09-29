@@ -130,6 +130,8 @@ builder.Services.AddScoped<ITaxAiConfigService, TaxAiConfigService>();
 builder.Services.AddScoped<IUrlRuleService, UrlRuleService>();
 builder.Services.AddScoped<IOcrAIProducerService, OcrAIProducerService>();
 
+builder.Services.AddScoped<ISpecializationService, SpecializationService>();
+
 // ── HTTP Clients ────────────────────────────────────────────────────────────
 builder.Services.AddHttpClient("TaxAIService", client =>
 {

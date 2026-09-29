@@ -475,20 +475,21 @@ namespace TaxKeepVN.Application.Service.Implementations
             return document.ToReviewDto(docType, items);
         }
 
+        // Bỏ các kí tự khoảng trắng và -
         private static string NormalizeTaxCode(string? taxCode)
         {
             return string.Concat((taxCode ?? string.Empty)
                 .Where(character => !char.IsWhiteSpace(character) && character != '-'))
                 .ToUpperInvariant();
         }
-
+        // Bỏ các kí tự khoảng trắng và -
         private static string NormalizeInvoiceNumber(string? invoiceNumber)
         {
             return string.Concat((invoiceNumber ?? string.Empty)
                 .Where(character => !char.IsWhiteSpace(character)))
                 .ToUpperInvariant();
         }
-
+        // Lấy lên tất cả doctype có IsTaxEligible = true
         private async Task<List<CategoryItemDto>> GetEligibleCategoriesForAiAsync()
         {
             var docTypeRepo = _unitOfWork.Repository<TaxDocumentType>();

@@ -1,4 +1,5 @@
 using System;
+using TaxKeepVN.Domain.Enums;
 
 namespace TaxKeepVN.Domain.Entities
 {
@@ -20,8 +21,8 @@ namespace TaxKeepVN.Domain.Entities
 
         public string PasswordHash { get; set; } = string.Empty;
 
-        /// <summary>taxpayer | admin</summary>
-        public string UserRole { get; set; } = "taxpayer";
+        /// <summary>taxpayer | admin | expert</summary>
+        public string UserRole { get; set; } = UserRoles.Taxpayer;
 
         public bool IsVerified { get; set; } = false;
 
@@ -38,6 +39,8 @@ namespace TaxKeepVN.Domain.Entities
 
         // Navigation properties
         public ICollection<TaxPeriod> TaxPeriods { get; set; } = new List<TaxPeriod>();
+        public ICollection<ExpertApplication> ExpertApplications { get; set; } = new List<ExpertApplication>();
+        public ExpertProfile? ExpertProfile { get; set; }
     }
 }
 
