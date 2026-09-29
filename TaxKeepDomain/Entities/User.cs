@@ -1,5 +1,4 @@
 using System;
-using TaxKeepVN.Domain.Enums;
 
 namespace TaxKeepVN.Domain.Entities
 {
@@ -21,8 +20,11 @@ namespace TaxKeepVN.Domain.Entities
 
         public string PasswordHash { get; set; } = string.Empty;
 
+        /// <summary>Khóa ngoại FK trỏ tới bảng roles (Mặc định 1: taxpayer)</summary>
+        public int RoleId { get; set; } = 1;
+
         /// <summary>taxpayer | admin | expert</summary>
-        public string UserRole { get; set; } = UserRoles.Taxpayer;
+        public string UserRole { get; set; } = "taxpayer";
 
         public bool IsVerified { get; set; } = false;
 
@@ -38,6 +40,7 @@ namespace TaxKeepVN.Domain.Entities
         public string Status { get; set; } = "active";
 
         // Navigation properties
+        public Role? Role { get; set; }
         public ICollection<TaxPeriod> TaxPeriods { get; set; } = new List<TaxPeriod>();
         public ICollection<ExpertApplication> ExpertApplications { get; set; } = new List<ExpertApplication>();
         public ExpertProfile? ExpertProfile { get; set; }

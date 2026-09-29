@@ -27,6 +27,9 @@ namespace TaxKeepVN.Infrastructure.Contexts
         public DbSet<TaxSettlementDossier> TaxSettlementDossiers { get; set; }
         public DbSet<TaxSettlementIncomeItem> TaxSettlementIncomeItems { get; set; }
 
+        // RBAC Roles
+        public DbSet<Role> Roles { get; set; }
+
         // Expert Registration & Management
         public DbSet<Specialization> Specializations { get; set; }
         public DbSet<ConsultationFeeConfiguration> ConsultationFeeConfigurations { get; set; }
@@ -54,6 +57,7 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(u => u.Email).HasColumnName("email").IsRequired();
                 entity.Property(u => u.PhoneNumber).HasColumnName("phone_number");
                 entity.Property(u => u.PasswordHash).HasColumnName("password_hash").IsRequired();
+                entity.Property(u => u.RoleId).HasColumnName("role_id").HasDefaultValue(1);
                 entity.Property(u => u.UserRole).HasColumnName("user_role").HasDefaultValue("taxpayer");
                 entity.Property(u => u.IsVerified).HasColumnName("is_verified").HasDefaultValue(false);
                 entity.Property(u => u.CreatedAt).HasColumnName("created_at");
@@ -62,9 +66,38 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(u => u.Address).HasColumnName("address");
                 entity.Property(u => u.Status).HasColumnName("status").HasDefaultValue("active");
 
+                entity.HasOne(u => u.Role)
+                    .WithMany(r => r.Users)
+                    .HasForeignKey(u => u.RoleId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasIndex(u => u.RoleId).HasDatabaseName("idx_users_role_id");
+
                 // Unique indexes
                 entity.HasIndex(u => u.CitizenId).IsUnique().HasDatabaseName("idx_users_citizen_id");
                 entity.HasIndex(u => u.Email).IsUnique().HasDatabaseName("idx_users_email");
+            });
+
+            // ── Role ────────────────────────────────────────────────────────────
+            modelBuilder.Entity<Role>(entity =>
+            {
+                entity.ToTable("roles");
+                entity.HasKey(r => r.Id);
+
+                entity.Property(r => r.Id).HasColumnName("id").UseIdentityByDefaultColumn();
+                entity.Property(r => r.Code).HasColumnName("code").HasMaxLength(50).IsRequired();
+                entity.Property(r => r.Name).HasColumnName("name").HasMaxLength(100).IsRequired();
+                entity.Property(r => r.Description).HasColumnName("description");
+                entity.Property(r => r.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+                entity.Property(r => r.CreatedAt).HasColumnName("created_at");
+
+                entity.HasIndex(r => r.Code).IsUnique().HasDatabaseName("idx_roles_code");
+
+                entity.HasData(
+                    new Role { Id = 1, Code = "taxpayer", Name = "Người nộp thuế", Description = "Người dùng cá nhân thực hiện quyết toán, kê khai thuế", IsActive = true, CreatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero) },
+                    new Role { Id = 2, Code = "admin", Name = "Quản trị viên hệ thống", Description = "Quản trị viên quản lý toàn bộ hệ thống, thẩm định hồ sơ", IsActive = true, CreatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero) },
+                    new Role { Id = 3, Code = "expert", Name = "Chuyên gia tư vấn thuế", Description = "Chuyên gia đã được phê duyệt, cung cấp dịch vụ tư vấn thuế", IsActive = true, CreatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero) }
+                );
             });
 
             // ── RevokedToken ─────────────────────────────────────────────────────
