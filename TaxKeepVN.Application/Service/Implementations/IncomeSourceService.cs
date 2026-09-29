@@ -207,7 +207,7 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             if (!regex10.IsMatch(taxCode) && !regex13.IsMatch(taxCode))
                 throw new BadRequestException("INVALID_TAX_CODE_FORMAT",
-                    "Định dạng mã số thuế không hợp lệ. MST phải có 10 chữ số (VD: 0101234567) hoặc 13 ký tự có dấu gạch ngang (VD: 0101234567-001).");
+                    "Định dạng mã số thuế không hợp lệ. MST phải có 10 chữ số (VD: 0101248141) hoặc 13 ký tự có dấu gạch ngang (VD: 0101248141-001).");
 
             // Checksum for the first 10 digits
             string tenDigits = taxCode.Substring(0, 10);
@@ -222,7 +222,9 @@ namespace TaxKeepVN.Application.Service.Implementations
                 checkDigit = 0;
             int actualCheckDigit = tenDigits[9] - '0';
 
-            if (checkDigit != actualCheckDigit)
+            bool isValid = (checkDigit == actualCheckDigit) || (remainder == 0 && (actualCheckDigit == 0 || actualCheckDigit == 1));
+
+            if (!isValid)
                 throw new BadRequestException("INVALID_TAX_CODE_CHECKSUM",
                     "Mã số thuế không hợp lệ theo thuật toán kiểm tra của Tổng cục Thuế. Vui lòng kiểm tra lại.");
         }
