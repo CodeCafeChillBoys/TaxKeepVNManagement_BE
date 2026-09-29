@@ -160,7 +160,7 @@ namespace TaxKeepVNManagementSystem.Controllers
                 if (activeSets.Count == 0)
                     return NotFound(new { message = "Khong co bo luat nao dang Active trong TaxAIService." });
 
-                int totalAdded = 0, totalUpdated = 0;
+                var allDepRules = new System.Collections.Generic.List<TaxKeepVN.Application.DTOs.TaxAI.DependentRuleFromAiDto>();
                 foreach (var ruleSet in activeSets)
                 {
                     if (ruleSet.RuleSetId == null) continue;
@@ -168,10 +168,18 @@ namespace TaxKeepVNManagementSystem.Controllers
                     if (!detailResp.IsSuccessStatusCode) continue;
                     var detail = await detailResp.Content.ReadFromJsonAsync<TaxRuleDetailFromAiDto>(jsonOptions);
                     var depRules = detail?.Data?.DependentRules;
-                    if (depRules == null || depRules.Count == 0) continue;
-                    var (added, updated) = await _dependentRuleService.SyncFromAiAsync(depRules);
-                    totalAdded += added;
-                    totalUpdated += updated;
+                    if (depRules != null && depRules.Count > 0)
+                    {
+                        allDepRules.AddRange(depRules);
+                    }
+                }
+
+                int totalAdded = 0, totalUpdated = 0;
+                if (allDepRules.Count > 0)
+                {
+                    var (added, updated) = await _dependentRuleService.SyncFromAiAsync(allDepRules);
+                    totalAdded = added;
+                    totalUpdated = updated;
                 }
 
                 _logger.LogInformation("[TaxAdmin] sync-active hoan tat: +{Added} moi, {Updated} cap nhat.", totalAdded, totalUpdated);
