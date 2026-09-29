@@ -1,10 +1,12 @@
 using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.Configuration;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using TaxKeepVN.Application.DTOs.Common;
 using TaxKeepVN.Application.DTOs.Rules;
+using TaxKeepVN.Application.DTOs.TaxAI;
 using TaxKeepVN.Application.Exceptions;
 using TaxKeepVN.Application.Service.Interfaces;
 using TaxKeepVN.Domain.Entities;
@@ -16,11 +18,16 @@ namespace TaxKeepVN.Application.Service.Implementations
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IMemoryCache _cache;
+        private readonly IConfiguration _configuration;
 
-        public DependentRuleService(IUnitOfWork unitOfWork, IMemoryCache cache)
+        public DependentRuleService(
+            IUnitOfWork unitOfWork,
+            IMemoryCache cache,
+            IConfiguration configuration)
         {
             _unitOfWork = unitOfWork;
             _cache = cache;
+            _configuration = configuration;
         }
 
         #region Public Methods
@@ -158,6 +165,167 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             // Invalidate cache for this group
             _cache.Remove($"DependentRules_{targetGroup}");
+        }
+
+        #endregion
+
+        #region AI Sync Methods
+
+        // ── Đồng bộ giấy tờ từ TaxAIService sau khi Admin Approve bộ luật ────────
+        // Logic: Với mỗi (TargetGroup, DocType) trong danh sách dependentRules AI trả về:
+        //   - Nếu chưa tồn tại trong DB → thêm mới.
+        //   - Nếu đã tồn tại → cập nhật IsMandatory, Description.
+        // Sau khi sync xong, tất cả cache liên quan bị xóa để dữ liệu hiệu lực ngay lập tức.
+        public async Task<(int added, int updated)> SyncFromAiAsync(IEnumerable<DependentRuleFromAiDto> dependentRules)
+        {
+            var repo = _unitOfWork.Repository<DependentDocumentRule>();
+            var allExisting = (await repo.GetAllAsync()).ToList();
+
+            int added = 0, updated = 0;
+            var affectedGroups = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+            foreach (var depRule in dependentRules)
+            {
+                if (depRule.RequiredDocuments == null || depRule.RequiredDocuments.Count == 0)
+                    continue;
+
+                // Map dependentType của AI sang TargetGroup enum của .NET
+                // Ví dụ: CHILD → CHILD_UNDER_18, ADULT_CHILD → CHILD_OVER_18_STUDYING, v.v.
+                var targetGroups = MapAiDependentTypeToTargetGroups(depRule);
+
+                foreach (var targetGroup in targetGroups)
+                {
+                    affectedGroups.Add(targetGroup);
+
+                    foreach (var doc in depRule.RequiredDocuments)
+                    {
+                        if (string.IsNullOrWhiteSpace(doc.DocType)) continue;
+
+                        var docType = doc.DocType.Trim().ToUpper();
+                        var existing = allExisting.FirstOrDefault(r =>
+                            r.TargetGroup.Equals(targetGroup, StringComparison.OrdinalIgnoreCase) &&
+                            r.DocType.Equals(docType, StringComparison.OrdinalIgnoreCase));
+
+                        if (existing == null)
+                        {
+                            // Thêm mới
+                            var newRule = new DependentDocumentRule
+                            {
+                                RuleId    = Guid.NewGuid(),
+                                TargetGroup = targetGroup,
+                                DocType     = docType,
+                                IsMandatory = doc.IsMandatory,
+                                Description = doc.Description?.Trim(),
+                                IsActive    = true,
+                                CreatedAt   = DateTime.UtcNow,
+                                UpdatedAt   = DateTime.UtcNow
+                            };
+                            await repo.AddAsync(newRule);
+                            added++;
+                        }
+                        else
+                        {
+                            // Cập nhật bản ghi hiện có
+                            existing.IsMandatory = doc.IsMandatory;
+                            existing.Description = doc.Description?.Trim() ?? existing.Description;
+                            existing.IsActive    = true;
+                            existing.UpdatedAt   = DateTime.UtcNow;
+                            repo.Update(existing);
+                            updated++;
+                        }
+                    }
+                }
+            }
+
+            if (added > 0 || updated > 0)
+            {
+                await _unitOfWork.SaveChangesAsync();
+
+                // Xóa toàn bộ cache liên quan
+                foreach (var grp in affectedGroups)
+                {
+                    _cache.Remove($"DependentRules_{grp}");
+                    _cache.Remove($"DependentRules_Required_{grp}");
+                }
+            }
+
+            return (added, updated);
+        }
+
+        // ── Lấy danh sách TargetGroup đang active từ DB cho endpoint GET /groups ─
+        public async Task<IEnumerable<string>> GetActiveGroupsAsync(string? relationshipFilter = null)
+        {
+            const string CacheKey = "ActiveDependentGroups";
+
+            if (!_cache.TryGetValue(CacheKey, out IEnumerable<string>? groups) || groups == null)
+            {
+                var repo = _unitOfWork.Repository<DependentDocumentRule>();
+                var allActive = await repo.FindAsync(r => r.IsActive);
+                groups = allActive
+                    .Select(r => r.TargetGroup)
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(g => g)
+                    .ToList();
+
+                _cache.Set(CacheKey, groups,
+                    new MemoryCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromHours(1)));
+            }
+
+            if (!string.IsNullOrWhiteSpace(relationshipFilter))
+            {
+                var prefix = relationshipFilter.Trim().ToUpper();
+                groups = groups.Where(g => g.StartsWith(prefix + "_",
+                    StringComparison.OrdinalIgnoreCase));
+            }
+
+            return groups;
+        }
+
+        // ── Helper nội bộ: map dependentType của AI → TargetGroup của .NET ────────
+        // Đọc hoàn toàn động từ cấu hình TaxAiSettings:TypeMapping trong appsettings.json.
+        // Không hardcode loại quan hệ hay nhóm đối tượng.
+        private List<string> MapAiDependentTypeToTargetGroups(DependentRuleFromAiDto dep)
+        {
+            var type = (dep.DependentType ?? "DEFAULT").Trim().ToUpper();
+            var section = _configuration.GetSection($"TaxAiSettings:TypeMapping:{type}");
+            if (!section.Exists())
+            {
+                section = _configuration.GetSection("TaxAiSettings:TypeMapping:DEFAULT");
+            }
+
+            if (!section.Exists())
+            {
+                return new List<string> { "OTHER_HELPLESS" };
+            }
+
+            List<string>? result = null;
+
+            if (dep.IsDisabled)
+            {
+                result = ReadStringList(section, "IfDisabled");
+            }
+            else if (dep.IsStudying)
+            {
+                result = ReadStringList(section, "IfStudying");
+            }
+
+            result ??= ReadStringList(section, "Default");
+
+            return result != null && result.Count > 0
+                ? result
+                : new List<string> { "OTHER_HELPLESS" };
+        }
+
+        private static List<string>? ReadStringList(IConfigurationSection parentSection, string key)
+        {
+            var sec = parentSection.GetSection(key);
+            if (!sec.Exists()) return null;
+            var list = sec.GetChildren()
+                .Select(c => c.Value)
+                .Where(v => !string.IsNullOrWhiteSpace(v))
+                .Select(v => v!)
+                .ToList();
+            return list.Count > 0 ? list : null;
         }
 
         #endregion

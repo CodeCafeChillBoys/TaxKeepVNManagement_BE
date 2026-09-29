@@ -21,6 +21,11 @@ namespace TaxKeepVN.Infrastructure.Contexts
         public DbSet<Document> Documents { get; set; }
         public DbSet<DocumentItem> DocumentItems { get; set; }
 
+        // Tax Settlement
+        public DbSet<SystemConfig> SystemConfigs { get; set; }
+        public DbSet<TaxSettlementDossier> TaxSettlementDossiers { get; set; }
+        public DbSet<TaxSettlementIncomeItem> TaxSettlementIncomeItems { get; set; }
+
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             base.OnModelCreating(modelBuilder);
@@ -254,6 +259,42 @@ namespace TaxKeepVN.Infrastructure.Contexts
                     .OnDelete(DeleteBehavior.Cascade);
 
                 entity.HasIndex(i => i.DocumentId).HasDatabaseName("idx_document_items_document_id");
+            });
+
+            // ── SystemConfig ─────────────────────────────────────────────────────
+            modelBuilder.Entity<SystemConfig>(entity =>
+            {
+                entity.ToTable("system_configs");
+                entity.HasKey(c => c.ConfigId);
+                entity.Property(c => c.ConfigId).HasColumnName("config_id");
+                entity.Property(c => c.ConfigKey).HasColumnName("config_key").HasMaxLength(100).IsRequired();
+                entity.Property(c => c.ConfigValue).HasColumnName("config_value").IsRequired();
+                entity.Property(c => c.Description).HasColumnName("description");
+                entity.Property(c => c.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+                entity.Property(c => c.CreatedAt).HasColumnName("created_at");
+                entity.Property(c => c.UpdatedAt).HasColumnName("updated_at");
+                entity.HasIndex(c => c.ConfigKey).IsUnique().HasDatabaseName("uq_system_configs_key");
+            });
+
+            // ── TaxSettlementDossier ─────────────────────────────────────────────
+            modelBuilder.Entity<TaxSettlementDossier>(entity =>
+            {
+                entity.ToTable("tax_settlement_dossiers");
+                entity.HasKey(d => d.Id);
+                entity.HasMany(d => d.IncomeItems)
+                    .WithOne(i => i.Dossier)
+                    .HasForeignKey(i => i.DossierId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasIndex(d => new { d.TaxpayerId, d.TaxYear })
+                    .HasDatabaseName("idx_settlement_taxpayer_year");
+            });
+
+            // ── TaxSettlementIncomeItem ──────────────────────────────────────────
+            modelBuilder.Entity<TaxSettlementIncomeItem>(entity =>
+            {
+                entity.ToTable("tax_settlement_income_items");
+                entity.HasKey(i => i.Id);
+                entity.Property(i => i.IsSelected).HasDefaultValue(true);
             });
         }
     }

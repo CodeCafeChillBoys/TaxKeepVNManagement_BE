@@ -89,9 +89,11 @@ namespace TaxKeepVN.Application.Service.Implementations
                 var (isComplete, missing) = await CheckProfileCompletionAsync(dependent.CurrentGroup, uploadedTypes);
 
                 // Update Dependent status in DB
-                if (dependent.IsProfileComplete != isComplete)
+                var newStatus = isComplete ? DependentStatus.ACTIVE : DependentStatus.PENDING_DOCUMENTS;
+                if (dependent.IsProfileComplete != isComplete || dependent.Status != newStatus)
                 {
                     dependent.IsProfileComplete = isComplete;
+                    dependent.Status = newStatus;
                     dependentRepo.Update(dependent);
                     await _unitOfWork.SaveChangesAsync();
                 }

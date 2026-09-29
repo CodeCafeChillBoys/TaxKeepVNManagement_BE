@@ -64,6 +64,9 @@ builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new() { Title = "TaxKeepVN API", Version = "v1" });
 
+    // Chỉ hiển thị chú thích cho các endpoint có khai báo [EndpointSummary] (như TaxSettlement)
+    c.OperationFilter<EndpointSummaryOperationFilter>();
+
     // Cho phép nhập JWT token trong Swagger UI
     c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
     {
@@ -117,6 +120,10 @@ builder.Services.AddScoped<IDependentService, DependentService>();
 builder.Services.AddScoped<ITaxAIProducerService, TaxAIProducerService>();
 builder.Services.AddScoped<IDocumentOcrProducerService, DocumentOcrProducerService>();
 builder.Services.AddScoped<IDependentRuleService, DependentRuleService>();
+// Services từ feature/CalculateTaxFinalization
+builder.Services.AddScoped<ISystemConfigService, SystemConfigService>();
+builder.Services.AddScoped<ITaxSettlementService, TaxSettlementService>();
+// Services từ feature/implementation-upload-document-ai-extraction
 builder.Services.AddScoped<ITaxPeriodService, TaxPeriodService>();
 builder.Services.AddScoped<ITaxDocumentTypeService, TaxDocumentTypeService>();
 builder.Services.AddScoped<ITaxAiConfigService, TaxAiConfigService>();
@@ -185,7 +192,9 @@ builder.Services.AddAuthorization();
 // ── Background Jobs ─────────────────────────────────────────────────────────
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.AgeTransitionReminderJob>();
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.TaxAIConsumerBackgroundService>();
+builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.OcrAIConsumerBackgroundService>();
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.DocumentOcrConsumerBackgroundService>();
+builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.TaxSettlementReminderJob>();
 
 var app = builder.Build();
 
@@ -215,3 +224,21 @@ app.MapControllers();
 app.MapHub<TaxAIHub>("/hubs/tax-ai");
 
 app.Run();
+
+/// <summary>
+/// OperationFilter chỉ nạp chú thích tóm tắt cho các endpoint có gắn [EndpointSummary] (VD: TaxSettlementController).
+/// Các controller khác (như Dependent, Notification...) sẽ không bị hiển thị chú thích.
+/// </summary>
+public class EndpointSummaryOperationFilter : Swashbuckle.AspNetCore.SwaggerGen.IOperationFilter
+{
+    public void Apply(Microsoft.OpenApi.Models.OpenApiOperation operation, Swashbuckle.AspNetCore.SwaggerGen.OperationFilterContext context)
+    {
+        var summaryAttr = context.MethodInfo.GetCustomAttributes(typeof(EndpointSummaryAttribute), false)
+            .FirstOrDefault() as EndpointSummaryAttribute;
+
+        if (summaryAttr != null)
+        {
+            operation.Summary = summaryAttr.Summary;
+        }
+    }
+}

@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
+using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -20,15 +22,18 @@ namespace TaxKeepVNManagementSystem.Controllers
         private readonly IDependentService _dependentService;
         private readonly IDependentReminderService _reminderService;
         private readonly IOcrService _ocrService;
+        private readonly IDependentRuleService _dependentRuleService;
 
         public DependentController(
             IDependentService dependentService,
             IDependentReminderService reminderService,
-            IOcrService ocrService)
+            IOcrService ocrService,
+            IDependentRuleService dependentRuleService)
         {
             _dependentService = dependentService;
             _reminderService = reminderService;
             _ocrService = ocrService;
+            _dependentRuleService = dependentRuleService;
         }
 
         /// <summary>
@@ -43,6 +48,60 @@ namespace TaxKeepVNManagementSystem.Controllers
         {
             var result = await _ocrService.ProcessDependentOcrAsync(request.File, request.BackFile);
             return Ok(ApiResponse<TaxKeepVN.Application.DTOs.OcrAI.DependentOcrResponseDto>.Ok(result, "Bóc tách thông tin người phụ thuộc thành công."));
+        }
+
+        /// <summary>
+        /// [Public] Lấy danh sách các nhóm điều kiện người phụ thuộc.
+        /// Dùng để hiển thị dropdown trên Mobile/Web. Không cần đăng nhập.
+        /// Hỗ trợ filter theo Relationship: ?relationship=CHILD | SPOUSE | PARENT | OTHER_DEPENDENT
+        /// Nguồn dữ liệu: bảng dependent_document_rules (is_active=true) — được đồng bộ từ TaxAIService sau khi Admin Approve bộ luật.
+        /// Fallback: nếu DB chưa có dữ liệu, trả về danh sách cứng mặc định.
+        /// GET /api/v1/dependents/groups
+        /// </summary>
+        [HttpGet("groups", Name = "GetDependentGroups")]
+        [AllowAnonymous]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> GetDependentGroups([FromQuery] string? relationship = null)
+        {
+            // ── Đọc từ DB (dependent_document_rules is_active=true) thông qua DependentRuleService ──
+            // Dữ liệu được đồng bộ từ TaxAIService khi Admin Approve bộ luật.
+            // IMemoryCache 1 tiếng — cực nhanh và không phụ thuộc TaxAIService nhạt mạng.
+            var dbGroups = (await _dependentRuleService.GetActiveGroupsAsync(relationship))?.ToList();
+
+            string[] result;
+            if (dbGroups != null && dbGroups.Count > 0)
+            {
+                result = dbGroups.ToArray();
+            }
+            else
+            {
+                // Fallback nếu DB chưa có dữ liệu (chưa sync từ TaxAIService lần nào)
+                var defaultGroups = new List<string>
+                {
+                    "CHILD_UNDER_18", "CHILD_OVER_18_DISABLED", "CHILD_OVER_18_STUDYING",
+                    "SPOUSE_DISABLED", "SPOUSE_RETIRED",
+                    "PARENT_DISABLED", "PARENT_RETIRED",
+                    "OTHER_HELPLESS"
+                };
+
+                if (!string.IsNullOrWhiteSpace(relationship))
+                {
+                    var prefix = relationship.Trim().ToUpper() + "_";
+                    var filtered = defaultGroups.Where(g => g.StartsWith(prefix, System.StringComparison.OrdinalIgnoreCase)).ToList();
+                    if (filtered.Count == 0)
+                        return BadRequest(ApiResponse<object>.Fail(
+                            "INVALID_RELATIONSHIP",
+                            $"Nhóm quan hệ '{relationship.Trim().ToUpper()}' không hợp lệ."));
+                    result = filtered.ToArray();
+                }
+                else
+                {
+                    result = defaultGroups.ToArray();
+                }
+            }
+
+            return Ok(ApiResponse<object>.Ok(result, "Lấy danh sách nhóm người phụ thuộc thành công."));
         }
 
         /// <summary>
