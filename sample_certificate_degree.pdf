@@ -1,0 +1,45 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+5 0 obj
+<< /Length 335 >>
+stream
+BT
+/F1 16 Tf
+100 780 Td
+(BO GIAO DUC VA DAO TAO) Tj
+/F1 20 Tf
+-20 -50 Td
+(BANG CU NHAN DAI HOC) Tj
+/F1 12 Tf
+0 -25 Td
+(So hieu: DH-KT-89012) Tj
+0 -25 Td
+(Nguoi duoc cap: Tran Thi Minh Trang) Tj
+0 -25 Td
+(Nganh: Ke toan - Kiem toan) Tj
+0 -25 Td
+(Truong: Dai hoc Kinh te TP.HCM) Tj
+0 -25 Td
+(Ngay cap: 10/09/2019) Tj
+ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+721
+%%EOF

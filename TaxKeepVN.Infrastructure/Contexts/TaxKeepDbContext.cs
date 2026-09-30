@@ -369,7 +369,11 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.HasKey(c => c.Id);
 
                 entity.Property(c => c.Id).HasColumnName("id").UseIdentityByDefaultColumn();
-                entity.Property(c => c.SessionType).HasColumnName("session_type").HasMaxLength(50).IsRequired();
+                entity.Property(c => c.SessionType)
+                    .HasColumnName("session_type")
+                    .HasMaxLength(50)
+                    .HasConversion<string>()
+                    .IsRequired();
                 entity.Property(c => c.DurationMinutes).HasColumnName("duration_minutes").IsRequired();
                 entity.Property(c => c.MinFee).HasColumnName("min_fee").HasColumnType("numeric(18,2)").IsRequired();
                 entity.Property(c => c.MaxFee).HasColumnName("max_fee").HasColumnType("numeric(18,2)").IsRequired();
@@ -380,8 +384,8 @@ namespace TaxKeepVN.Infrastructure.Contexts
                     .HasDatabaseName("uq_consultation_fee_type_duration");
 
                 entity.HasData(
-                    new ConsultationFeeConfiguration { Id = 1, SessionType = "ONLINE_MEETING", DurationMinutes = 30, MinFee = 100000m, MaxFee = 1000000m, IsActive = true },
-                    new ConsultationFeeConfiguration { Id = 2, SessionType = "ONLINE_MEETING", DurationMinutes = 60, MinFee = 200000m, MaxFee = 2000000m, IsActive = true }
+                    new ConsultationFeeConfiguration { Id = 1, SessionType = SessionType.ONLINE_MEETING, DurationMinutes = 30, MinFee = 100000m, MaxFee = 1000000m, IsActive = true },
+                    new ConsultationFeeConfiguration { Id = 2, SessionType = SessionType.ONLINE_MEETING, DurationMinutes = 60, MinFee = 200000m, MaxFee = 2000000m, IsActive = true }
                 );
             });
 
@@ -506,7 +510,11 @@ namespace TaxKeepVN.Infrastructure.Contexts
 
                 entity.Property(f => f.Id).HasColumnName("id");
                 entity.Property(f => f.ApplicationId).HasColumnName("application_id").IsRequired();
-                entity.Property(f => f.SessionType).HasColumnName("session_type").HasMaxLength(50).IsRequired();
+                entity.Property(f => f.SessionType)
+                    .HasColumnName("session_type")
+                    .HasMaxLength(50)
+                    .HasConversion<string>()
+                    .IsRequired();
                 entity.Property(f => f.DurationMinutes).HasColumnName("duration_minutes").IsRequired();
                 entity.Property(f => f.ProposedFee).HasColumnName("proposed_fee").HasColumnType("numeric(18,2)").IsRequired();
 

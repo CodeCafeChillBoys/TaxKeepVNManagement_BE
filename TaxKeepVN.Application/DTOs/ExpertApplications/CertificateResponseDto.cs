@@ -19,6 +19,9 @@ namespace TaxKeepVN.Application.DTOs.ExpertApplications
         public string FileUrl { get; set; } = string.Empty;
         public string? FileName { get; set; }
         public CertificateVerificationStatus VerificationStatus { get; set; }
+        public string? VerificationSource { get; set; }
         public string? VerificationNote { get; set; }
+        public Guid? VerifiedBy { get; set; }
+        public DateTimeOffset? VerifiedAt { get; set; }
     }
 }

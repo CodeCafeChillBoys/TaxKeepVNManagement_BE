@@ -22,6 +22,8 @@ namespace TaxKeepVN.Application.DTOs.ExpertApplications
         public string ExperienceDescription { get; set; } = string.Empty;
         public ExpertApplicationStatus Status { get; set; }
         public DateTimeOffset? SubmittedAt { get; set; }
+        public Guid? ReviewedBy { get; set; }
+        public DateTimeOffset? ReviewedAt { get; set; }
         public string? RejectionReason { get; set; }
         public string? SupplementRequestReason { get; set; }
         public DateTimeOffset CreatedAt { get; set; }
@@ -30,5 +32,6 @@ namespace TaxKeepVN.Application.DTOs.ExpertApplications
         public List<SpecializationDtoItem> Specializations { get; set; } = new();
         public List<CertificateResponseDto> Certificates { get; set; } = new();
         public List<FeeProposalResponseDto> FeeProposals { get; set; } = new();
+        public List<ExpertApplicationAuditResponseDto> Audits { get; set; } = new();
     }
 }

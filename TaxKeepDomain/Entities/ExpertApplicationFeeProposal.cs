@@ -1,4 +1,5 @@
 using System;
+using TaxKeepVN.Domain.Enums;
 
 namespace TaxKeepVN.Domain.Entities
 {
@@ -8,11 +9,10 @@ namespace TaxKeepVN.Domain.Entities
     public class ExpertApplicationFeeProposal
     {
         public Guid Id { get; set; } = Guid.NewGuid();
-
         public Guid ApplicationId { get; set; }
 
         /// <summary>Loại phiên tư vấn (VD: ONLINE_MEETING, CHAT, VOICE_CALL)</summary>
-        public string SessionType { get; set; } = "ONLINE_MEETING";
+        public SessionType SessionType { get; set; } = SessionType.ONLINE_MEETING;
 
         /// <summary>Thời lượng tư vấn tính theo phút (VD: 30, 60)</summary>
         public int DurationMinutes { get; set; }

@@ -1,4 +1,5 @@
 using System;
+using TaxKeepVN.Domain.Enums;
 
 namespace TaxKeepVN.Application.DTOs.ExpertApplications
 {
@@ -8,7 +9,7 @@ namespace TaxKeepVN.Application.DTOs.ExpertApplications
     public class FeeProposalResponseDto
     {
         public Guid Id { get; set; }
-        public string SessionType { get; set; } = string.Empty;
+        public SessionType SessionType { get; set; }
         public int DurationMinutes { get; set; }
         public decimal ProposedFee { get; set; }
     }

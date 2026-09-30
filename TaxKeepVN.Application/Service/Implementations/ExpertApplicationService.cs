@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using TaxKeepVN.Application.DTOs.ExpertApplications;
 using TaxKeepVN.Application.Exceptions;
 using TaxKeepVN.Application.Service.Interfaces;
@@ -7,42 +8,48 @@ using TaxKeepVN.Domain.IRepositories;
 
 namespace TaxKeepVN.Application.Service.Implementations
 {
-    public class ExpertApplicationService : IExpertApplicationService
+    /// <summary>
+    /// Partial class xử lý luồng Đăng ký chuyên gia của Ứng viên (Bước 1 -> Bước 3)
+    /// </summary>
+    public partial class ExpertApplicationService : IExpertApplicationService
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IFileStorageService _fileStorageService;
+        private readonly ILogger<ExpertApplicationService> _logger;
 
         public ExpertApplicationService(
             IUnitOfWork unitOfWork,
-            IFileStorageService fileStorageService)
+            IFileStorageService fileStorageService,
+            ILogger<ExpertApplicationService> logger)
         {
             _unitOfWork = unitOfWork;
             _fileStorageService = fileStorageService;
+            _logger = logger;
         }
 
-        // ── 1. Tạo Bản Hồ Sơ với trạng thái là bảng nháp
+        // ── 1. TẠO HOẶC CẬP NHẬT BẢN NHÁP HỒ SƠ (Draft) ─────────────────────
         public async Task<ExpertApplicationDetailResponse> SaveDraftAsync(Guid userId, SaveExpertApplicationDraftRequest request)
         {
             // Kiểm tra trạng thái tài khoản user (BR-01)
             var user = await GetActiveUserOrThrowAsync(userId);
 
-            // Kiểm tra xem đã có hồ sơ đang xét duyệt hay chưa (BR-02)
-            var activeApps = await _unitOfWork.Repository<ExpertApplication>().FindAsync(
-                a => a.UserId == userId && (a.Status == ExpertApplicationStatus.PendingReview || a.Status == ExpertApplicationStatus.NeedSupplement)
+            // Kiểm tra xem đã có hồ sơ đang chờ xét duyệt hay chưa (BR-02)
+            var pendingApps = await _unitOfWork.Repository<ExpertApplication>().FindAsync(
+                a => a.UserId == userId && a.Status == ExpertApplicationStatus.PendingReview
             );
-            if (activeApps.Any())
+            if (pendingApps.Any())
             {
                 throw new BadRequestException(
                     "ACTIVE_APPLICATION_EXISTS",
-                    "Bạn đã có hồ sơ đang trong quá trình xét duyệt hoặc chờ bổ sung. Không thể tạo bản nháp mới."
+                    "Bạn đã có hồ sơ đang trong quá trình xét duyệt (PendingReview). Không thể chỉnh sửa hoặc tạo bản nháp mới."
                 );
             }
 
-            // Tìm hồ sơ bản nháp hiện tại (nếu có)
-            var draftApps = await _unitOfWork.Repository<ExpertApplication>().FindAsync(
-                a => a.UserId == userId && a.Status == ExpertApplicationStatus.Draft
+            // Tìm hồ sơ có thể chỉnh sửa hiện tại: Draft hoặc NeedSupplement
+            var editableApps = await _unitOfWork.Repository<ExpertApplication>().FindAsync(
+                a => a.UserId == userId && (a.Status == ExpertApplicationStatus.Draft || a.Status == ExpertApplicationStatus.NeedSupplement)
             );
-            var app = draftApps.FirstOrDefault();
+            var app = editableApps.OrderByDescending(a => a.UpdatedAt).FirstOrDefault();
 
             if (app == null)
             {
@@ -88,9 +95,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             {
                 // Lấy lên chuyên môn có status là active
                 var allActiveSpecs = await _unitOfWork.Repository<Specialization>().FindAsync(s => s.IsActive);
-                // Lấy lên active có ID
                 var activeSpecIds = allActiveSpecs.Select(s => s.Id).ToList();
-                // kiểm tra các Id đc chuyền vào có hợp lệ 
                 var invalidIds = request.SpecializationIds.Where(id => !activeSpecIds.Contains(id)).ToList();
                 if (invalidIds.Any())
                 {
@@ -365,7 +370,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             foreach (var prop in proposals)
             {
                 var matchedConfig = activeConfigs.FirstOrDefault(
-                    c => c.SessionType.Equals(prop.SessionType, StringComparison.OrdinalIgnoreCase) && c.DurationMinutes == prop.DurationMinutes
+                    c => c.SessionType == prop.SessionType && c.DurationMinutes == prop.DurationMinutes
                 );
 
                 if (matchedConfig != null)
@@ -429,7 +434,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             return await BuildApplicationDetailResponseAsync(latestApp);
         }
 
-        // ── HELPER FUNCTIONS ────────────────────────────────────────────────
+        // ── SHARED HELPER FUNCTIONS ─────────────────────────────────────────
         private async Task<User> GetActiveUserOrThrowAsync(Guid userId)
         {
             var users = await _unitOfWork.Repository<User>().FindAsync(u => u.UserId == userId);
@@ -468,6 +473,12 @@ namespace TaxKeepVN.Application.Service.Implementations
             // Lấy danh sách đề xuất mức phí
             var proposals = await _unitOfWork.Repository<ExpertApplicationFeeProposal>().FindAsync(p => p.ApplicationId == app.Id);
 
+            // Lấy lịch sử audit
+            var audits = (await _unitOfWork.Repository<ExpertApplicationAudit>().FindAsync(a => a.ApplicationId == app.Id)).ToList();
+            var actorIds = audits.Select(a => a.ActorId).Distinct().ToList();
+            var actors = (await _unitOfWork.Repository<User>().FindAsync(u => actorIds.Contains(u.UserId))).ToList();
+            var actorDict = actors.ToDictionary(u => u.UserId, u => u.FullName);
+
             return new ExpertApplicationDetailResponse
             {
                 Id = app.Id,
@@ -483,6 +494,8 @@ namespace TaxKeepVN.Application.Service.Implementations
                 ExperienceDescription = app.ExperienceDescription,
                 Status = app.Status,
                 SubmittedAt = app.SubmittedAt,
+                ReviewedBy = app.ReviewedBy,
+                ReviewedAt = app.ReviewedAt,
                 RejectionReason = app.RejectionReason,
                 SupplementRequestReason = app.SupplementRequestReason,
                 CreatedAt = app.CreatedAt,
@@ -508,7 +521,10 @@ namespace TaxKeepVN.Application.Service.Implementations
                     FileUrl = c.FileUrl,
                     FileName = c.FileName,
                     VerificationStatus = c.VerificationStatus,
-                    VerificationNote = c.VerificationNote
+                    VerificationSource = c.VerificationSource,
+                    VerificationNote = c.VerificationNote,
+                    VerifiedBy = c.VerifiedBy,
+                    VerifiedAt = c.VerifiedAt
                 }).ToList(),
 
                 FeeProposals = proposals.Select(p => new FeeProposalResponseDto
@@ -517,6 +533,18 @@ namespace TaxKeepVN.Application.Service.Implementations
                     SessionType = p.SessionType,
                     DurationMinutes = p.DurationMinutes,
                     ProposedFee = p.ProposedFee
+                }).ToList(),
+
+                Audits = audits.OrderByDescending(a => a.CreatedAt).Select(a => new ExpertApplicationAuditResponseDto
+                {
+                    Id = a.Id,
+                    ActorId = a.ActorId,
+                    ActorName = actorDict.TryGetValue(a.ActorId, out var name) ? name : null,
+                    Action = a.Action,
+                    FromStatus = a.FromStatus,
+                    ToStatus = a.ToStatus,
+                    Notes = a.Notes,
+                    CreatedAt = a.CreatedAt
                 }).ToList()
             };
         }

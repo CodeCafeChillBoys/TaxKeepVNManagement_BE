@@ -1,0 +1,47 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold >>
+endobj
+5 0 obj
+<< /Length 430 >>
+stream
+BT
+/F1 16 Tf
+100 780 Td
+(TONG CUC THUE - CUC THUE TP.HCM) Tj
+/F1 20 Tf
+-20 -50 Td
+(CHUNG TU KHAU TRU THUE TNCN) Tj
+/F1 12 Tf
+0 -25 Td
+(So chung tu: CT-2026-00123) Tj
+0 -25 Td
+(Nguoi nop thue: Tran Thi Minh Trang) Tj
+0 -25 Td
+(Ma so thue: 8091234567) Tj
+0 -25 Td
+(To chuc tra thu nhap: Cong ty An Phat) Tj
+0 -25 Td
+(Tong thu nhap chi tra: 120,000,000 VND) Tj
+0 -25 Td
+(So thue da khau tru: 12,000,000 VND) Tj
+ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+816
+%%EOF

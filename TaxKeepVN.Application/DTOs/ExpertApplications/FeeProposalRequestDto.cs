@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using TaxKeepVN.Domain.Enums;
 
 namespace TaxKeepVN.Application.DTOs.ExpertApplications
 {
@@ -8,7 +9,7 @@ namespace TaxKeepVN.Application.DTOs.ExpertApplications
     public class FeeProposalRequestDto
     {
         [Required(ErrorMessage = "Loại phiên tư vấn không được để trống")]
-        public string SessionType { get; set; } = "ONLINE_MEETING"; // ONLINE_MEETING, CHAT, VOICE_CALL
+        public SessionType SessionType { get; set; } = SessionType.ONLINE_MEETING;
 
         [Range(15, 240, ErrorMessage = "Thời lượng tư vấn từ 15 đến 240 phút")]
         public int DurationMinutes { get; set; } = 60;
