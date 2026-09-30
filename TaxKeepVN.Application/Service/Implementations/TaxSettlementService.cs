@@ -212,17 +212,21 @@ namespace TaxKeepVN.Application.Service.Implementations
         private async Task<List<Dependent>> LoadValidDependentsAsync(Guid taxpayerId, int taxYear, DateOnly cutoff)
         {
             var repo = _unitOfWork.Repository<Dependent>();
-            var cutoffMonth = $"{taxYear}-{cutoff.Month:D2}";
+            var yearEnd = $"{taxYear}-12";
+            var yearStart = $"{taxYear}-01";
 
-            // Chỉ lấy NPT đã được APPROVED và có thời gian hiệu lực giao nhau với năm tính thuế
+            // Bước 1: Query DB lọc theo taxpayerId, chưa xóa và trạng thái hợp lệ (EF Core dịch được 100%)
             var deps = await repo.FindAsync(d =>
                 d.TaxpayerId == taxpayerId &&
                 !d.IsDeleted &&
-                (d.Status == DependentStatus.ACTIVE || d.IsProfileComplete) &&
-                string.Compare(d.EffectiveFromMonth, $"{taxYear}-12", StringComparison.Ordinal) <= 0 &&
-                string.Compare(d.EffectiveToMonth, $"{taxYear}-01", StringComparison.Ordinal) >= 0);
+                (d.Status == DependentStatus.ACTIVE || d.IsProfileComplete));
 
-            return deps.ToList();
+            // Bước 2: Lọc thời gian hiệu lực giao nhau với năm tính thuế trong bộ nhớ (in-memory)
+            return deps
+                .Where(d =>
+                    (string.IsNullOrEmpty(d.EffectiveFromMonth) || string.Compare(d.EffectiveFromMonth, yearEnd, StringComparison.Ordinal) <= 0) &&
+                    (string.IsNullOrEmpty(d.EffectiveToMonth) || string.Compare(d.EffectiveToMonth, yearStart, StringComparison.Ordinal) >= 0))
+                .ToList();
         }
 
         /// <summary>

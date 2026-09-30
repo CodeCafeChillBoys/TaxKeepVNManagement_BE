@@ -192,7 +192,7 @@ namespace TaxKeepVN.Application.Service.Implementations
         /// Validate MST theo chuẩn Tổng cục Thuế Việt Nam.
         /// Định dạng hợp lệ: 10 chữ số HOẶC 13 chữ số dạng XXXXXXXXXX-XXX.
         /// Checksum: 9 số đầu nhân trọng số [31,29,23,19,17,13,7,5,3] cộng lại,
-        /// lấy 10 - (sum % 11) phải bằng số thứ 10 (chữ số kiểm tra).
+        /// lấy 10 - (sum % 11) (nếu kết quả >= 10 thì là 0) phải bằng số thứ 10.
         /// </summary>
         private static void ValidateTaxCode(string taxCode)
         {
@@ -218,6 +218,8 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             int remainder = sum % 11;
             int checkDigit = 10 - remainder;
+            if (checkDigit >= 10)
+                checkDigit = 0;
             int actualCheckDigit = tenDigits[9] - '0';
 
             bool isValid = (checkDigit == actualCheckDigit) || (remainder == 0 && (actualCheckDigit == 0 || actualCheckDigit == 1));

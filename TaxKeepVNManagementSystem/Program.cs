@@ -20,6 +20,8 @@ using TaxKeepVN.Infrastructure.Storage;
 using TaxKeepVNManagementSystem.BackgroundJobs;
 using TaxKeepVNManagementSystem.Hubs;
 using TaxKeepVNManagementSystem.Middlewares;
+using QuestPDF.Infrastructure;
+using TaxKeepVN.Infrastructure.Services.Pdf;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -123,6 +125,10 @@ builder.Services.AddScoped<IDependentRuleService, DependentRuleService>();
 // Services từ feature/CalculateTaxFinalization
 builder.Services.AddScoped<ISystemConfigService, SystemConfigService>();
 builder.Services.AddScoped<ITaxSettlementService, TaxSettlementService>();
+// Services kết xuất tờ khai PDF & đóng gói ZIP hồ sơ quyết toán (WBS 3.6.T7, 3.6.T8, 3.6.T9)
+builder.Services.AddScoped<IDownloadTokenService, DownloadTokenService>();
+builder.Services.AddScoped<ITaxSettlementPdfService, TaxSettlementPdfService>();
+builder.Services.AddScoped<ITaxSettlementPackageService, TaxSettlementPackageService>();
 // Services từ feature/implementation-upload-document-ai-extraction
 builder.Services.AddScoped<ITaxPeriodService, TaxPeriodService>();
 builder.Services.AddScoped<ITaxDocumentTypeService, TaxDocumentTypeService>();
@@ -198,6 +204,11 @@ builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.TaxAI
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.OcrAIConsumerBackgroundService>();
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.DocumentOcrConsumerBackgroundService>();
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.TaxSettlementReminderJob>();
+
+// ── QuestPDF Community License Configuration (WBS 3.6.T7) ───────────────────
+QuestPDF.Settings.License = LicenseType.Community;
+QuestPDF.Settings.UseSystemFonts = true;
+QuestPDF.Settings.ThrowOnMissingFontFamilies = false;
 
 var app = builder.Build();
 

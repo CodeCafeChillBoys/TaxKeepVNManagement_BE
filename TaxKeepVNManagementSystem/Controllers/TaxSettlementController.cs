@@ -1,7 +1,9 @@
 using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System;
+using System.IO;
 using System.Threading.Tasks;
 using TaxKeepVN.Application.DTOs.Responses;
 using TaxKeepVN.Application.DTOs.SystemConfigs;
@@ -19,11 +21,22 @@ namespace TaxKeepVNManagementSystem.Controllers
     {
         private readonly ITaxSettlementService _service;
         private readonly ISystemConfigService _configService;
+        private readonly ITaxSettlementPackageService _packageService;
+        private readonly IDownloadTokenService _downloadTokenService;
+        private readonly IWebHostEnvironment _env;
 
-        public TaxSettlementController(ITaxSettlementService service, ISystemConfigService configService)
+        public TaxSettlementController(
+            ITaxSettlementService service,
+            ISystemConfigService configService,
+            ITaxSettlementPackageService packageService,
+            IDownloadTokenService downloadTokenService,
+            IWebHostEnvironment env)
         {
             _service = service;
             _configService = configService;
+            _packageService = packageService;
+            _downloadTokenService = downloadTokenService;
+            _env = env;
         }
 
         // ══════════════════════════════════════════════════════════════════════════
@@ -89,6 +102,73 @@ namespace TaxKeepVNManagementSystem.Controllers
             var userId = GetUserIdFromToken();
             var result = await _service.GetByIdAsync(id, userId);
             return Ok(ApiResponse<object>.Ok(result, "Lấy chi tiết hồ sơ quyết toán thành công."));
+        }
+
+        /// <summary>
+        /// Kết xuất Tờ khai Quyết toán thuế TNCN Mẫu 02/QTT-TNCN và các Phụ lục dưới dạng file PDF (WBS 3.6.T7).
+        /// Hỗ trợ truyền thông tin CQT/Tài khoản hoàn thuế qua body hoặc tự động fallback vào Profile người dùng.
+        /// </summary>
+        // POST /api/v1/tax-settlements/{id}/export-pdf
+        [HttpPost("{id:guid}/export-pdf", Name = "ExportTaxSettlementPdf")]
+        [EndpointSummary("Kết xuất Tờ khai Quyết toán thuế TNCN Mẫu 02/QTT-TNCN và các Phụ lục dạng PDF")]
+        public async Task<IActionResult> ExportPdf(Guid id, [FromBody] TaxSettlementExportPdfRequest? request = null)
+        {
+            var userId = GetUserIdFromToken();
+            var (pdfBytes, fileName) = await _packageService.GeneratePdfAsync(id, userId, request);
+            return File(pdfBytes, "application/pdf", fileName);
+        }
+
+        /// <summary>
+        /// Đóng gói toàn bộ hồ sơ quyết toán (Tờ khai PDF + chứng từ y tế/giáo dục gốc) thành file .ZIP (WBS 3.6.T8).
+        /// Trả về đường dẫn tải file (Signed Download URL) có thời hạn 30 phút.
+        /// </summary>
+        // POST /api/v1/tax-settlements/{id}/export-zip
+        [HttpPost("{id:guid}/export-zip", Name = "ExportTaxSettlementZip")]
+        [EndpointSummary("Đóng gói toàn bộ hồ sơ quyết toán (PDF + chứng từ gốc) thành file ZIP")]
+        public async Task<IActionResult> ExportZip(Guid id, [FromBody] TaxSettlementExportZipRequest? request = null)
+        {
+            var userId = GetUserIdFromToken();
+            var result = await _packageService.CreateZipPackageAsync(id, userId, request);
+            return Ok(ApiResponse<TaxSettlementPackageZipResponse>.Ok(result, result.Message));
+        }
+
+        /// <summary>
+        /// Tải tệp hồ sơ quyết toán (PDF hoặc ZIP) qua Signed Download Token an toàn có thời hạn 30 phút (WBS 3.6.T9).
+        /// Endpoint công khai (AllowAnonymous), xác thực thông qua chữ ký HMAC-SHA256 của token.
+        /// </summary>
+        // GET /api/v1/tax-settlements/download/{token}
+        [HttpGet("download/{token}", Name = "DownloadSettlementFile")]
+        [AllowAnonymous]
+        [EndpointSummary("Tải tệp hồ sơ quyết toán an toàn qua Signed Download Token (30 phút hiệu lực)")]
+        public IActionResult DownloadFile(string token)
+        {
+            var payload = _downloadTokenService.ValidateToken(token);
+            if (payload == null)
+            {
+                return StatusCode(StatusCodes.Status410Gone,
+                    ApiResponse<object>.Fail("TOKEN_EXPIRED_OR_INVALID",
+                        "Đường dẫn tải tệp không hợp lệ hoặc đã hết hạn hiệu lực (30 phút). Vui lòng yêu cầu kết xuất lại."));
+            }
+
+            var rootPath = _env.WebRootPath ?? Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+            var cleanRel = payload.RelativeFilePath.TrimStart('/').Replace('/', Path.DirectorySeparatorChar);
+            var fullPath = Path.Combine(rootPath, cleanRel);
+
+            if (!System.IO.File.Exists(fullPath))
+            {
+                return NotFound(ApiResponse<object>.Fail("FILE_NOT_FOUND",
+                    "Tệp tin vật lý không còn tồn tại trên máy chủ. Vui lòng thực hiện kết xuất lại."));
+            }
+
+            var contentType = string.Equals(payload.FileType, "pdf", StringComparison.OrdinalIgnoreCase)
+                ? "application/pdf"
+                : "application/zip";
+
+            var downloadName = !string.IsNullOrWhiteSpace(payload.DownloadFileName)
+                ? payload.DownloadFileName
+                : Path.GetFileName(fullPath);
+
+            return PhysicalFile(fullPath, contentType, downloadName);
         }
 
         // ══════════════════════════════════════════════════════════════════════════
