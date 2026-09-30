@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using TaxKeepVN.Application.DTOs.ExpertApplications;
 using TaxKeepVN.Application.Exceptions;
+using TaxKeepVN.Application.Helpers;
 using TaxKeepVN.Application.Service.Interfaces;
 using TaxKeepVN.Domain.Entities;
 using TaxKeepVN.Domain.Enums;
@@ -45,6 +46,20 @@ namespace TaxKeepVN.Application.Service.Implementations
                 );
             }
 
+            // Kiểm tra tính nhất quán họ tên: Ứng viên không được đăng ký dưới tên người khác (phải trùng khớp với User profile)
+            var targetFullName = request.FullName?.Trim();
+            if (string.IsNullOrWhiteSpace(targetFullName))
+            {
+                targetFullName = user.FullName;
+            }
+            else if (!string.IsNullOrWhiteSpace(user.FullName) && !StringComparisonHelper.IsNameMatching(user.FullName, targetFullName))
+            {
+                throw new BadRequestException(
+                    "FULLNAME_MISMATCH",
+                    $"Họ và tên đăng ký ('{targetFullName}') không trùng khớp với họ và tên trên tài khoản hệ thống ('{user.FullName}'). Vui lòng kiểm tra lại."
+                );
+            }
+
             // Tìm hồ sơ có thể chỉnh sửa hiện tại: Draft hoặc NeedSupplement
             var editableApps = await _unitOfWork.Repository<ExpertApplication>().FindAsync(
                 a => a.UserId == userId && (a.Status == ExpertApplicationStatus.Draft || a.Status == ExpertApplicationStatus.NeedSupplement)
@@ -59,7 +74,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                     Id = Guid.NewGuid(),
                     UserId = userId,
                     ApplicationNumber = GenerateApplicationNumber(),
-                    FullName = request.FullName,
+                    FullName = targetFullName,
                     AvatarUrl = request.AvatarUrl,
                     JobTitle = request.JobTitle,
                     CompanyName = request.CompanyName,
@@ -77,7 +92,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             else
             {
                 // Cập nhật thông tin bản nháp có sẵn
-                app.FullName = request.FullName;
+                app.FullName = targetFullName;
                 app.AvatarUrl = request.AvatarUrl;
                 app.JobTitle = request.JobTitle;
                 app.CompanyName = request.CompanyName;
@@ -307,7 +322,7 @@ namespace TaxKeepVN.Application.Service.Implementations
         // ── 4. NỘP HỒ SƠ CHÍNH THỨC (Draft -> PendingReview) ─────────────────
         public async Task<ExpertApplicationDetailResponse> SubmitApplicationAsync(Guid userId)
         {
-            await GetActiveUserOrThrowAsync(userId);
+            var user = await GetActiveUserOrThrowAsync(userId);
 
             // Tìm hồ sơ nháp hoặc hồ sơ cần bổ sung
             var apps = await _unitOfWork.Repository<ExpertApplication>().FindAsync(
@@ -335,6 +350,15 @@ namespace TaxKeepVN.Application.Service.Implementations
                 string.IsNullOrWhiteSpace(app.ExperienceDescription))
             {
                 throw new BadRequestException("MISSING_REQUIRED_FIELDS", "Vui lòng điền đầy đủ Họ tên, Chức danh và Mô tả kinh nghiệm trước khi nộp hồ sơ.");
+            }
+
+            // Đối soát họ tên trong hồ sơ với tài khoản người dùng
+            if (!string.IsNullOrWhiteSpace(user.FullName) && !StringComparisonHelper.IsNameMatching(user.FullName, app.FullName))
+            {
+                throw new BadRequestException(
+                    "FULLNAME_MISMATCH",
+                    $"Họ và tên trong hồ sơ ('{app.FullName}') không trùng khớp với họ và tên trên tài khoản hệ thống ('{user.FullName}'). Vui lòng cập nhật lại trước khi nộp."
+                );
             }
 
             // Kiểm tra lĩnh vực chuyên môn (Tối thiểu 1)
