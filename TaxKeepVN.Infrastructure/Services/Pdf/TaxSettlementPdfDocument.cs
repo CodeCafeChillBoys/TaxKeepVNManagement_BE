@@ -37,7 +37,7 @@ namespace TaxKeepVN.Infrastructure.Services.Pdf
                 page.MarginBottom(25);
                 page.MarginLeft(30);
                 page.MarginRight(30);
-                page.DefaultTextStyle(x => x.FontSize(9).FontFamily("Arial").FontColor(Colors.Grey.Darken4));
+                page.DefaultTextStyle(x => x.FontSize(9).FontFamily(Fonts.Lato).FontColor(Colors.Grey.Darken4));
 
                 page.Header().Element(ComposeGlobalHeader);
                 page.Content().Element(ComposeContent);

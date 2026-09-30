@@ -80,12 +80,18 @@ namespace TaxKeepVN.Infrastructure.Services.Pdf
 
             // 2. Lấy danh sách Người phụ thuộc (Mẫu 02-1/BK-QTT)
             var depRepo = _unitOfWork.Repository<Dependent>();
-            var rawDeps = await depRepo.FindAsync(d =>
+            var yearEnd = $"{taxYear}-12";
+            var yearStart = $"{taxYear}-01";
+            var depsFromDb = await depRepo.FindAsync(d =>
                 d.TaxpayerId == userId &&
                 !d.IsDeleted &&
-                (d.Status == DependentStatus.ACTIVE || d.IsProfileComplete) &&
-                string.Compare(d.EffectiveFromMonth, $"{taxYear}-12", StringComparison.Ordinal) <= 0 &&
-                string.Compare(d.EffectiveToMonth, $"{taxYear}-01", StringComparison.Ordinal) >= 0);
+                (d.Status == DependentStatus.ACTIVE || d.IsProfileComplete));
+
+            var rawDeps = depsFromDb
+                .Where(d =>
+                    (string.IsNullOrEmpty(d.EffectiveFromMonth) || string.Compare(d.EffectiveFromMonth, yearEnd, StringComparison.Ordinal) <= 0) &&
+                    (string.IsNullOrEmpty(d.EffectiveToMonth) || string.Compare(d.EffectiveToMonth, yearStart, StringComparison.Ordinal) >= 0))
+                .ToList();
 
             // Mức giảm trừ NPT hàng tháng
             decimal dependentMonthlyRate = 6200000;

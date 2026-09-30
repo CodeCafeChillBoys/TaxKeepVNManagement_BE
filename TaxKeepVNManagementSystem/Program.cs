@@ -204,6 +204,8 @@ builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.TaxSe
 
 // ── QuestPDF Community License Configuration (WBS 3.6.T7) ───────────────────
 QuestPDF.Settings.License = LicenseType.Community;
+QuestPDF.Settings.UseSystemFonts = true;
+QuestPDF.Settings.ThrowOnMissingFontFamilies = false;
 
 var app = builder.Build();
 
