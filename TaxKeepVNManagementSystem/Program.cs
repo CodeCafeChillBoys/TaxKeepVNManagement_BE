@@ -97,7 +97,9 @@ builder.Services.AddSwaggerGen(c =>
 
 // ── Database (PostgreSQL) ───────────────────────────────────────────────────
 var connString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? "Host=localhost;Database=TaxKeepVNDB;Username=postgres;Password=12345";
+    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured in appsettings.json.");
+
+
 
 builder.Services.AddDbContext<TaxKeepDbContext>(options =>
     options.UseNpgsql(connString));

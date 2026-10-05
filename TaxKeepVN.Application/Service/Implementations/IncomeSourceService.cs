@@ -78,6 +78,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 TaxYear = taxYear,
                 TotalIncome = sources.Sum(s => s.TotalIncome),
                 TotalTaxWithheld = sources.Sum(s => s.TaxWithheld),
+                TotalInsuranceDeducted = sources.Sum(s => s.InsuranceDeducted),
                 TotalSources = sources.Count
             };
         }
@@ -113,6 +114,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 TaxYear = dto.TaxYear,
                 TotalIncome = dto.TotalIncome,
                 TaxWithheld = dto.TaxWithheld,
+                InsuranceDeducted = dto.InsuranceDeducted,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
@@ -145,6 +147,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             source.TaxYear = dto.TaxYear;
             source.TotalIncome = dto.TotalIncome;
             source.TaxWithheld = dto.TaxWithheld;
+            source.InsuranceDeducted = dto.InsuranceDeducted;
             source.IsActive = dto.IsActive;
             source.UpdatedAt = DateTime.UtcNow;
 
@@ -183,6 +186,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             TaxYear = s.TaxYear,
             TotalIncome = s.TotalIncome,
             TaxWithheld = s.TaxWithheld,
+            InsuranceDeducted = s.InsuranceDeducted,
             IsActive = s.IsActive,
             CreatedAt = s.CreatedAt,
             UpdatedAt = s.UpdatedAt
@@ -245,6 +249,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 "taxyear" => desc ? sources.OrderByDescending(s => s.TaxYear) : sources.OrderBy(s => s.TaxYear),
                 "totalincome" => desc ? sources.OrderByDescending(s => s.TotalIncome) : sources.OrderBy(s => s.TotalIncome),
                 "taxwithheld" => desc ? sources.OrderByDescending(s => s.TaxWithheld) : sources.OrderBy(s => s.TaxWithheld),
+                "insurancededucted" => desc ? sources.OrderByDescending(s => s.InsuranceDeducted) : sources.OrderBy(s => s.InsuranceDeducted),
                 "createdat" => desc ? sources.OrderByDescending(s => s.CreatedAt) : sources.OrderBy(s => s.CreatedAt),
                 "updatedat" => desc ? sources.OrderByDescending(s => s.UpdatedAt) : sources.OrderBy(s => s.UpdatedAt),
                 _ => sources.OrderByDescending(s => s.CreatedAt) // Default

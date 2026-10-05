@@ -27,6 +27,9 @@ namespace TaxKeepVN.Application.DTOs.IncomeSources
         [Range(0, double.MaxValue, ErrorMessage = "Số thuế đã khấu trừ không được âm.")]
         public decimal TaxWithheld { get; set; } = 0;
 
+        [Range(0, double.MaxValue, ErrorMessage = "Tiền bảo hiểm không được âm.")]
+        public decimal InsuranceDeducted { get; set; } = 0;
+
         public bool IsActive { get; set; } = true;
     }
 }
