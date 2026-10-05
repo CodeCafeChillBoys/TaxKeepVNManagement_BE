@@ -1,19 +1,10 @@
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.Extensions.Configuration;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
-using System;
-using System.Linq;
 using System.Text;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
 using TaxKeepVN.Application.DTOs.TaxAI;
 using TaxKeepVN.Application.Helpers;
-using TaxKeepVN.Application.Service.Interfaces;
 using TaxKeepVN.Domain.Entities;
 using TaxKeepVN.Domain.IRepositories;
 using TaxKeepVNManagementSystem.Hubs;
@@ -185,12 +176,14 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
                 }
                 else
                 {
-                    var reason = existingDocType == null
-                        ? $"AI nhận diện loại chứng từ '{normalizedCode}' không có trong danh mục admin."
-                        : $"Loại chứng từ '{normalizedCode}' không được admin cho phép kê khai thuế.";
+                    var reason = existingDocType != null
+                        ? $"Loại chứng từ '{existingDocType.Name}' không thuộc diện được giảm trừ thuế TNCN theo quy định."
+                        : (normalizedCode == "UNSUPPORTED"
+                            ? "Chứng từ/hóa đơn không thuộc danh mục được giảm trừ thuế TNCN theo quy định."
+                            : $"AI nhận diện loại chứng từ '{normalizedCode}' không có trong danh mục của hệ thống.");
 
                     _logger.LogWarning("Document {DocId} rejected after OCR: {Reason}", document.Id, reason);
-                    document.DocTypeCode = null;
+                    document.DocTypeCode = existingDocType?.Code;
                     data.Status = "FAILED";
                     data.ValidationErrors ??= new System.Collections.Generic.List<string>();
                     data.ValidationErrors.Add(reason);
@@ -231,37 +224,54 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
             }
 
             // 2. Tự động kiểm tra đối soát thông tin người mua với tài khoản (User & Dependents)
-            Guid? effectiveUserId = data.UserId;
-            if (!effectiveUserId.HasValue && document.PeriodId != Guid.Empty)
+            // QUAN TRỌNG: Nếu loại chứng từ đã bị từ chối (IsDocTypeValid = false) hoặc AI bóc tách thất bại (Status = FAILED),
+            // KHÔNG kiểm tra danh tính để tránh trường hợp các trường định danh bị null gây hiểu lầm là sai người nộp thuế/người phụ thuộc.
+            bool isDocTypeAlreadyRejected = data.ValidationStatus?.IsDocTypeValid == false;
+            bool isAiProcessingFailed = string.Equals(data.Status, "FAILED", StringComparison.OrdinalIgnoreCase);
+
+            if (!isDocTypeAlreadyRejected && !isAiProcessingFailed)
             {
-                var periodRepo = unitOfWork.Repository<TaxPeriod>();
-                var period = await periodRepo.GetByIdAsync(document.PeriodId);
-                effectiveUserId = period?.UserId;
-            }
-
-            if (effectiveUserId.HasValue)
-            {
-                bool isIdentityValid = await CheckIdentityMatchAsync(
-                    unitOfWork,
-                    effectiveUserId.Value,
-                    data.BuyerTaxCode,
-                    data.BuyerIdCard,
-                    data.BuyerName);
-
-                document.IsIdentityValid = isIdentityValid;
-
-                if (data.ValidationStatus == null)
+                Guid? effectiveUserId = data.UserId;
+                if (!effectiveUserId.HasValue && document.PeriodId != Guid.Empty)
                 {
-                    data.ValidationStatus = new DocumentValidationStatus();
+                    var periodRepo = unitOfWork.Repository<TaxPeriod>();
+                    var period = await periodRepo.GetByIdAsync(document.PeriodId);
+                    effectiveUserId = period?.UserId;
                 }
-                data.ValidationStatus.IsIdentityValid = isIdentityValid;
 
-                _logger.LogInformation("Identity validation for Document {DocId}: IsIdentityValid={IsValid} (Buyer: '{Buyer}', MST: '{TaxCode}', CCCD: '{IdCard}')",
-                    document.Id, isIdentityValid, data.BuyerName, data.BuyerTaxCode, data.BuyerIdCard);
+                if (effectiveUserId.HasValue)
+                {
+                    bool isIdentityValid = await CheckIdentityMatchAsync(
+                        unitOfWork,
+                        effectiveUserId.Value,
+                        data.BuyerTaxCode,
+                        data.BuyerIdCard,
+                        data.BuyerName);
+
+                    document.IsIdentityValid = isIdentityValid;
+
+                    if (data.ValidationStatus == null)
+                    {
+                        data.ValidationStatus = new DocumentValidationStatus();
+                    }
+                    data.ValidationStatus.IsIdentityValid = isIdentityValid;
+
+                    _logger.LogInformation("Identity validation for Document {DocId}: IsIdentityValid={IsValid} (Buyer: '{Buyer}', MST: '{TaxCode}', CCCD: '{IdCard}')",
+                        document.Id, isIdentityValid, data.BuyerName, data.BuyerTaxCode, data.BuyerIdCard);
+                }
+                else
+                {
+                    document.IsIdentityValid = data.ValidationStatus?.IsIdentityValid;
+                }
             }
             else
             {
-                document.IsIdentityValid = data.ValidationStatus?.IsIdentityValid;
+                // Danh mục không hợp lệ là lý do chính — không thực hiện kiểm tra danh tính
+                // IsIdentityValid giữ null (chưa kiểm tra) để tránh nhầm lẫn
+                document.IsIdentityValid = null;
+                _logger.LogInformation(
+                    "Document {DocId}: Skipping identity check — doc type '{DocType}' is already rejected as non-tax-eligible.",
+                    document.Id, data.DocTypeCode);
             }
 
             if (data.ValidationStatus?.IsYearValid == false)

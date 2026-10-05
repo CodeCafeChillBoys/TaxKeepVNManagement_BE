@@ -296,8 +296,8 @@ namespace TaxKeepVN.Application.Service.Implementations
             var incomeItems = incomes.Select(i =>
             {
                 var isSelected = selectedIds == null || selectedIds.Contains(i.Id);
-                // Bảo hiểm = tổng thu nhập × (BHXH + BHYT + BHTN) theo luật hiện hành
-                var insurance = Math.Round(i.TotalIncome * (config.BhxhRate + config.BhytRate + config.BhtnRate), 0);
+                // Tiền bảo hiểm lấy thực tế từ chứng từ (Mục 14b) thay vì tự tính 10.5%
+                var insurance = i.InsuranceDeducted;
                 return new SettlementIncomeItemDto
                 {
                     IncomeSourceId = i.Id,

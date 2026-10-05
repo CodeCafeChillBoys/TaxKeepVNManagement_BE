@@ -129,6 +129,15 @@ namespace TaxKeepVN.Application.Mappers
             {
                 errors.Add("Thông tin người mua không khớp với người nộp thuế hoặc người phụ thuộc.");
             }
+            // Thêm lỗi danh mục không hợp lệ: khi FAILED nhưng identity và year đều null/true
+            // -> lý do FAILED là do loại chứng từ không thuộc diện giảm trừ
+            if (string.Equals(doc.Status, "FAILED", StringComparison.OrdinalIgnoreCase)
+                && doc.IsYearValid != false
+                && doc.IsIdentityValid != false
+                && !string.IsNullOrWhiteSpace(doc.DocTypeCode))
+            {
+                errors.Add($"Loại chứng từ không thuộc diện được giảm trừ thuế TNCN theo quy định.");
+            }
             if (string.Equals(doc.Status, "FAILED", StringComparison.OrdinalIgnoreCase) && errors.Count == 0)
             {
                 errors.Add("AI không thể xác nhận tính hợp lệ của chứng từ.");

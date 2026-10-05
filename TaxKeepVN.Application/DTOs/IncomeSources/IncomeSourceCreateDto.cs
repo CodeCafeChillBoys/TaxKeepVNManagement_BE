@@ -33,5 +33,9 @@ namespace TaxKeepVN.Application.DTOs.IncomeSources
         /// <summary>Số thuế TNCN đã khấu trừ tại nguồn (VNĐ)</summary>
         [Range(0, double.MaxValue, ErrorMessage = "Số thuế đã khấu trừ không được âm.")]
         public decimal TaxWithheld { get; set; } = 0;
+
+        /// <summary>Số tiền bảo hiểm bắt buộc đã đóng (VNĐ)</summary>
+        [Range(0, double.MaxValue, ErrorMessage = "Tiền bảo hiểm không được âm.")]
+        public decimal InsuranceDeducted { get; set; } = 0;
     }
 }

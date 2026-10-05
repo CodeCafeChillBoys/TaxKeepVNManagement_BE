@@ -16,6 +16,7 @@ namespace TaxKeepVN.Application.DTOs.IncomeSources
         public int TaxYear { get; set; }
         public decimal TotalIncome { get; set; }
         public decimal TaxWithheld { get; set; }
+        public decimal InsuranceDeducted { get; set; }
 
         public bool IsActive { get; set; }
         public DateTime CreatedAt { get; set; }

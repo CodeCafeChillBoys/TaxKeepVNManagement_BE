@@ -20,6 +20,8 @@ using TaxKeepVN.Infrastructure.Storage;
 using TaxKeepVNManagementSystem.BackgroundJobs;
 using TaxKeepVNManagementSystem.Hubs;
 using TaxKeepVNManagementSystem.Middlewares;
+using QuestPDF.Infrastructure;
+using TaxKeepVN.Infrastructure.Services.Pdf;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -35,6 +37,7 @@ builder.Services.AddControllers(options =>
 .AddJsonOptions(options =>
 {
     options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+    options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
 })
 .AddXmlSerializerFormatters() // Support application/xml
 .ConfigureApiBehaviorOptions(options =>
@@ -95,7 +98,9 @@ builder.Services.AddSwaggerGen(c =>
 
 // ── Database (PostgreSQL) ───────────────────────────────────────────────────
 var connString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? "Host=localhost;Database=TaxKeepVNDB;Username=postgres;Password=12345";
+    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured in appsettings.json.");
+
+
 
 builder.Services.AddDbContext<TaxKeepDbContext>(options =>
     options.UseNpgsql(connString));
@@ -123,12 +128,21 @@ builder.Services.AddScoped<IDependentRuleService, DependentRuleService>();
 // Services từ feature/CalculateTaxFinalization
 builder.Services.AddScoped<ISystemConfigService, SystemConfigService>();
 builder.Services.AddScoped<ITaxSettlementService, TaxSettlementService>();
+// Services kết xuất tờ khai PDF & đóng gói ZIP hồ sơ quyết toán (WBS 3.6.T7, 3.6.T8, 3.6.T9)
+builder.Services.AddScoped<IDownloadTokenService, DownloadTokenService>();
+builder.Services.AddScoped<ITaxSettlementPdfService, TaxSettlementPdfService>();
+builder.Services.AddScoped<ITaxSettlementPackageService, TaxSettlementPackageService>();
 // Services từ feature/implementation-upload-document-ai-extraction
 builder.Services.AddScoped<ITaxPeriodService, TaxPeriodService>();
 builder.Services.AddScoped<ITaxDocumentTypeService, TaxDocumentTypeService>();
 builder.Services.AddScoped<ITaxAiConfigService, TaxAiConfigService>();
 builder.Services.AddScoped<IUrlRuleService, UrlRuleService>();
 builder.Services.AddScoped<IOcrAIProducerService, OcrAIProducerService>();
+
+builder.Services.AddScoped<ISpecializationService, SpecializationService>();
+builder.Services.AddScoped<IExpertApplicationService, ExpertApplicationService>();
+builder.Services.AddScoped<IConsultationFeeConfigService, ConsultationFeeConfigService>();
+builder.Services.AddScoped<IExpertSearchService, ExpertSearchService>();
 
 // ── HTTP Clients ────────────────────────────────────────────────────────────
 builder.Services.AddHttpClient("TaxAIService", client =>
@@ -195,6 +209,11 @@ builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.TaxAI
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.OcrAIConsumerBackgroundService>();
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.DocumentOcrConsumerBackgroundService>();
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.TaxSettlementReminderJob>();
+
+// ── QuestPDF Community License Configuration (WBS 3.6.T7) ───────────────────
+QuestPDF.Settings.License = LicenseType.Community;
+QuestPDF.Settings.UseSystemFonts = true;
+QuestPDF.Settings.ThrowOnMissingFontFamilies = false;
 
 var app = builder.Build();
 

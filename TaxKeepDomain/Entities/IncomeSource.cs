@@ -34,6 +34,10 @@ namespace TaxKeepVN.Domain.Entities
         [Column("tax_withheld", TypeName = "decimal(18,2)")]
         public decimal TaxWithheld { get; set; } = 0;
 
+        /// <summary>Tiền bảo hiểm bắt buộc đã đóng (Mục 14b trên chứng từ)</summary>
+        [Column("insurance_deducted", TypeName = "decimal(18,2)")]
+        public decimal InsuranceDeducted { get; set; } = 0;
+
         [Column("is_active")]
         public bool IsActive { get; set; } = true;
 
