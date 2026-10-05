@@ -24,8 +24,14 @@ namespace TaxKeepVN.Application.Service.Interfaces
         /// </summary>
         Task<string> GetRequiredConfigValueAsync(string key, int taxYear);
 
+        Task<SystemConfigResponseDto?> GetByIdAsync(Guid id);
+
         Task<SystemConfigResponseDto> CreateAsync(SystemConfigCreateDto dto);
 
         Task<SystemConfigResponseDto> UpdateAsync(string key, SystemConfigUpdateDto dto);
+
+        Task<SystemConfigResponseDto> UpdateByIdAsync(Guid id, SystemConfigUpdateDto dto);
+
+        Task<bool> DeleteByIdAsync(Guid id);
     }
 }

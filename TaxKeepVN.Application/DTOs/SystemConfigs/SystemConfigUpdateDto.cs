@@ -9,6 +9,8 @@ namespace TaxKeepVN.Application.DTOs.SystemConfigs
 
         public string? Description { get; set; }
 
+        public int? AppliesFromYear { get; set; }
+
         public bool? IsActive { get; set; }
     }
 }

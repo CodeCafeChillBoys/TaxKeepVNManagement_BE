@@ -28,11 +28,25 @@ namespace TaxKeepVN.Application.Service.Implementations
             if (query.IsActive.HasValue)
                 configs = configs.Where(c => c.IsActive == query.IsActive.Value);
 
-            // 2. Filter by AppliesFromYear
-            //    - query.AppliesFromYear = null  → không lọc (lấy tất cả)
-            //    - query.AppliesFromYear = 0     → chỉ lấy config chung (AppliesFromYear IS NULL)
-            //    - query.AppliesFromYear = 2026  → chỉ lấy config hiệu lực từ năm 2026
-            if (query.AppliesFromYear.HasValue)
+            // 2. Filter by TaxYear or AppliesFromYear
+            if (query.TaxYear.HasValue)
+            {
+                // Khi lọc theo năm tính thuế cụ thể:
+                // Với mỗi key, lấy đúng config hiệu lực cho năm đó
+                var targetYear = query.TaxYear.Value;
+                configs = configs
+                    .GroupBy(c => c.ConfigKey)
+                    .Select(g =>
+                    {
+                        var match = g
+                            .Where(c => c.AppliesFromYear.HasValue && c.AppliesFromYear.Value <= targetYear)
+                            .OrderByDescending(c => c.AppliesFromYear!.Value)
+                            .FirstOrDefault();
+                        return match ?? g.FirstOrDefault(c => c.AppliesFromYear == null);
+                    })
+                    .Where(c => c != null)!;
+            }
+            else if (query.AppliesFromYear.HasValue)
             {
                 if (query.AppliesFromYear.Value == 0)
                     configs = configs.Where(c => c.AppliesFromYear == null);
@@ -187,14 +201,72 @@ namespace TaxKeepVN.Application.Service.Implementations
             return ToDto(config);
         }
 
+        public async Task<SystemConfigResponseDto?> GetByIdAsync(Guid id)
+        {
+            var repo = _unitOfWork.Repository<SystemConfig>();
+            var config = await repo.GetByIdAsync(id);
+            return config == null ? null : ToDto(config);
+        }
+
+        public async Task<SystemConfigResponseDto> UpdateByIdAsync(Guid id, SystemConfigUpdateDto dto)
+        {
+            var repo = _unitOfWork.Repository<SystemConfig>();
+            var config = await repo.GetByIdAsync(id);
+            if (config == null)
+            {
+                throw new KeyNotFoundException($"Không tìm thấy cấu hình với Id '{id}'.");
+            }
+
+            // Kiểm tra trùng unique index (config_key, applies_from_year) nếu có đổi applies_from_year
+            if (dto.AppliesFromYear != config.AppliesFromYear)
+            {
+                var duplicate = await repo.FindAsync(c =>
+                    c.ConfigId != id &&
+                    c.ConfigKey == config.ConfigKey &&
+                    c.AppliesFromYear == dto.AppliesFromYear);
+                if (duplicate.Any())
+                {
+                    var yearLabel = dto.AppliesFromYear.HasValue
+                        ? $"năm hiệu lực {dto.AppliesFromYear}"
+                        : "config chung";
+                    throw new InvalidOperationException($"Cấu hình '{config.ConfigKey}' với {yearLabel} đã tồn tại.");
+                }
+                config.AppliesFromYear = dto.AppliesFromYear;
+            }
+
+            config.ConfigValue = dto.ConfigValue.Trim();
+            if (!string.IsNullOrEmpty(dto.Description))
+                config.Description = dto.Description;
+            if (dto.IsActive.HasValue)
+                config.IsActive = dto.IsActive.Value;
+            config.UpdatedAt = DateTimeOffset.UtcNow;
+
+            repo.Update(config);
+            await _unitOfWork.SaveChangesAsync();
+            return ToDto(config);
+        }
+
+        public async Task<bool> DeleteByIdAsync(Guid id)
+        {
+            var repo = _unitOfWork.Repository<SystemConfig>();
+            var config = await repo.GetByIdAsync(id);
+            if (config == null) return false;
+
+            repo.Remove(config);
+            await _unitOfWork.SaveChangesAsync();
+            return true;
+        }
+
         public async Task<SystemConfigResponseDto> UpdateAsync(string key, SystemConfigUpdateDto dto)
         {
             var repo = _unitOfWork.Repository<SystemConfig>();
-            // Update config chung (AppliesFromYear = null) theo key.
-            // Để update config theo năm cụ thể, dùng PUT /api/v1/system-configs/{configId} (mở rộng sau nếu cần).
             var configs = await repo.FindAsync(c => c.ConfigKey == key);
-            var config = configs.FirstOrDefault(c => c.AppliesFromYear == null)
-                      ?? configs.FirstOrDefault();
+            
+            // Nếu DTO có truyền AppliesFromYear thì tìm đúng row của năm đó,
+            // ngược lại ưu tiên row chung (AppliesFromYear == null)
+            var config = dto.AppliesFromYear.HasValue
+                ? configs.FirstOrDefault(c => c.AppliesFromYear == dto.AppliesFromYear.Value)
+                : configs.FirstOrDefault(c => c.AppliesFromYear == null) ?? configs.FirstOrDefault();
 
             if (config == null)
             {
@@ -202,8 +274,9 @@ namespace TaxKeepVN.Application.Service.Implementations
                 {
                     ConfigId = Guid.NewGuid(),
                     ConfigKey = key,
-                    ConfigValue = dto.ConfigValue,
+                    ConfigValue = dto.ConfigValue.Trim(),
                     Description = dto.Description,
+                    AppliesFromYear = dto.AppliesFromYear,
                     IsActive = dto.IsActive ?? true,
                     CreatedAt = DateTimeOffset.UtcNow,
                     UpdatedAt = DateTimeOffset.UtcNow
@@ -212,9 +285,11 @@ namespace TaxKeepVN.Application.Service.Implementations
             }
             else
             {
-                config.ConfigValue = dto.ConfigValue;
+                config.ConfigValue = dto.ConfigValue.Trim();
                 if (!string.IsNullOrEmpty(dto.Description))
                     config.Description = dto.Description;
+                if (dto.AppliesFromYear.HasValue)
+                    config.AppliesFromYear = dto.AppliesFromYear;
                 if (dto.IsActive.HasValue)
                     config.IsActive = dto.IsActive.Value;
                 config.UpdatedAt = DateTimeOffset.UtcNow;
