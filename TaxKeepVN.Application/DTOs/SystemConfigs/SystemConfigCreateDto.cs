@@ -13,6 +13,12 @@ namespace TaxKeepVN.Application.DTOs.SystemConfigs
 
         public string? Description { get; set; }
 
+        /// <summary>
+        /// Năm bắt đầu hiệu lực. Để trống (null) = config chung, áp dụng cho mọi năm.
+        /// Ví dụ: 2026 = luật mới hiệu lực từ năm 2026 trở đi.
+        /// </summary>
+        public int? AppliesFromYear { get; set; }
+
         public bool IsActive { get; set; } = true;
     }
 }

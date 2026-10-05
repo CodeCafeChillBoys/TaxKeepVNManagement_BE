@@ -1253,6 +1253,10 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("config_id");
 
+                    b.Property<int?>("AppliesFromYear")
+                        .HasColumnType("integer")
+                        .HasColumnName("applies_from_year");
+
                     b.Property<string>("ConfigKey")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -1284,9 +1288,9 @@ namespace TaxKeepVN.Infrastructure.Migrations
 
                     b.HasKey("ConfigId");
 
-                    b.HasIndex("ConfigKey")
+                    b.HasIndex("ConfigKey", "AppliesFromYear")
                         .IsUnique()
-                        .HasDatabaseName("uq_system_configs_key");
+                        .HasDatabaseName("uq_system_configs_key_year");
 
                     b.ToTable("system_configs", (string)null);
                 });

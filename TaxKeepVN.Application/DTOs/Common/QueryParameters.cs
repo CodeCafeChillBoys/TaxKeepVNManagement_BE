@@ -72,11 +72,26 @@ namespace TaxKeepVN.Application.DTOs.Common
     }
 
     /// <summary>
-    /// Query parameters cho System Configs — hỗ trợ lọc theo trạng thái hoạt động.
+    /// Query parameters cho System Configs — hỗ trợ lọc theo trạng thái và năm hiệu lực.
     /// </summary>
     public class SystemConfigQueryParameters : QueryParameters
     {
         /// <summary>Lọc theo trạng thái hoạt động (true/false)</summary>
         public bool? IsActive { get; set; }
+
+        /// <summary>
+        /// Lọc theo năm bắt đầu hiệu lực.
+        /// - Không truyền (null) → trả về tất cả config (cả chung lẫn theo năm).
+        /// - Truyền 0          → chỉ lấy config chung (AppliesFromYear IS NULL).
+        /// - Truyền 2026       → chỉ lấy config hiệu lực từ năm 2026.
+        /// </summary>
+        public int? AppliesFromYear { get; set; }
+
+        /// <summary>
+        /// Lọc danh sách cấu hình đang có hiệu lực trong một năm tính thuế cụ thể.
+        /// Ví dụ: taxYear = 2025 → trả về đúng các config áp dụng cho 2025 (7 bậc, 11M, 4.4M).
+        ///        taxYear = 2026 → trả về đúng các config áp dụng cho 2026 (5 bậc, 15M, 6M).
+        /// </summary>
+        public int? TaxYear { get; set; }
     }
 }
