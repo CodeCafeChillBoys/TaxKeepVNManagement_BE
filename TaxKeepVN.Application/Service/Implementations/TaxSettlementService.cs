@@ -24,11 +24,10 @@ namespace TaxKeepVN.Application.Service.Implementations
         private readonly ISystemConfigService _configService;
 
         // ── Tên key cấu hình trong system_configs ────────────────────────────────
-        // Cấu trúc: {PREFIX}_{YEAR_SUFFIX} — suffix là "2025" (≤2025) hoặc "2026" (≥2026)
-        private const string KeyNewLawFromYear       = "PIT_NEW_LAW_FROM_YEAR";
-        private const string KeyPersonalMonthly      = "PIT_DEDUCTION_PERSONAL_MONTHLY_{0}";
-        private const string KeyDependentMonthly     = "PIT_DEDUCTION_DEPENDENT_MONTHLY_{0}";
-        private const string KeyBracketsJson         = "PIT_BRACKETS_JSON_{0}";
+        // Không dùng suffix năm nữa — việc chọn config đúng năm do GetRequiredConfigValueAsync(key, taxYear) xử lý
+        private const string KeyPersonalMonthly      = "PIT_DEDUCTION_PERSONAL_MONTHLY";
+        private const string KeyDependentMonthly     = "PIT_DEDUCTION_DEPENDENT_MONTHLY";
+        private const string KeyBracketsJson         = "PIT_BRACKETS_JSON";
         private const string KeyBhxhRate             = "PIT_INSURANCE_BHXH_RATE";
         private const string KeyBhytRate             = "PIT_INSURANCE_BHYT_RATE";
         private const string KeyBhtnRate             = "PIT_INSURANCE_BHTN_RATE";
@@ -151,37 +150,39 @@ namespace TaxKeepVN.Application.Service.Implementations
 
         private async Task<TaxCalcConfig> LoadConfigAsync(int taxYear)
         {
-            // Xác định nhóm luật: "2026" hoặc "2025"
-            var newLawFromYearStr = await _configService.GetRequiredConfigValueAsync(KeyNewLawFromYear);
-            var newLawFromYear = int.Parse(newLawFromYearStr);
-            var suffix = taxYear >= newLawFromYear ? newLawFromYear.ToString() : (newLawFromYear - 1).ToString();
+            // GetRequiredConfigValueAsync(key, taxYear) tự động chọn config đúng:
+            // - Ưu tiên row có AppliesFromYear lớn nhất mà vẫn <= taxYear
+            // - Fallback về row AppliesFromYear = NULL (config chung)
+            // Ví dụ: taxYear=2024 → lấy config NULL (7 bậc cũ)
+            //        taxYear=2026 → lấy config AppliesFromYear=2026 (5 bậc mới)
 
-            // Đọc các tham số mức giảm trừ
-            var personalMonthlyStr = await _configService.GetRequiredConfigValueAsync(string.Format(KeyPersonalMonthly, suffix));
-            var dependentMonthlyStr = await _configService.GetRequiredConfigValueAsync(string.Format(KeyDependentMonthly, suffix));
-            var bracketsJson = await _configService.GetRequiredConfigValueAsync(string.Format(KeyBracketsJson, suffix));
-            var bhxhRateStr = await _configService.GetRequiredConfigValueAsync(KeyBhxhRate);
-            var bhytRateStr = await _configService.GetRequiredConfigValueAsync(KeyBhytRate);
-            var bhtnRateStr = await _configService.GetRequiredConfigValueAsync(KeyBhtnRate);
-            var smallExemptionStr = await _configService.GetRequiredConfigValueAsync(KeySmallExemption);
+            var personalMonthlyStr  = await _configService.GetRequiredConfigValueAsync(KeyPersonalMonthly, taxYear);
+            var dependentMonthlyStr = await _configService.GetRequiredConfigValueAsync(KeyDependentMonthly, taxYear);
+            var bracketsJson        = await _configService.GetRequiredConfigValueAsync(KeyBracketsJson, taxYear);
+
+            // Tỉ lệ bảo hiểm không thay đổi theo năm → dùng overload không có taxYear
+            var bhxhRateStr        = await _configService.GetRequiredConfigValueAsync(KeyBhxhRate);
+            var bhytRateStr        = await _configService.GetRequiredConfigValueAsync(KeyBhytRate);
+            var bhtnRateStr        = await _configService.GetRequiredConfigValueAsync(KeyBhtnRate);
+            var smallExemptionStr  = await _configService.GetRequiredConfigValueAsync(KeySmallExemption);
 
             // Giới hạn chi phí y tế & giáo dục (chỉ load nếu năm >= 2026)
             decimal medicalMaxYearly = 0, educationMaxYearly = 0;
             if (taxYear >= 2026)
             {
-                var medicalMaxStr = await _configService.GetRequiredConfigValueAsync(KeyMedicalMaxYearly);
-                var educationMaxStr = await _configService.GetRequiredConfigValueAsync(KeyEducationMaxYearly);
-                medicalMaxYearly = decimal.Parse(medicalMaxStr);
-                educationMaxYearly = decimal.Parse(educationMaxStr);
+                var medicalMaxStr   = await _configService.GetRequiredConfigValueAsync(KeyMedicalMaxYearly, taxYear);
+                var educationMaxStr = await _configService.GetRequiredConfigValueAsync(KeyEducationMaxYearly, taxYear);
+                medicalMaxYearly    = decimal.Parse(medicalMaxStr);
+                educationMaxYearly  = decimal.Parse(educationMaxStr);
             }
 
-            // Parse biểu thuế JSON — số bậc do Admin cấu hình (5 hay 7 hay bao nhiêu cũng được)
+            // Parse biểu thuế JSON — số bậc do Admin cấu hình (5 hay 7 tùy năm)
             var brackets = JsonSerializer.Deserialize<List<PitBracketConfigDto>>(bracketsJson)
-                ?? throw new InvalidOperationException($"Cấu hình '{string.Format(KeyBracketsJson, suffix)}' không hợp lệ.");
+                ?? throw new InvalidOperationException($"Cấu hình '{KeyBracketsJson}' không hợp lệ.");
 
             return new TaxCalcConfig
             {
-                LawSuffix = suffix,
+                LawSuffix = taxYear.ToString(),
                 TaxYear = taxYear,
                 PersonalMonthly = decimal.Parse(personalMonthlyStr),
                 DependentMonthly = decimal.Parse(dependentMonthlyStr),

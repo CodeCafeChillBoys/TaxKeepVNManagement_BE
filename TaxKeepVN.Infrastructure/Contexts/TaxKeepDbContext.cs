@@ -264,10 +264,14 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(c => c.ConfigKey).HasColumnName("config_key").HasMaxLength(100).IsRequired();
                 entity.Property(c => c.ConfigValue).HasColumnName("config_value").IsRequired();
                 entity.Property(c => c.Description).HasColumnName("description");
+                entity.Property(c => c.AppliesFromYear).HasColumnName("applies_from_year").IsRequired(false);
                 entity.Property(c => c.IsActive).HasColumnName("is_active").HasDefaultValue(true);
                 entity.Property(c => c.CreatedAt).HasColumnName("created_at");
                 entity.Property(c => c.UpdatedAt).HasColumnName("updated_at");
-                entity.HasIndex(c => c.ConfigKey).IsUnique().HasDatabaseName("uq_system_configs_key");
+                // Unique: (config_key, applies_from_year) — cho phép cùng key tồn tại nhiều năm khác nhau
+                entity.HasIndex(c => new { c.ConfigKey, c.AppliesFromYear })
+                      .IsUnique()
+                      .HasDatabaseName("uq_system_configs_key_year");
             });
 
             // ── TaxSettlementDossier ─────────────────────────────────────────────

@@ -4,7 +4,6 @@ using System.Linq;
 using System.Threading.Tasks;
 using TaxKeepVN.Application.DTOs.Common;
 using TaxKeepVN.Application.DTOs.SystemConfigs;
-using TaxKeepVN.Application.Exceptions;
 using TaxKeepVN.Application.Service.Interfaces;
 using TaxKeepVN.Domain.Entities;
 using TaxKeepVN.Domain.IRepositories;
@@ -27,11 +26,21 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             // 1. Filter by IsActive
             if (query.IsActive.HasValue)
-            {
                 configs = configs.Where(c => c.IsActive == query.IsActive.Value);
+
+            // 2. Filter by AppliesFromYear
+            //    - query.AppliesFromYear = null  → không lọc (lấy tất cả)
+            //    - query.AppliesFromYear = 0     → chỉ lấy config chung (AppliesFromYear IS NULL)
+            //    - query.AppliesFromYear = 2026  → chỉ lấy config hiệu lực từ năm 2026
+            if (query.AppliesFromYear.HasValue)
+            {
+                if (query.AppliesFromYear.Value == 0)
+                    configs = configs.Where(c => c.AppliesFromYear == null);
+                else
+                    configs = configs.Where(c => c.AppliesFromYear == query.AppliesFromYear.Value);
             }
 
-            // 2. Searching by ConfigKey or Description
+            // 3. Searching by ConfigKey or Description
             if (!string.IsNullOrWhiteSpace(query.Search))
             {
                 var kw = query.Search.Trim().ToLower();
@@ -40,23 +49,15 @@ namespace TaxKeepVN.Application.Service.Implementations
                     (!string.IsNullOrEmpty(c.Description) && c.Description.ToLower().Contains(kw)));
             }
 
-            // 3. Sorting
+            // 4. Sorting
             configs = ApplySort(configs, query.Sort);
 
-            // 4. Pagination
+            // 5. Pagination
             var totalItems = configs.Count();
             var items = configs
                 .Skip((query.Page - 1) * query.Size)
                 .Take(query.Size)
-                .Select(c => new SystemConfigResponseDto
-                {
-                    ConfigId = c.ConfigId,
-                    ConfigKey = c.ConfigKey,
-                    ConfigValue = c.ConfigValue,
-                    Description = c.Description,
-                    IsActive = c.IsActive,
-                    UpdatedAt = c.UpdatedAt
-                })
+                .Select(c => ToDto(c))
                 .ToList();
 
             return new PagedResult<SystemConfigResponseDto>
@@ -75,17 +76,17 @@ namespace TaxKeepVN.Application.Service.Implementations
         private static IEnumerable<SystemConfig> ApplySort(IEnumerable<SystemConfig> query, string? sort)
         {
             if (string.IsNullOrWhiteSpace(sort))
-                return query.OrderBy(c => c.ConfigKey);
+                return query.OrderBy(c => c.ConfigKey).ThenBy(c => c.AppliesFromYear);
 
             return sort.Trim().ToLower() switch
             {
                 "-configkey" or "-key" => query.OrderByDescending(c => c.ConfigKey),
-                "configkey" or "key" => query.OrderBy(c => c.ConfigKey),
-                "-updatedat" => query.OrderByDescending(c => c.UpdatedAt),
-                "updatedat" => query.OrderBy(c => c.UpdatedAt),
-                "-createdat" => query.OrderByDescending(c => c.CreatedAt),
-                "createdat" => query.OrderBy(c => c.CreatedAt),
-                _ => query.OrderBy(c => c.ConfigKey)
+                "configkey" or "key"   => query.OrderBy(c => c.ConfigKey).ThenBy(c => c.AppliesFromYear),
+                "-updatedat"           => query.OrderByDescending(c => c.UpdatedAt),
+                "updatedat"            => query.OrderBy(c => c.UpdatedAt),
+                "-createdat"           => query.OrderByDescending(c => c.CreatedAt),
+                "createdat"            => query.OrderBy(c => c.CreatedAt),
+                _                      => query.OrderBy(c => c.ConfigKey).ThenBy(c => c.AppliesFromYear)
             };
         }
 
@@ -93,38 +94,79 @@ namespace TaxKeepVN.Application.Service.Implementations
         {
             var repo = _unitOfWork.Repository<SystemConfig>();
             var configs = await repo.FindAsync(c => c.ConfigKey == key && c.IsActive);
-            var config = configs.FirstOrDefault();
+            // Trả về row "chung" (AppliesFromYear = null) hoặc row mới nhất
+            var config = configs
+                .OrderByDescending(c => c.AppliesFromYear ?? int.MinValue)
+                .FirstOrDefault();
 
-            if (config == null) return null;
-
-            return new SystemConfigResponseDto
-            {
-                ConfigId = config.ConfigId,
-                ConfigKey = config.ConfigKey,
-                ConfigValue = config.ConfigValue,
-                Description = config.Description,
-                IsActive = config.IsActive,
-                UpdatedAt = config.UpdatedAt
-            };
+            return config == null ? null : ToDto(config);
         }
 
+        /// <summary>
+        /// Lấy config chung (không theo năm). Dùng cho các tham số không thay đổi theo năm
+        /// như tỉ lệ bảo hiểm, deadline quyết toán...
+        /// </summary>
         public async Task<string> GetRequiredConfigValueAsync(string key)
         {
-            var config = await GetByKeyAsync(key);
+            var repo = _unitOfWork.Repository<SystemConfig>();
+            var configs = await repo.FindAsync(c => c.ConfigKey == key && c.IsActive);
+            // Ưu tiên row chung (AppliesFromYear = null); nếu không có thì lấy row mới nhất
+            var config = configs.FirstOrDefault(c => c.AppliesFromYear == null)
+                      ?? configs.OrderByDescending(c => c.AppliesFromYear).FirstOrDefault();
+
             if (config == null || string.IsNullOrWhiteSpace(config.ConfigValue))
-            {
-                throw new InvalidOperationException($"Lỗi cấu hình hệ thống: Không tìm thấy tham số '{key}' trong CSDL hoặc giá trị bị rỗng. Vui lòng thiết lập cấu hình trước khi chạy tiến trình.");
-            }
+                throw new InvalidOperationException(
+                    $"Lỗi cấu hình hệ thống: Không tìm thấy tham số '{key}' trong CSDL hoặc giá trị bị rỗng. " +
+                    "Vui lòng thiết lập cấu hình trước khi chạy tiến trình.");
+
             return config.ConfigValue.Trim();
+        }
+
+        /// <summary>
+        /// Lấy config phù hợp nhất với năm thuế đang tính.
+        /// Logic: ưu tiên row có AppliesFromYear lớn nhất mà vẫn &lt;= taxYear.
+        ///        Fallback về row có AppliesFromYear = NULL (config chung).
+        ///        Ví dụ taxYear=2024: chọn AppliesFromYear=NULL (7 bậc cũ), bỏ qua 2026.
+        ///         taxYear=2026: chọn AppliesFromYear=2026 (5 bậc mới).
+        ///         taxYear=2027: chọn AppliesFromYear=2026 (vẫn dùng luật 2026).
+        /// </summary>
+        public async Task<string> GetRequiredConfigValueAsync(string key, int taxYear)
+        {
+            var repo = _unitOfWork.Repository<SystemConfig>();
+            var allConfigs = await repo.FindAsync(c => c.ConfigKey == key && c.IsActive);
+
+            // Tìm config có applies_from_year phù hợp nhất (lớn nhất mà vẫn <= taxYear)
+            var bestMatch = allConfigs
+                .Where(c => c.AppliesFromYear.HasValue && c.AppliesFromYear.Value <= taxYear)
+                .OrderByDescending(c => c.AppliesFromYear!.Value)
+                .FirstOrDefault();
+
+            // Fallback về config chung nếu không tìm được config theo năm
+            bestMatch ??= allConfigs.FirstOrDefault(c => c.AppliesFromYear == null);
+
+            if (bestMatch == null || string.IsNullOrWhiteSpace(bestMatch.ConfigValue))
+                throw new InvalidOperationException(
+                    $"Lỗi cấu hình hệ thống: Không tìm thấy tham số '{key}' phù hợp với năm thuế {taxYear}. " +
+                    "Vui lòng thiết lập cấu hình trong Admin.");
+
+            return bestMatch.ConfigValue.Trim();
         }
 
         public async Task<SystemConfigResponseDto> CreateAsync(SystemConfigCreateDto dto)
         {
             var repo = _unitOfWork.Repository<SystemConfig>();
-            var existing = await repo.FindAsync(c => c.ConfigKey == dto.ConfigKey.Trim());
+
+            // Kiểm tra trùng (config_key, applies_from_year) — unique composite key
+            var existing = await repo.FindAsync(c =>
+                c.ConfigKey == dto.ConfigKey.Trim() &&
+                c.AppliesFromYear == dto.AppliesFromYear);
             if (existing.Any())
             {
-                throw new InvalidOperationException($"Cấu hình với key '{dto.ConfigKey}' đã tồn tại trong hệ thống. Vui lòng sử dụng API PUT để cập nhật.");
+                var yearLabel = dto.AppliesFromYear.HasValue
+                    ? $"năm hiệu lực {dto.AppliesFromYear}"
+                    : "config chung (không có năm)";
+                throw new InvalidOperationException(
+                    $"Cấu hình với key '{dto.ConfigKey}' và {yearLabel} đã tồn tại. Vui lòng dùng API PUT để cập nhật.");
             }
 
             var config = new SystemConfig
@@ -133,6 +175,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 ConfigKey = dto.ConfigKey.Trim(),
                 ConfigValue = dto.ConfigValue.Trim(),
                 Description = dto.Description,
+                AppliesFromYear = dto.AppliesFromYear,
                 IsActive = dto.IsActive,
                 CreatedAt = DateTimeOffset.UtcNow,
                 UpdatedAt = DateTimeOffset.UtcNow
@@ -141,22 +184,17 @@ namespace TaxKeepVN.Application.Service.Implementations
             await repo.AddAsync(config);
             await _unitOfWork.SaveChangesAsync();
 
-            return new SystemConfigResponseDto
-            {
-                ConfigId = config.ConfigId,
-                ConfigKey = config.ConfigKey,
-                ConfigValue = config.ConfigValue,
-                Description = config.Description,
-                IsActive = config.IsActive,
-                UpdatedAt = config.UpdatedAt
-            };
+            return ToDto(config);
         }
 
         public async Task<SystemConfigResponseDto> UpdateAsync(string key, SystemConfigUpdateDto dto)
         {
             var repo = _unitOfWork.Repository<SystemConfig>();
+            // Update config chung (AppliesFromYear = null) theo key.
+            // Để update config theo năm cụ thể, dùng PUT /api/v1/system-configs/{configId} (mở rộng sau nếu cần).
             var configs = await repo.FindAsync(c => c.ConfigKey == key);
-            var config = configs.FirstOrDefault();
+            var config = configs.FirstOrDefault(c => c.AppliesFromYear == null)
+                      ?? configs.FirstOrDefault();
 
             if (config == null)
             {
@@ -176,28 +214,27 @@ namespace TaxKeepVN.Application.Service.Implementations
             {
                 config.ConfigValue = dto.ConfigValue;
                 if (!string.IsNullOrEmpty(dto.Description))
-                {
                     config.Description = dto.Description;
-                }
                 if (dto.IsActive.HasValue)
-                {
                     config.IsActive = dto.IsActive.Value;
-                }
                 config.UpdatedAt = DateTimeOffset.UtcNow;
                 repo.Update(config);
             }
 
             await _unitOfWork.SaveChangesAsync();
-
-            return new SystemConfigResponseDto
-            {
-                ConfigId = config.ConfigId,
-                ConfigKey = config.ConfigKey,
-                ConfigValue = config.ConfigValue,
-                Description = config.Description,
-                IsActive = config.IsActive,
-                UpdatedAt = config.UpdatedAt
-            };
+            return ToDto(config);
         }
+
+        // ── Helper ──────────────────────────────────────────────────────────────
+        private static SystemConfigResponseDto ToDto(SystemConfig c) => new()
+        {
+            ConfigId = c.ConfigId,
+            ConfigKey = c.ConfigKey,
+            ConfigValue = c.ConfigValue,
+            Description = c.Description,
+            AppliesFromYear = c.AppliesFromYear,
+            IsActive = c.IsActive,
+            UpdatedAt = c.UpdatedAt
+        };
     }
 }
