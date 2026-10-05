@@ -6,6 +6,7 @@ namespace TaxKeepVN.Application.DTOs.TaxDocumentTypes
     {
         public string Code { get; set; } = string.Empty;
         public string Name { get; set; } = string.Empty;
+        public string? Description { get; set; }
         public bool IsTaxEligible { get; set; } = true;
     }
 
@@ -20,6 +21,8 @@ namespace TaxKeepVN.Application.DTOs.TaxDocumentTypes
         [StringLength(255, MinimumLength = 2, ErrorMessage = "Tên loại chứng từ phải từ 2 đến 255 ký tự.")]
         public string Name { get; set; } = string.Empty;
 
+        public string? Description { get; set; }
+
         public bool IsTaxEligible { get; set; } = true;
     }
 
@@ -28,6 +31,8 @@ namespace TaxKeepVN.Application.DTOs.TaxDocumentTypes
         [Required(ErrorMessage = "Tên loại chứng từ không được để trống.")]
         [StringLength(255, MinimumLength = 2, ErrorMessage = "Tên loại chứng từ phải từ 2 đến 255 ký tự.")]
         public string Name { get; set; } = string.Empty;
+
+        public string? Description { get; set; }
 
         public bool IsTaxEligible { get; set; } = true;
     }

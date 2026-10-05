@@ -37,6 +37,7 @@ builder.Services.AddControllers(options =>
 .AddJsonOptions(options =>
 {
     options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+    options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
 })
 .AddXmlSerializerFormatters() // Support application/xml
 .ConfigureApiBehaviorOptions(options =>
@@ -137,6 +138,11 @@ builder.Services.AddScoped<ITaxDocumentTypeService, TaxDocumentTypeService>();
 builder.Services.AddScoped<ITaxAiConfigService, TaxAiConfigService>();
 builder.Services.AddScoped<IUrlRuleService, UrlRuleService>();
 builder.Services.AddScoped<IOcrAIProducerService, OcrAIProducerService>();
+
+builder.Services.AddScoped<ISpecializationService, SpecializationService>();
+builder.Services.AddScoped<IExpertApplicationService, ExpertApplicationService>();
+builder.Services.AddScoped<IConsultationFeeConfigService, ConsultationFeeConfigService>();
+builder.Services.AddScoped<IExpertSearchService, ExpertSearchService>();
 
 // ── HTTP Clients ────────────────────────────────────────────────────────────
 builder.Services.AddHttpClient("TaxAIService", client =>

@@ -1,8 +1,21 @@
 using System;
+using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace TaxKeepVN.Application.DTOs.TaxAI
 {
+    public class CategoryItemDto
+    {
+        [JsonPropertyName("code")]
+        public string Code { get; set; } = string.Empty;
+
+        [JsonPropertyName("name")]
+        public string Name { get; set; } = string.Empty;
+
+        [JsonPropertyName("description")]
+        public string Description { get; set; } = string.Empty;
+    }
+
     public class DocumentOcrExtractRequestMessage
     {
         [JsonPropertyName("taskId")]
@@ -23,7 +36,11 @@ namespace TaxKeepVN.Application.DTOs.TaxAI
         [JsonPropertyName("originalFilename")]
         public string OriginalFilename { get; set; } = string.Empty;
 
+        [JsonPropertyName("categories")]
+        public List<CategoryItemDto> Categories { get; set; } = new();
+
         [JsonPropertyName("appliedThreshold")]
         public double? AppliedThreshold { get; set; }
     }
 }
+

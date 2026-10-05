@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TaxKeepVN.Infrastructure.Contexts;
@@ -11,9 +12,11 @@ using TaxKeepVN.Infrastructure.Contexts;
 namespace TaxKeepVN.Infrastructure.Migrations
 {
     [DbContext(typeof(TaxKeepDbContext))]
-    partial class TaxKeepDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260929095657_RemoveDisplayOrderFromSpecializations")]
+    partial class RemoveDisplayOrderFromSpecializations
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -809,12 +812,6 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         .HasColumnType("character varying(255)")
                         .HasColumnName("company_name");
 
-                    b.Property<int>("CompletedConsultationsCount")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(0)
-                        .HasColumnName("completed_consultations_count");
-
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -870,130 +867,6 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         .HasDatabaseName("uq_expert_profiles_user_id");
 
                     b.ToTable("expert_profiles", (string)null);
-                });
-
-            modelBuilder.Entity("TaxKeepVN.Domain.Entities.ExpertReview", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<Guid?>("BookingId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("booking_id");
-
-                    b.Property<string>("Comment")
-                        .HasColumnType("text")
-                        .HasColumnName("comment");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<Guid>("ExpertProfileId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("expert_profile_id");
-
-                    b.Property<bool>("IsAnonymous")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false)
-                        .HasColumnName("is_anonymous");
-
-                    b.Property<bool>("IsPublished")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true)
-                        .HasColumnName("is_published");
-
-                    b.Property<int>("Rating")
-                        .HasColumnType("integer")
-                        .HasColumnName("rating");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ExpertProfileId")
-                        .HasDatabaseName("idx_expert_reviews_profile_id");
-
-                    b.HasIndex("UserId")
-                        .HasDatabaseName("idx_expert_reviews_user_id");
-
-                    b.ToTable("expert_reviews", (string)null);
-                });
-
-            modelBuilder.Entity("TaxKeepVN.Domain.Entities.ExpertSlot", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<TimeOnly>("EndTime")
-                        .HasColumnType("time without time zone")
-                        .HasColumnName("end_time");
-
-                    b.Property<Guid>("ExpertProfileId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("expert_profile_id");
-
-                    b.Property<bool>("IsActive")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true)
-                        .HasColumnName("is_active");
-
-                    b.Property<bool>("IsBooked")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(false)
-                        .HasColumnName("is_booked");
-
-                    b.Property<string>("SessionType")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasDefaultValue("ONLINE_MEETING")
-                        .HasColumnName("session_type");
-
-                    b.Property<DateOnly>("SlotDate")
-                        .HasColumnType("date")
-                        .HasColumnName("slot_date");
-
-                    b.Property<TimeOnly>("StartTime")
-                        .HasColumnType("time without time zone")
-                        .HasColumnName("start_time");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ExpertProfileId")
-                        .HasDatabaseName("idx_expert_slots_profile_id");
-
-                    b.HasIndex("SlotDate")
-                        .HasDatabaseName("idx_expert_slots_slot_date");
-
-                    b.HasIndex("ExpertProfileId", "SlotDate", "StartTime")
-                        .IsUnique()
-                        .HasDatabaseName("uq_expert_slots_profile_datetime");
-
-                    b.ToTable("expert_slots", (string)null);
                 });
 
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.IncomeSource", b =>
@@ -1073,79 +946,6 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         .HasDatabaseName("idx_revoked_tokens_jti");
 
                     b.ToTable("revoked_tokens", (string)null);
-                });
-
-            modelBuilder.Entity("TaxKeepVN.Domain.Entities.Role", b =>
-                {
-                    b.Property<int>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasColumnName("id");
-
-                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
-
-                    b.Property<string>("Code")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("code");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("Description")
-                        .HasColumnType("text")
-                        .HasColumnName("description");
-
-                    b.Property<bool>("IsActive")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("boolean")
-                        .HasDefaultValue(true)
-                        .HasColumnName("is_active");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("name");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("Code")
-                        .IsUnique()
-                        .HasDatabaseName("idx_roles_code");
-
-                    b.ToTable("roles", (string)null);
-
-                    b.HasData(
-                        new
-                        {
-                            Id = 1,
-                            Code = "taxpayer",
-                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            Description = "Người dùng cá nhân thực hiện quyết toán, kê khai thuế",
-                            IsActive = true,
-                            Name = "Người nộp thuế"
-                        },
-                        new
-                        {
-                            Id = 2,
-                            Code = "admin",
-                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            Description = "Quản trị viên quản lý toàn bộ hệ thống, thẩm định hồ sơ",
-                            IsActive = true,
-                            Name = "Quản trị viên hệ thống"
-                        },
-                        new
-                        {
-                            Id = 3,
-                            Code = "expert",
-                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
-                            Description = "Chuyên gia đã được phê duyệt, cung cấp dịch vụ tư vấn thuế",
-                            IsActive = true,
-                            Name = "Chuyên gia tư vấn thuế"
-                        });
                 });
 
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.Specialization", b =>
@@ -1633,12 +1433,6 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("phone_number");
 
-                    b.Property<int>("RoleId")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(1)
-                        .HasColumnName("role_id");
-
                     b.Property<string>("Status")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -1670,9 +1464,6 @@ namespace TaxKeepVN.Infrastructure.Migrations
                     b.HasIndex("Email")
                         .IsUnique()
                         .HasDatabaseName("idx_users_email");
-
-                    b.HasIndex("RoleId")
-                        .HasDatabaseName("idx_users_role_id");
 
                     b.ToTable("users", (string)null);
                 });
@@ -1821,36 +1612,6 @@ namespace TaxKeepVN.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("TaxKeepVN.Domain.Entities.ExpertReview", b =>
-                {
-                    b.HasOne("TaxKeepVN.Domain.Entities.ExpertProfile", "ExpertProfile")
-                        .WithMany("Reviews")
-                        .HasForeignKey("ExpertProfileId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("TaxKeepVN.Domain.Entities.User", "User")
-                        .WithMany("ExpertReviews")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("ExpertProfile");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("TaxKeepVN.Domain.Entities.ExpertSlot", b =>
-                {
-                    b.HasOne("TaxKeepVN.Domain.Entities.ExpertProfile", "ExpertProfile")
-                        .WithMany("Slots")
-                        .HasForeignKey("ExpertProfileId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("ExpertProfile");
-                });
-
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.TaxPeriod", b =>
                 {
                     b.HasOne("TaxKeepVN.Domain.Entities.User", "User")
@@ -1873,17 +1634,6 @@ namespace TaxKeepVN.Infrastructure.Migrations
                     b.Navigation("Dossier");
                 });
 
-            modelBuilder.Entity("TaxKeepVN.Domain.Entities.User", b =>
-                {
-                    b.HasOne("TaxKeepVN.Domain.Entities.Role", "Role")
-                        .WithMany("Users")
-                        .HasForeignKey("RoleId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("Role");
-                });
-
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.Dependent", b =>
                 {
                     b.Navigation("Documents");
@@ -1903,18 +1653,6 @@ namespace TaxKeepVN.Infrastructure.Migrations
                     b.Navigation("Certificates");
 
                     b.Navigation("FeeProposals");
-                });
-
-            modelBuilder.Entity("TaxKeepVN.Domain.Entities.ExpertProfile", b =>
-                {
-                    b.Navigation("Reviews");
-
-                    b.Navigation("Slots");
-                });
-
-            modelBuilder.Entity("TaxKeepVN.Domain.Entities.Role", b =>
-                {
-                    b.Navigation("Users");
                 });
 
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.Specialization", b =>
@@ -1942,8 +1680,6 @@ namespace TaxKeepVN.Infrastructure.Migrations
                     b.Navigation("ExpertApplications");
 
                     b.Navigation("ExpertProfile");
-
-                    b.Navigation("ExpertReviews");
 
                     b.Navigation("TaxPeriods");
                 });
