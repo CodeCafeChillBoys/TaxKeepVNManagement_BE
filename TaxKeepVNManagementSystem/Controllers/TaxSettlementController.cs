@@ -118,17 +118,18 @@ namespace TaxKeepVNManagementSystem.Controllers
                         $"Bậc {b.BracketNo}: FromMonthly phải nhỏ hơn ToMonthly."));
             }
 
-            var configKey = $"PIT_BRACKETS_JSON_{request.TaxYear}";
+            var configKey = "PIT_BRACKETS_JSON";
             var jsonValue = System.Text.Json.JsonSerializer.Serialize(request.Brackets);
 
             await _configService.UpdateAsync(configKey, new SystemConfigUpdateDto
             {
                 ConfigValue = jsonValue,
+                AppliesFromYear = request.TaxYear,
                 Description = $"Biểu thuế TNCN lũy tiến — {request.Brackets.Count} bậc — áp dụng từ năm {request.TaxYear}"
             });
 
             return Ok(ApiResponse<object>.Ok(
-                new { configKey, bracketCount = request.Brackets.Count },
+                new { configKey, bracketCount = request.Brackets.Count, appliesFromYear = request.TaxYear },
                 $"Cập nhật biểu thuế {request.Brackets.Count} bậc cho năm {request.TaxYear} thành công."));
         }
 
@@ -144,18 +145,20 @@ namespace TaxKeepVNManagementSystem.Controllers
             if (!ModelState.IsValid)
                 return BadRequest(ApiResponse<object>.ValidationFail(ModelState));
 
-            await _configService.UpdateAsync($"PIT_DEDUCTION_PERSONAL_MONTHLY_{request.TaxYear}",
+            await _configService.UpdateAsync("PIT_DEDUCTION_PERSONAL_MONTHLY",
                 new SystemConfigUpdateDto
                 {
                     ConfigValue = request.PersonalMonthly.ToString(),
-                    Description = $"Giảm trừ bản thân {request.PersonalMonthly:N0} VNĐ/tháng — năm {request.TaxYear}"
+                    AppliesFromYear = request.TaxYear,
+                    Description = $"Giảm trừ bản thân {request.PersonalMonthly:N0} VNĐ/tháng — từ năm {request.TaxYear}"
                 });
 
-            await _configService.UpdateAsync($"PIT_DEDUCTION_DEPENDENT_MONTHLY_{request.TaxYear}",
+            await _configService.UpdateAsync("PIT_DEDUCTION_DEPENDENT_MONTHLY",
                 new SystemConfigUpdateDto
                 {
                     ConfigValue = request.DependentMonthly.ToString(),
-                    Description = $"Giảm trừ NPT {request.DependentMonthly:N0} VNĐ/người/tháng — năm {request.TaxYear}"
+                    AppliesFromYear = request.TaxYear,
+                    Description = $"Giảm trừ NPT {request.DependentMonthly:N0} VNĐ/người/tháng — từ năm {request.TaxYear}"
                 });
 
             await _configService.UpdateAsync("PIT_INSURANCE_BHXH_RATE",

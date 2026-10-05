@@ -128,6 +128,13 @@ namespace TaxKeepVN.Application.Service.Implementations
             var config = configs.FirstOrDefault(c => c.AppliesFromYear == null)
                       ?? configs.OrderByDescending(c => c.AppliesFromYear).FirstOrDefault();
 
+            // Tương thích ngược: Nếu DB có suffix
+            if (config == null)
+            {
+                var legacyConfigs = await repo.FindAsync(c => (c.ConfigKey == $"{key}_2026" || c.ConfigKey == $"{key}_2025") && c.IsActive);
+                config = legacyConfigs.OrderByDescending(c => c.ConfigKey).FirstOrDefault();
+            }
+
             if (config == null || string.IsNullOrWhiteSpace(config.ConfigValue))
                 throw new InvalidOperationException(
                     $"Lỗi cấu hình hệ thống: Không tìm thấy tham số '{key}' trong CSDL hoặc giá trị bị rỗng. " +
@@ -157,6 +164,15 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             // Fallback về config chung nếu không tìm được config theo năm
             bestMatch ??= allConfigs.FirstOrDefault(c => c.AppliesFromYear == null);
+
+            // Tương thích ngược: Nếu DB chưa migrate sang key chuẩn mà còn lưu key dạng {KEY}_{YEAR} (vd: PIT_BRACKETS_JSON_2025)
+            if (bestMatch == null)
+            {
+                var legacySuffix = taxYear >= 2026 ? "2026" : "2025";
+                var legacyKey = $"{key}_{legacySuffix}";
+                var legacyConfigs = await repo.FindAsync(c => c.ConfigKey == legacyKey && c.IsActive);
+                bestMatch = legacyConfigs.FirstOrDefault();
+            }
 
             if (bestMatch == null || string.IsNullOrWhiteSpace(bestMatch.ConfigValue))
                 throw new InvalidOperationException(

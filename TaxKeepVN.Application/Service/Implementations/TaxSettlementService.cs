@@ -182,7 +182,7 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             return new TaxCalcConfig
             {
-                LawSuffix = taxYear.ToString(),
+                LawSuffix = taxYear >= 2026 ? "2026" : "2025",
                 TaxYear = taxYear,
                 PersonalMonthly = decimal.Parse(personalMonthlyStr),
                 DependentMonthly = decimal.Parse(dependentMonthlyStr),
