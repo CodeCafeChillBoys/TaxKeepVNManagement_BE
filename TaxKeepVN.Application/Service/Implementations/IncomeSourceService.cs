@@ -78,6 +78,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 TaxYear = taxYear,
                 TotalIncome = sources.Sum(s => s.TotalIncome),
                 TotalTaxWithheld = sources.Sum(s => s.TaxWithheld),
+                TotalInsuranceDeducted = sources.Sum(s => s.InsuranceDeducted),
                 TotalSources = sources.Count
             };
         }
@@ -113,6 +114,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 TaxYear = dto.TaxYear,
                 TotalIncome = dto.TotalIncome,
                 TaxWithheld = dto.TaxWithheld,
+                InsuranceDeducted = dto.InsuranceDeducted,
                 IsActive = true,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
@@ -145,6 +147,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             source.TaxYear = dto.TaxYear;
             source.TotalIncome = dto.TotalIncome;
             source.TaxWithheld = dto.TaxWithheld;
+            source.InsuranceDeducted = dto.InsuranceDeducted;
             source.IsActive = dto.IsActive;
             source.UpdatedAt = DateTime.UtcNow;
 
@@ -183,6 +186,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             TaxYear = s.TaxYear,
             TotalIncome = s.TotalIncome,
             TaxWithheld = s.TaxWithheld,
+            InsuranceDeducted = s.InsuranceDeducted,
             IsActive = s.IsActive,
             CreatedAt = s.CreatedAt,
             UpdatedAt = s.UpdatedAt
@@ -192,7 +196,7 @@ namespace TaxKeepVN.Application.Service.Implementations
         /// Validate MST theo chuẩn Tổng cục Thuế Việt Nam.
         /// Định dạng hợp lệ: 10 chữ số HOẶC 13 chữ số dạng XXXXXXXXXX-XXX.
         /// Checksum: 9 số đầu nhân trọng số [31,29,23,19,17,13,7,5,3] cộng lại,
-        /// lấy (11 - (sum % 11)) % 11 phải bằng số thứ 10.
+        /// lấy 10 - (sum % 11) (nếu kết quả >= 10 thì là 0) phải bằng số thứ 10.
         /// </summary>
         private static void ValidateTaxCode(string taxCode)
         {
@@ -207,7 +211,7 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             if (!regex10.IsMatch(taxCode) && !regex13.IsMatch(taxCode))
                 throw new BadRequestException("INVALID_TAX_CODE_FORMAT",
-                    "Định dạng mã số thuế không hợp lệ. MST phải có 10 chữ số (VD: 0101234567) hoặc 13 ký tự có dấu gạch ngang (VD: 0101234567-001).");
+                    "Định dạng mã số thuế không hợp lệ. MST phải có 10 chữ số (VD: 0101248141) hoặc 13 ký tự có dấu gạch ngang (VD: 0101248141-001).");
 
             // Checksum for the first 10 digits
             string tenDigits = taxCode.Substring(0, 10);
@@ -217,10 +221,14 @@ namespace TaxKeepVN.Application.Service.Implementations
                 sum += (tenDigits[i] - '0') * weights[i];
 
             int remainder = sum % 11;
-            int checkDigit = remainder == 0 ? 0 : (11 - remainder) % 11;
+            int checkDigit = 10 - remainder;
+            if (checkDigit >= 10)
+                checkDigit = 0;
             int actualCheckDigit = tenDigits[9] - '0';
 
-            if (checkDigit != actualCheckDigit)
+            bool isValid = (checkDigit == actualCheckDigit) || (remainder == 0 && (actualCheckDigit == 0 || actualCheckDigit == 1));
+
+            if (!isValid)
                 throw new BadRequestException("INVALID_TAX_CODE_CHECKSUM",
                     "Mã số thuế không hợp lệ theo thuật toán kiểm tra của Tổng cục Thuế. Vui lòng kiểm tra lại.");
         }
@@ -241,6 +249,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 "taxyear" => desc ? sources.OrderByDescending(s => s.TaxYear) : sources.OrderBy(s => s.TaxYear),
                 "totalincome" => desc ? sources.OrderByDescending(s => s.TotalIncome) : sources.OrderBy(s => s.TotalIncome),
                 "taxwithheld" => desc ? sources.OrderByDescending(s => s.TaxWithheld) : sources.OrderBy(s => s.TaxWithheld),
+                "insurancededucted" => desc ? sources.OrderByDescending(s => s.InsuranceDeducted) : sources.OrderBy(s => s.InsuranceDeducted),
                 "createdat" => desc ? sources.OrderByDescending(s => s.CreatedAt) : sources.OrderBy(s => s.CreatedAt),
                 "updatedat" => desc ? sources.OrderByDescending(s => s.UpdatedAt) : sources.OrderBy(s => s.UpdatedAt),
                 _ => sources.OrderByDescending(s => s.CreatedAt) // Default

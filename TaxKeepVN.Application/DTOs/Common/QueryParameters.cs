@@ -70,4 +70,13 @@ namespace TaxKeepVN.Application.DTOs.Common
         /// </summary>
         public string? Relationship { get; set; }
     }
+
+    /// <summary>
+    /// Query parameters cho System Configs — hỗ trợ lọc theo trạng thái hoạt động.
+    /// </summary>
+    public class SystemConfigQueryParameters : QueryParameters
+    {
+        /// <summary>Lọc theo trạng thái hoạt động (true/false)</summary>
+        public bool? IsActive { get; set; }
+    }
 }

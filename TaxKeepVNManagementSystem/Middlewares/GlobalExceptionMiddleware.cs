@@ -67,6 +67,12 @@ namespace TaxKeepVNManagementSystem.Middlewares
                     message = forbiddenEx.Message;
                     break;
 
+                case UnprocessableEntityException unprocessableEx:
+                    context.Response.StatusCode = StatusCodes.Status422UnprocessableEntity;
+                    errorCode = unprocessableEx.ErrorCode;
+                    message = unprocessableEx.Message;
+                    break;
+
                 default:
                     Console.WriteLine($"[GLOBAL ERROR] {exception}");
                     context.Response.StatusCode = StatusCodes.Status500InternalServerError;

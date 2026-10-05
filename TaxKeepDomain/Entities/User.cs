@@ -20,7 +20,10 @@ namespace TaxKeepVN.Domain.Entities
 
         public string PasswordHash { get; set; } = string.Empty;
 
-        /// <summary>taxpayer | admin</summary>
+        /// <summary>Khóa ngoại FK trỏ tới bảng roles (Mặc định 1: taxpayer)</summary>
+        public int RoleId { get; set; } = 1;
+
+        /// <summary>taxpayer | admin | expert</summary>
         public string UserRole { get; set; } = "taxpayer";
 
         public bool IsVerified { get; set; } = false;
@@ -35,5 +38,13 @@ namespace TaxKeepVN.Domain.Entities
 
         /// <summary>active | inactive | suspended</summary>
         public string Status { get; set; } = "active";
+
+        // Navigation properties
+        public Role? Role { get; set; }
+        public ICollection<TaxPeriod> TaxPeriods { get; set; } = new List<TaxPeriod>();
+        public ICollection<ExpertApplication> ExpertApplications { get; set; } = new List<ExpertApplication>();
+        public ExpertProfile? ExpertProfile { get; set; }
+        public ICollection<ExpertReview> ExpertReviews { get; set; } = new List<ExpertReview>();
     }
 }
+

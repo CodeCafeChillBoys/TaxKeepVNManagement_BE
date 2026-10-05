@@ -181,7 +181,23 @@ namespace TaxKeepVN.Application.Service.Implementations
             var repo = _unitOfWork.Repository<DependentDocumentRule>();
             var allExisting = (await repo.GetAllAsync()).ToList();
 
-            int added = 0, updated = 0;
+            // Lưu trữ map các rule đã có trong DB: key = (TargetGroup, DocType) chuẩn hóa viết hoa, trim
+            var existingMap = new Dictionary<(string TargetGroup, string DocType), DependentDocumentRule>();
+            foreach (var r in allExisting)
+            {
+                if (!string.IsNullOrWhiteSpace(r.TargetGroup) && !string.IsNullOrWhiteSpace(r.DocType))
+                {
+                    var k = (r.TargetGroup.Trim().ToUpper(), r.DocType.Trim().ToUpper());
+                    if (!existingMap.ContainsKey(k))
+                    {
+                        existingMap[k] = r;
+                    }
+                }
+            }
+
+            // Bước 1: Gộp và khử trùng lặp toàn bộ danh sách (TargetGroup, DocType) từ AI gửi về
+            // Key = (TargetGroup, DocType), Value = (IsMandatory, Description)
+            var incomingMap = new Dictionary<(string TargetGroup, string DocType), (bool IsMandatory, string? Description)>();
             var affectedGroups = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var depRule in dependentRules)
@@ -190,50 +206,72 @@ namespace TaxKeepVN.Application.Service.Implementations
                     continue;
 
                 // Map dependentType của AI sang TargetGroup enum của .NET
-                // Ví dụ: CHILD → CHILD_UNDER_18, ADULT_CHILD → CHILD_OVER_18_STUDYING, v.v.
                 var targetGroups = MapAiDependentTypeToTargetGroups(depRule);
 
                 foreach (var targetGroup in targetGroups)
                 {
-                    affectedGroups.Add(targetGroup);
+                    if (string.IsNullOrWhiteSpace(targetGroup)) continue;
+                    var normGroup = targetGroup.Trim().ToUpper();
+                    affectedGroups.Add(normGroup);
 
                     foreach (var doc in depRule.RequiredDocuments)
                     {
                         if (string.IsNullOrWhiteSpace(doc.DocType)) continue;
 
-                        var docType = doc.DocType.Trim().ToUpper();
-                        var existing = allExisting.FirstOrDefault(r =>
-                            r.TargetGroup.Equals(targetGroup, StringComparison.OrdinalIgnoreCase) &&
-                            r.DocType.Equals(docType, StringComparison.OrdinalIgnoreCase));
+                        var normDocType = doc.DocType.Trim().ToUpper();
+                        var key = (normGroup, normDocType);
 
-                        if (existing == null)
+                        if (incomingMap.TryGetValue(key, out var existingIncoming))
                         {
-                            // Thêm mới
-                            var newRule = new DependentDocumentRule
-                            {
-                                RuleId    = Guid.NewGuid(),
-                                TargetGroup = targetGroup,
-                                DocType     = docType,
-                                IsMandatory = doc.IsMandatory,
-                                Description = doc.Description?.Trim(),
-                                IsActive    = true,
-                                CreatedAt   = DateTime.UtcNow,
-                                UpdatedAt   = DateTime.UtcNow
-                            };
-                            await repo.AddAsync(newRule);
-                            added++;
+                            // Nếu đã có trong danh sách đến: ưu tiên IsMandatory = true, giữ lại Description có nội dung
+                            incomingMap[key] = (
+                                IsMandatory: existingIncoming.IsMandatory || doc.IsMandatory,
+                                Description: !string.IsNullOrWhiteSpace(doc.Description) ? doc.Description.Trim() : existingIncoming.Description
+                            );
                         }
                         else
                         {
-                            // Cập nhật bản ghi hiện có
-                            existing.IsMandatory = doc.IsMandatory;
-                            existing.Description = doc.Description?.Trim() ?? existing.Description;
-                            existing.IsActive    = true;
-                            existing.UpdatedAt   = DateTime.UtcNow;
-                            repo.Update(existing);
-                            updated++;
+                            incomingMap[key] = (doc.IsMandatory, doc.Description?.Trim());
                         }
                     }
+                }
+            }
+
+            int added = 0, updated = 0;
+
+            // Bước 2: So sánh với DB và thêm mới hoặc cập nhật (mỗi cặp TargetGroup + DocType chỉ xử lý đúng 1 lần)
+            foreach (var (key, val) in incomingMap)
+            {
+                if (existingMap.TryGetValue(key, out var existingRule))
+                {
+                    // Đã tồn tại trong DB -> cập nhật
+                    existingRule.IsMandatory = val.IsMandatory;
+                    if (!string.IsNullOrWhiteSpace(val.Description))
+                    {
+                        existingRule.Description = val.Description;
+                    }
+                    existingRule.IsActive = true;
+                    existingRule.UpdatedAt = DateTime.UtcNow;
+                    repo.Update(existingRule);
+                    updated++;
+                }
+                else
+                {
+                    // Chưa tồn tại -> thêm mới
+                    var newRule = new DependentDocumentRule
+                    {
+                        RuleId = Guid.NewGuid(),
+                        TargetGroup = key.TargetGroup,
+                        DocType = key.DocType,
+                        IsMandatory = val.IsMandatory,
+                        Description = val.Description,
+                        IsActive = true,
+                        CreatedAt = DateTime.UtcNow,
+                        UpdatedAt = DateTime.UtcNow
+                    };
+                    await repo.AddAsync(newRule);
+                    existingMap[key] = newRule; // cập nhật map để đồng nhất trạng thái
+                    added++;
                 }
             }
 
@@ -247,6 +285,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                     _cache.Remove($"DependentRules_{grp}");
                     _cache.Remove($"DependentRules_Required_{grp}");
                 }
+                _cache.Remove("ActiveDependentGroups");
             }
 
             return (added, updated);

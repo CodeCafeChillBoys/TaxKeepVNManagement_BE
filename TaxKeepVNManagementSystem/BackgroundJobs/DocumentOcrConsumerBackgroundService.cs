@@ -1,0 +1,415 @@
+using Microsoft.AspNetCore.SignalR;
+using RabbitMQ.Client;
+using RabbitMQ.Client.Events;
+using System.Text;
+using System.Text.Json;
+using TaxKeepVN.Application.DTOs.TaxAI;
+using TaxKeepVN.Application.Helpers;
+using TaxKeepVN.Domain.Entities;
+using TaxKeepVN.Domain.IRepositories;
+using TaxKeepVNManagementSystem.Hubs;
+
+namespace TaxKeepVNManagementSystem.BackgroundJobs
+{
+    public class DocumentOcrConsumerBackgroundService : BackgroundService
+    {
+        private readonly IConfiguration _config;
+        private readonly IServiceProvider _serviceProvider;
+        private readonly IHubContext<TaxAIHub> _hubContext;
+        private readonly ILogger<DocumentOcrConsumerBackgroundService> _logger;
+        private const string DefaultResponseQueue = "expense.ocr.ai.response.queue";
+
+        public DocumentOcrConsumerBackgroundService(
+            IConfiguration config,
+            IServiceProvider serviceProvider,
+            IHubContext<TaxAIHub> hubContext,
+            ILogger<DocumentOcrConsumerBackgroundService> logger)
+        {
+            _config = config;
+            _serviceProvider = serviceProvider;
+            _hubContext = hubContext;
+            _logger = logger;
+        }
+
+        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        {
+            _logger.LogInformation("DocumentOcrConsumerBackgroundService is starting...");
+
+            var rabbitUrl = _config["RabbitMQ:Url"] ?? "amqp://guest:guest@localhost:5672/";
+            var responseQueue = _config["RabbitMQ:ExpenseOcrResponseQueue"] ?? DefaultResponseQueue;
+
+            var factory = new ConnectionFactory
+            {
+                Uri = new Uri(rabbitUrl),
+                DispatchConsumersAsync = true
+            };
+
+            while (!stoppingToken.IsCancellationRequested)
+            {
+                try
+                {
+                    using var connection = factory.CreateConnection();
+                    using var channel = connection.CreateModel();
+
+                    channel.QueueDeclare(
+                        queue: responseQueue,
+                        durable: true,
+                        exclusive: false,
+                        autoDelete: false,
+                        arguments: null
+                    );
+
+                    channel.BasicQos(prefetchSize: 0, prefetchCount: 1, global: false);
+                    var consumer = new AsyncEventingBasicConsumer(channel);
+
+                    consumer.Received += async (model, ea) =>
+                    {
+                        try
+                        {
+                            var body = ea.Body.ToArray();
+                            var jsonString = Encoding.UTF8.GetString(body);
+                            _logger.LogInformation("Received document OCR extraction response: {Json}", jsonString);
+
+                            var options = new JsonSerializerOptions
+                            {
+                                PropertyNameCaseInsensitive = true
+                            };
+                            var response = JsonSerializer.Deserialize<DocumentOcrResponseMessage>(jsonString, options);
+
+                            if (response?.Data != null)
+                            {
+                                await ProcessOcrResultAsync(response.Data, stoppingToken);
+
+                                // Gửi SignalR thông báo real-time tới Client (chỉ có 2 trường hợp: Thành công hoặc Thất bại)
+                                var eventName = string.Equals(response.Data.Status, "FAILED", StringComparison.OrdinalIgnoreCase)
+                                    ? "OnDocumentOcrFailed"
+                                    : "OnDocumentOcrCompleted";
+
+                                if (response.Data.UserId.HasValue)
+                                {
+                                    await _hubContext.Clients.User(response.Data.UserId.Value.ToString())
+                                        .SendAsync(eventName, response, stoppingToken);
+                                }
+
+                                await _hubContext.Clients.Group($"task_{response.Data.Id}")
+                                    .SendAsync(eventName, response, stoppingToken);
+
+                                await _hubContext.Clients.All
+                                    .SendAsync(eventName, response, stoppingToken);
+
+                                _logger.LogInformation("Dispatched SignalR event {EventName} for documentId={DocId}",
+                                    eventName, response.Data.Id);
+                            }
+
+                            channel.BasicAck(deliveryTag: ea.DeliveryTag, multiple: false);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Error processing document OCR message from {Queue}", responseQueue);
+                            channel.BasicAck(deliveryTag: ea.DeliveryTag, multiple: false);
+                        }
+                    };
+
+                    channel.BasicConsume(
+                        queue: responseQueue,
+                        autoAck: false,
+                        consumer: consumer
+                    );
+
+                    _logger.LogInformation("DocumentOcrConsumerBackgroundService listening on {Queue}", responseQueue);
+
+                    while (!stoppingToken.IsCancellationRequested && connection.IsOpen)
+                    {
+                        await Task.Delay(2000, stoppingToken);
+                    }
+                }
+                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                {
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning("RabbitMQ connection lost in DocumentOcrConsumer: {Message}. Retrying in 5s...", ex.Message);
+                    try
+                    {
+                        await Task.Delay(5000, stoppingToken);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        break;
+                    }
+                }
+            }
+
+            _logger.LogInformation("DocumentOcrConsumerBackgroundService has stopped.");
+        }
+
+        private async Task ProcessOcrResultAsync(DocumentOcrData data, CancellationToken cancellationToken)
+        {
+            using var scope = _serviceProvider.CreateScope();
+            var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+            var docRepo = unitOfWork.Repository<Document>();
+            var document = await docRepo.GetByIdAsync(data.Id);
+
+            if (document == null)
+            {
+                _logger.LogWarning("Document {DocId} not found in database.", data.Id);
+                return;
+            }
+
+            if (string.Equals(document.Status, "CONFIRMED", StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning("Document {DocId} is already CONFIRMED. Skipping OCR extraction update.", data.Id);
+                return;
+            }
+
+            // Đảm bảo doc_type_code hợp lệ trong bảng document_types nếu có
+            if (!string.IsNullOrWhiteSpace(data.DocTypeCode))
+            {
+                var normalizedCode = data.DocTypeCode.Trim().ToUpperInvariant();
+                var docTypeRepo = unitOfWork.Repository<TaxDocumentType>();
+                var existingDocType = (await docTypeRepo.FindAsync(t => t.Code == normalizedCode)).FirstOrDefault();
+                if (existingDocType != null && existingDocType.IsTaxEligible)
+                {
+                    document.DocTypeCode = existingDocType.Code;
+                }
+                else
+                {
+                    var reason = existingDocType != null
+                        ? $"Loại chứng từ '{existingDocType.Name}' không thuộc diện được giảm trừ thuế TNCN theo quy định."
+                        : (normalizedCode == "UNSUPPORTED"
+                            ? "Chứng từ/hóa đơn không thuộc danh mục được giảm trừ thuế TNCN theo quy định."
+                            : $"AI nhận diện loại chứng từ '{normalizedCode}' không có trong danh mục của hệ thống.");
+
+                    _logger.LogWarning("Document {DocId} rejected after OCR: {Reason}", document.Id, reason);
+                    document.DocTypeCode = existingDocType?.Code;
+                    data.Status = "FAILED";
+                    data.ValidationErrors ??= new System.Collections.Generic.List<string>();
+                    data.ValidationErrors.Add(reason);
+                    data.ValidationStatus ??= new DocumentValidationStatus();
+                    data.ValidationStatus.IsDocTypeValid = false;
+                }
+            }
+
+            // Lưu toàn bộ dữ liệu bóc tách từ AI vào bảng documents
+            document.InvoiceSeries = data.InvoiceSeries;
+            document.InvoiceNumber = data.InvoiceNumber;
+            if (!string.IsNullOrWhiteSpace(data.InvoiceDate) && DateOnly.TryParse(data.InvoiceDate, out var invDate))
+            {
+                document.InvoiceDate = invDate;
+            }
+            if (data.ExtractedYear.HasValue)
+            {
+                document.ExtractedYear = (short)data.ExtractedYear.Value;
+            }
+            document.SellerName = data.SellerName;
+            document.SellerTaxCode = data.SellerTaxCode;
+            document.SellerAddress = data.SellerAddress;
+            document.SellerPhone = data.SellerPhone;
+            document.BuyerName = data.BuyerName;
+            document.BuyerTaxCode = data.BuyerTaxCode;
+            document.BuyerIdCard = data.BuyerIdCard;
+            document.BuyerAddress = data.BuyerAddress;
+            document.PaymentMethod = data.PaymentMethod;
+            document.TotalAmount = data.TotalAmount;
+            document.TotalAmountInWords = data.TotalAmountInWords;
+            document.LookupUrl = data.LookupUrl;
+            document.LookupCode = data.LookupCode;
+
+            // 1. Cập nhật trạng thái năm tính thuế từ AI
+            if (data.ValidationStatus != null)
+            {
+                document.IsYearValid = data.ValidationStatus.IsYearValid;
+            }
+
+            // 2. Tự động kiểm tra đối soát thông tin người mua với tài khoản (User & Dependents)
+            // QUAN TRỌNG: Nếu loại chứng từ đã bị từ chối (IsDocTypeValid = false) hoặc AI bóc tách thất bại (Status = FAILED),
+            // KHÔNG kiểm tra danh tính để tránh trường hợp các trường định danh bị null gây hiểu lầm là sai người nộp thuế/người phụ thuộc.
+            bool isDocTypeAlreadyRejected = data.ValidationStatus?.IsDocTypeValid == false;
+            bool isAiProcessingFailed = string.Equals(data.Status, "FAILED", StringComparison.OrdinalIgnoreCase);
+
+            if (!isDocTypeAlreadyRejected && !isAiProcessingFailed)
+            {
+                Guid? effectiveUserId = data.UserId;
+                if (!effectiveUserId.HasValue && document.PeriodId != Guid.Empty)
+                {
+                    var periodRepo = unitOfWork.Repository<TaxPeriod>();
+                    var period = await periodRepo.GetByIdAsync(document.PeriodId);
+                    effectiveUserId = period?.UserId;
+                }
+
+                if (effectiveUserId.HasValue)
+                {
+                    bool isIdentityValid = await CheckIdentityMatchAsync(
+                        unitOfWork,
+                        effectiveUserId.Value,
+                        data.BuyerTaxCode,
+                        data.BuyerIdCard,
+                        data.BuyerName);
+
+                    document.IsIdentityValid = isIdentityValid;
+
+                    if (data.ValidationStatus == null)
+                    {
+                        data.ValidationStatus = new DocumentValidationStatus();
+                    }
+                    data.ValidationStatus.IsIdentityValid = isIdentityValid;
+
+                    _logger.LogInformation("Identity validation for Document {DocId}: IsIdentityValid={IsValid} (Buyer: '{Buyer}', MST: '{TaxCode}', CCCD: '{IdCard}')",
+                        document.Id, isIdentityValid, data.BuyerName, data.BuyerTaxCode, data.BuyerIdCard);
+                }
+                else
+                {
+                    document.IsIdentityValid = data.ValidationStatus?.IsIdentityValid;
+                }
+            }
+            else
+            {
+                // Danh mục không hợp lệ là lý do chính — không thực hiện kiểm tra danh tính
+                // IsIdentityValid giữ null (chưa kiểm tra) để tránh nhầm lẫn
+                document.IsIdentityValid = null;
+                _logger.LogInformation(
+                    "Document {DocId}: Skipping identity check — doc type '{DocType}' is already rejected as non-tax-eligible.",
+                    document.Id, data.DocTypeCode);
+            }
+
+            if (data.ValidationStatus?.IsYearValid == false)
+            {
+                data.ValidationErrors ??= new System.Collections.Generic.List<string>();
+                data.ValidationErrors.Add("Năm trên hóa đơn không khớp với kỳ tính thuế.");
+            }
+
+            if (data.ValidationStatus?.IsIdentityValid == false)
+            {
+                data.ValidationErrors ??= new System.Collections.Generic.List<string>();
+                data.ValidationErrors.Add("Thông tin người mua không khớp với người nộp thuế hoặc người phụ thuộc.");
+            }
+
+            document.Status = string.Equals(data.Status, "FAILED", StringComparison.OrdinalIgnoreCase) ||
+                data.ValidationStatus?.IsYearValid == false ||
+                data.ValidationStatus?.IsDocTypeValid == false ||
+                data.ValidationStatus?.IsIdentityValid == false
+                ? "FAILED"
+                : "EXTRACTED";
+
+            docRepo.Update(document);
+
+            // Lưu danh sách chi tiết các dòng viện phí / hàng hóa vào bảng document_items
+            if (data.Items != null && data.Items.Any())
+            {
+                var itemRepo = unitOfWork.Repository<DocumentItem>();
+                var existingItems = await itemRepo.FindAsync(i => i.DocumentId == document.Id);
+                foreach (var oldItem in existingItems)
+                {
+                    itemRepo.Remove(oldItem);
+                }
+
+                foreach (var itemDto in data.Items)
+                {
+                    var item = new DocumentItem
+                    {
+                        DocumentId = document.Id,
+                        ItemOrder = itemDto.ItemOrder,
+                        ItemName = itemDto.ItemName,
+                        Unit = itemDto.Unit,
+                        Quantity = itemDto.Quantity,
+                        UnitPrice = itemDto.UnitPrice,
+                        TotalPrice = itemDto.TotalPrice
+                    };
+                    await itemRepo.AddAsync(item);
+                }
+            }
+
+            await unitOfWork.SaveChangesAsync();
+
+            _logger.LogInformation(
+                "Document {DocId} OCR data saved to DB with status {Status}. Validation errors: {ValidationErrors}",
+                document.Id,
+                document.Status,
+                data.ValidationErrors == null ? "none" : string.Join(" | ", data.ValidationErrors));
+        }
+
+        /// <summary>
+        /// Tự động so khớp thông tin người mua trên chứng từ (MST, CCCD, Họ tên) với thông tin Người nộp thuế và Người phụ thuộc trong DB
+        /// </summary>
+        private async Task<bool> CheckIdentityMatchAsync(
+            IUnitOfWork unitOfWork,
+            Guid userId,
+            string? buyerTaxCode,
+            string? buyerIdCard,
+            string? buyerName)
+        {
+            // Nếu cả 3 thông tin định danh đều trống -> Không thể xác thực -> false
+            if (string.IsNullOrWhiteSpace(buyerTaxCode) &&
+                string.IsNullOrWhiteSpace(buyerIdCard) &&
+                string.IsNullOrWhiteSpace(buyerName))
+            {
+                return false;
+            }
+
+            // 1. Lấy thông tin tài khoản người nộp thuế (User)
+            var userRepo = unitOfWork.Repository<User>();
+            var user = await userRepo.GetByIdAsync(userId);
+            if (user == null) return false;
+
+            // 2. Lấy danh sách Người phụ thuộc của User
+            var depRepo = unitOfWork.Repository<Dependent>();
+            var dependents = (await depRepo.FindAsync(d => d.TaxpayerId == userId && !d.IsDeleted)).ToList();
+
+            // Chuẩn hóa dữ liệu OCR
+            var cleanTaxCode = buyerTaxCode?.Trim().Replace(" ", "").Replace("-", "");
+            var cleanIdCard = buyerIdCard?.Trim().Replace(" ", "");
+            var cleanName = buyerName?.Trim();
+
+            // 3. So khớp với Người nộp thuế
+            if (!string.IsNullOrEmpty(cleanTaxCode) &&
+                !string.IsNullOrEmpty(user.TaxIdNumber) &&
+                string.Equals(cleanTaxCode, user.TaxIdNumber.Trim().Replace(" ", "").Replace("-", ""), StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (!string.IsNullOrEmpty(cleanIdCard) &&
+                !string.IsNullOrEmpty(user.CitizenId) &&
+                string.Equals(cleanIdCard, user.CitizenId.Trim().Replace(" ", ""), StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (!string.IsNullOrEmpty(cleanName) &&
+                !string.IsNullOrEmpty(user.FullName) &&
+                StringComparisonHelper.IsNameMatching(cleanName, user.FullName))
+            {
+                return true;
+            }
+
+            // 4. So khớp với Người phụ thuộc
+            foreach (var dep in dependents)
+            {
+                if (!string.IsNullOrEmpty(cleanTaxCode) &&
+                    !string.IsNullOrEmpty(dep.TaxIdNumber) &&
+                    string.Equals(cleanTaxCode, dep.TaxIdNumber.Trim().Replace(" ", "").Replace("-", ""), StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                if (!string.IsNullOrEmpty(cleanIdCard) &&
+                    !string.IsNullOrEmpty(dep.CitizenId) &&
+                    string.Equals(cleanIdCard, dep.CitizenId.Trim().Replace(" ", ""), StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                if (!string.IsNullOrEmpty(cleanName) &&
+                    !string.IsNullOrEmpty(dep.FullName) &&
+                    StringComparisonHelper.IsNameMatching(cleanName, dep.FullName))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+    }
+}

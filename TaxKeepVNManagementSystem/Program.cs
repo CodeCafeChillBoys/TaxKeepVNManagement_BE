@@ -1,5 +1,5 @@
-using TaxKeepVNManagementSystem.Hubs;
-using TaxKeepVNManagementSystem.BackgroundJobs;
+using System;
+using System.Text;
 using FluentValidation;
 using FluentValidation.AspNetCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -9,8 +9,6 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.IdentityModel.Tokens;
-using System;
-using System.Text;
 using TaxKeepVN.Application.Service.Implementations;
 using TaxKeepVN.Application.Service.Interfaces;
 using TaxKeepVN.Application.Validators;
@@ -19,7 +17,11 @@ using TaxKeepVN.Infrastructure.Contexts;
 using TaxKeepVN.Infrastructure.Repositories;
 using TaxKeepVN.Infrastructure.Services;
 using TaxKeepVN.Infrastructure.Storage;
+using TaxKeepVNManagementSystem.BackgroundJobs;
+using TaxKeepVNManagementSystem.Hubs;
 using TaxKeepVNManagementSystem.Middlewares;
+using QuestPDF.Infrastructure;
+using TaxKeepVN.Infrastructure.Services.Pdf;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -31,6 +33,11 @@ builder.Services.AddControllers(options =>
 {
     // Return 406 Not Acceptable if client requests unsupported format
     options.ReturnHttpNotAcceptable = true;
+})
+.AddJsonOptions(options =>
+{
+    options.JsonSerializerOptions.ReferenceHandler = System.Text.Json.Serialization.ReferenceHandler.IgnoreCycles;
+    options.JsonSerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
 })
 .AddXmlSerializerFormatters() // Support application/xml
 .ConfigureApiBehaviorOptions(options =>
@@ -60,6 +67,9 @@ builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new() { Title = "TaxKeepVN API", Version = "v1" });
 
+    // Chỉ hiển thị chú thích cho các endpoint có khai báo [EndpointSummary] (như TaxSettlement)
+    c.OperationFilter<EndpointSummaryOperationFilter>();
+
     // Cho phép nhập JWT token trong Swagger UI
     c.AddSecurityDefinition("Bearer", new Microsoft.OpenApi.Models.OpenApiSecurityScheme
     {
@@ -88,7 +98,9 @@ builder.Services.AddSwaggerGen(c =>
 
 // ── Database (PostgreSQL) ───────────────────────────────────────────────────
 var connString = builder.Configuration.GetConnectionString("DefaultConnection")
-    ?? "Host=localhost;Database=TaxKeepVNDB;Username=postgres;Password=12345";
+    ?? throw new InvalidOperationException("Connection string 'DefaultConnection' is not configured in appsettings.json.");
+
+
 
 builder.Services.AddDbContext<TaxKeepDbContext>(options =>
     options.UseNpgsql(connString));
@@ -98,7 +110,8 @@ builder.Services.AddScoped<IUnitOfWork, UnitOfWork>();
 builder.Services.AddScoped(typeof(IGenericRepository<>), typeof(GenericRepository<>));
 
 // ── Application & Infrastructure Services ───────────────────────────────────
-builder.Services.AddScoped<IFileStorageService, LocalFileStorageService>();
+builder.Services.AddHttpClient<IFileStorageService, SupabaseStorageService>();
+builder.Services.AddScoped<IOcrService, OcrService>();
 builder.Services.AddScoped<IDependentDocumentService, DependentDocumentService>();
 builder.Services.AddScoped<IDependentReminderService, DependentReminderService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
@@ -110,9 +123,26 @@ builder.Services.AddScoped<ITokenRevocationService, TokenRevocationService>();
 builder.Services.AddScoped<IProfileService, ProfileService>();
 builder.Services.AddScoped<IDependentService, DependentService>();
 builder.Services.AddScoped<ITaxAIProducerService, TaxAIProducerService>();
-builder.Services.AddScoped<IOcrAIProducerService, OcrAIProducerService>();
-builder.Services.AddScoped<IOcrService, OcrService>();
+builder.Services.AddScoped<IDocumentOcrProducerService, DocumentOcrProducerService>();
 builder.Services.AddScoped<IDependentRuleService, DependentRuleService>();
+// Services từ feature/CalculateTaxFinalization
+builder.Services.AddScoped<ISystemConfigService, SystemConfigService>();
+builder.Services.AddScoped<ITaxSettlementService, TaxSettlementService>();
+// Services kết xuất tờ khai PDF & đóng gói ZIP hồ sơ quyết toán (WBS 3.6.T7, 3.6.T8, 3.6.T9)
+builder.Services.AddScoped<IDownloadTokenService, DownloadTokenService>();
+builder.Services.AddScoped<ITaxSettlementPdfService, TaxSettlementPdfService>();
+builder.Services.AddScoped<ITaxSettlementPackageService, TaxSettlementPackageService>();
+// Services từ feature/implementation-upload-document-ai-extraction
+builder.Services.AddScoped<ITaxPeriodService, TaxPeriodService>();
+builder.Services.AddScoped<ITaxDocumentTypeService, TaxDocumentTypeService>();
+builder.Services.AddScoped<ITaxAiConfigService, TaxAiConfigService>();
+builder.Services.AddScoped<IUrlRuleService, UrlRuleService>();
+builder.Services.AddScoped<IOcrAIProducerService, OcrAIProducerService>();
+
+builder.Services.AddScoped<ISpecializationService, SpecializationService>();
+builder.Services.AddScoped<IExpertApplicationService, ExpertApplicationService>();
+builder.Services.AddScoped<IConsultationFeeConfigService, ConsultationFeeConfigService>();
+builder.Services.AddScoped<IExpertSearchService, ExpertSearchService>();
 
 // ── HTTP Clients ────────────────────────────────────────────────────────────
 builder.Services.AddHttpClient("TaxAIService", client =>
@@ -126,7 +156,7 @@ builder.Services.AddSignalR();
 builder.Services.AddSingleton<Microsoft.AspNetCore.SignalR.IUserIdProvider, CustomUserIdProvider>();
 // ── JWT Authentication ───────────────────────────────────────────────────────
 var jwtSection = builder.Configuration.GetSection("Jwt");
-var jwtKey = jwtSection["Key"];
+var jwtKey = jwtSection["Key"] ?? "TaxKeepVN@SecretKey#2026!Must32CharsLong";
 
 builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
     .AddJwtBearer(options =>
@@ -177,6 +207,13 @@ builder.Services.AddAuthorization();
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.AgeTransitionReminderJob>();
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.TaxAIConsumerBackgroundService>();
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.OcrAIConsumerBackgroundService>();
+builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.DocumentOcrConsumerBackgroundService>();
+builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.TaxSettlementReminderJob>();
+
+// ── QuestPDF Community License Configuration (WBS 3.6.T7) ───────────────────
+QuestPDF.Settings.License = LicenseType.Community;
+QuestPDF.Settings.UseSystemFonts = true;
+QuestPDF.Settings.ThrowOnMissingFontFamilies = false;
 
 var app = builder.Build();
 
@@ -206,3 +243,21 @@ app.MapControllers();
 app.MapHub<TaxAIHub>("/hubs/tax-ai");
 
 app.Run();
+
+/// <summary>
+/// OperationFilter chỉ nạp chú thích tóm tắt cho các endpoint có gắn [EndpointSummary] (VD: TaxSettlementController).
+/// Các controller khác (như Dependent, Notification...) sẽ không bị hiển thị chú thích.
+/// </summary>
+public class EndpointSummaryOperationFilter : Swashbuckle.AspNetCore.SwaggerGen.IOperationFilter
+{
+    public void Apply(Microsoft.OpenApi.Models.OpenApiOperation operation, Swashbuckle.AspNetCore.SwaggerGen.OperationFilterContext context)
+    {
+        var summaryAttr = context.MethodInfo.GetCustomAttributes(typeof(EndpointSummaryAttribute), false)
+            .FirstOrDefault() as EndpointSummaryAttribute;
+
+        if (summaryAttr != null)
+        {
+            operation.Summary = summaryAttr.Summary;
+        }
+    }
+}
