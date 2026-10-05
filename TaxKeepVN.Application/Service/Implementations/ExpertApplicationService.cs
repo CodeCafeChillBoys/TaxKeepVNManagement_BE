@@ -93,7 +93,10 @@ namespace TaxKeepVN.Application.Service.Implementations
             {
                 // Cập nhật thông tin bản nháp có sẵn
                 app.FullName = targetFullName;
-                app.AvatarUrl = request.AvatarUrl;
+                if (!string.IsNullOrWhiteSpace(request.AvatarUrl))
+                {
+                    app.AvatarUrl = request.AvatarUrl;
+                }
                 app.JobTitle = request.JobTitle;
                 app.CompanyName = request.CompanyName;
                 app.Bio = request.Bio;
@@ -163,6 +166,67 @@ namespace TaxKeepVN.Application.Service.Implementations
             await _unitOfWork.SaveChangesAsync();
 
             return await BuildApplicationDetailResponseAsync(app);
+        }
+
+        // ── 1.1 TẢI LÊN ẢNH CHÂN DUNG / AVATAR (Mobile Camera & Thư viện ảnh) ─
+        public async Task<UploadAvatarResponseDto> UploadAvatarAsync(Guid userId, UploadAvatarRequest request)
+        {
+            var user = await GetActiveUserOrThrowAsync(userId);
+
+            if (request.File == null || request.File.Length == 0)
+            {
+                throw new BadRequestException("EMPTY_FILE", "File ảnh đại diện không được để trống.");
+            }
+
+            var allowedExtensions = new[] { ".jpg", ".jpeg", ".png", ".webp", ".heic" };
+            var extension = Path.GetExtension(request.File.FileName).ToLower();
+            if (!allowedExtensions.Contains(extension))
+            {
+                throw new BadRequestException("INVALID_FILE_TYPE", "Chỉ hỗ trợ file ảnh định dạng JPG, JPEG, PNG, WEBP hoặc HEIC.");
+            }
+
+            if (request.File.Length > 10 * 1024 * 1024)
+            {
+                throw new BadRequestException("FILE_TOO_LARGE", "Dung lượng file ảnh đại diện không được vượt quá 10MB.");
+            }
+
+            // Tìm hồ sơ nháp hoặc hồ sơ đang cần bổ sung
+            var apps = await _unitOfWork.Repository<ExpertApplication>().FindAsync(
+                a => a.UserId == userId && (a.Status == ExpertApplicationStatus.Draft || a.Status == ExpertApplicationStatus.NeedSupplement)
+            );
+            var app = apps.OrderByDescending(a => a.UpdatedAt).FirstOrDefault();
+
+            var folderName = $"expert-avatars/{userId}";
+            var fileUrl = await _fileStorageService.SaveFileAsync(request.File, folderName);
+
+            if (app == null)
+            {
+                app = new ExpertApplication
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = userId,
+                    ApplicationNumber = GenerateApplicationNumber(),
+                    FullName = user.FullName,
+                    AvatarUrl = fileUrl,
+                    Status = ExpertApplicationStatus.Draft,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    UpdatedAt = DateTimeOffset.UtcNow
+                };
+                await _unitOfWork.Repository<ExpertApplication>().AddAsync(app);
+            }
+            else
+            {
+                app.AvatarUrl = fileUrl;
+                app.UpdatedAt = DateTimeOffset.UtcNow;
+                _unitOfWork.Repository<ExpertApplication>().Update(app);
+            }
+
+            await _unitOfWork.SaveChangesAsync();
+
+            return new UploadAvatarResponseDto
+            {
+                AvatarUrl = fileUrl
+            };
         }
 
         // ── 2. TẢI LÊN CHỨNG CHỈ (Upload Supabase) ───────────────────────────

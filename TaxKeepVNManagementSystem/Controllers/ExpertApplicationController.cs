@@ -68,6 +68,26 @@ namespace TaxKeepVNManagementSystem.Controllers
         }
 
         /// <summary>
+        /// Tải lên ảnh chân dung / avatar chuyên gia từ Camera điện thoại hoặc thư viện ảnh (Multipart/form-data)
+        /// POST /api/v1/expert-applications/avatar
+        /// </summary>
+        [HttpPost("avatar")]
+        [Consumes("multipart/form-data")]
+        [ProducesResponseType(typeof(ApiResponse<UploadAvatarResponseDto>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        public async Task<IActionResult> UploadAvatar([FromForm] UploadAvatarRequest request)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ApiResponse<object>.ValidationFail(ModelState));
+            }
+
+            var data = await _service.UploadAvatarAsync(GetCurrentUserId(), request);
+            return Ok(ApiResponse<UploadAvatarResponseDto>.Ok(data, "Tải lên ảnh đại diện thành công."));
+        }
+
+        /// <summary>
         /// Tải lên và đính kèm chứng chỉ vào hồ sơ (Multipart/form-data)
         /// POST /api/v1/expert-applications/certificates
         /// </summary>

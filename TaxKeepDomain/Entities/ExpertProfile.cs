@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace TaxKeepVN.Domain.Entities
 {
@@ -30,6 +31,9 @@ namespace TaxKeepVN.Domain.Entities
         /// <summary>Tổng số lượt đánh giá</summary>
         public int TotalReviews { get; set; } = 0;
 
+        /// <summary>Số ca tư vấn đã hoàn thành</summary>
+        public int CompletedConsultationsCount { get; set; } = 0;
+
         /// <summary>Trạng thái sẵn sàng nhận lịch tư vấn</summary>
         public bool IsActive { get; set; } = true;
 
@@ -42,5 +46,7 @@ namespace TaxKeepVN.Domain.Entities
         // Navigation properties
         public User? User { get; set; }
         public ExpertApplication? LatestApplication { get; set; }
+        public ICollection<ExpertSlot> Slots { get; set; } = new List<ExpertSlot>();
+        public ICollection<ExpertReview> Reviews { get; set; } = new List<ExpertReview>();
     }
 }

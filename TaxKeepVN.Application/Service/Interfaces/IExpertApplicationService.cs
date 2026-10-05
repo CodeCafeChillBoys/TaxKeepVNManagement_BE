@@ -12,6 +12,11 @@ namespace TaxKeepVN.Application.Service.Interfaces
         Task<ExpertApplicationDetailResponse> SaveDraftAsync(Guid userId, SaveExpertApplicationDraftRequest request);
 
         /// <summary>
+        /// Tải lên ảnh chân dung / avatar chuyên gia (hỗ trợ chụp trực tiếp từ Camera điện thoại hoặc thư viện ảnh)
+        /// </summary>
+        Task<UploadAvatarResponseDto> UploadAvatarAsync(Guid userId, UploadAvatarRequest request);
+
+        /// <summary>
         /// Tải lên và đính kèm 1 chứng chỉ vào hồ sơ hiện tại
         /// </summary>
         Task<CertificateResponseDto> UploadCertificateAsync(Guid userId, UploadCertificateRequest request);

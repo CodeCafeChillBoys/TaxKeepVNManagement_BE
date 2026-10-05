@@ -41,20 +41,26 @@ namespace TaxKeepVN.Application.Service.Implementations
                 .ThenByDescending(a => a.SubmittedAt ?? a.CreatedAt);
 
             var totalItems = queryable.Count();
+            // phân trang skip và lây thêm 10
             var pagedApps = queryable
                 .Skip((query.Page - 1) * query.Size)
                 .Take(query.Size)
                 .ToList();
-
+            // lấy tất cả hồ sơ ID lên
             var appIds = pagedApps.Select(a => a.Id).ToList();
-
+            // kiểm tra xem hồ soe có trong ExpertApplicationSpecialization
             var appSpecs = (await _unitOfWork.Repository<ExpertApplicationSpecialization>().FindAsync(s => appIds.Contains(s.ApplicationId))).ToList();
+            // lấy lên tất cả SpecializationId lên
             var specIds = appSpecs.Select(s => s.SpecializationId).Distinct().ToList();
+            // kiểm tra list vừa lấy lên có trong Specialization nếu có lấy lên hết
             var specs = (await _unitOfWork.Repository<Specialization>().FindAsync(s => specIds.Contains(s.Id))).ToList();
+            // trả về dạng dic
             var specDict = specs.ToDictionary(s => s.Id, s => s.Name);
 
+            // check bằng có trong hồ sơ ko 1 hồ sơ sẽ có nhiều bằng
             var allCerts = (await _unitOfWork.Repository<ExpertApplicationCertificate>().FindAsync(c => appIds.Contains(c.ApplicationId))).ToList();
             
+            // 
             var items = pagedApps.Select(a =>
             {
                 var aSpecs = appSpecs

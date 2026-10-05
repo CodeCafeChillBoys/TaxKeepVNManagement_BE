@@ -39,6 +39,8 @@ namespace TaxKeepVN.Infrastructure.Contexts
         public DbSet<ExpertApplicationFeeProposal> ExpertApplicationFeeProposals { get; set; }
         public DbSet<ExpertApplicationAudit> ExpertApplicationAudits { get; set; }
         public DbSet<ExpertProfile> ExpertProfiles { get; set; }
+        public DbSet<ExpertSlot> ExpertSlots { get; set; }
+        public DbSet<ExpertReview> ExpertReviews { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -576,6 +578,7 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(p => p.YearsOfExperience).HasColumnName("years_of_experience").HasDefaultValue(0);
                 entity.Property(p => p.Rating).HasColumnName("rating").HasColumnType("numeric(3,2)").HasDefaultValue(0m);
                 entity.Property(p => p.TotalReviews).HasColumnName("total_reviews").HasDefaultValue(0);
+                entity.Property(p => p.CompletedConsultationsCount).HasColumnName("completed_consultations_count").HasDefaultValue(0);
                 entity.Property(p => p.IsActive).HasColumnName("is_active").HasDefaultValue(true);
                 entity.Property(p => p.ApprovedAt).HasColumnName("approved_at");
                 entity.Property(p => p.CreatedAt).HasColumnName("created_at");
@@ -592,6 +595,69 @@ namespace TaxKeepVN.Infrastructure.Contexts
                     .OnDelete(DeleteBehavior.Restrict);
 
                 entity.HasIndex(p => p.UserId).IsUnique().HasDatabaseName("uq_expert_profiles_user_id");
+            });
+
+            // ── ExpertSlot ──────────────────────────────────────────────────────
+            modelBuilder.Entity<ExpertSlot>(entity =>
+            {
+                entity.ToTable("expert_slots");
+                entity.HasKey(s => s.Id);
+
+                entity.Property(s => s.Id).HasColumnName("id");
+                entity.Property(s => s.ExpertProfileId).HasColumnName("expert_profile_id").IsRequired();
+                entity.Property(s => s.SlotDate).HasColumnName("slot_date").IsRequired();
+                entity.Property(s => s.StartTime).HasColumnName("start_time").IsRequired();
+                entity.Property(s => s.EndTime).HasColumnName("end_time").IsRequired();
+                entity.Property(s => s.SessionType)
+                    .HasColumnName("session_type")
+                    .HasMaxLength(50)
+                    .HasConversion<string>()
+                    .HasDefaultValue(SessionType.ONLINE_MEETING)
+                    .IsRequired();
+                entity.Property(s => s.IsBooked).HasColumnName("is_booked").HasDefaultValue(false);
+                entity.Property(s => s.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+                entity.Property(s => s.CreatedAt).HasColumnName("created_at");
+                entity.Property(s => s.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasOne(s => s.ExpertProfile)
+                    .WithMany(p => p.Slots)
+                    .HasForeignKey(s => s.ExpertProfileId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(s => s.ExpertProfileId).HasDatabaseName("idx_expert_slots_profile_id");
+                entity.HasIndex(s => s.SlotDate).HasDatabaseName("idx_expert_slots_slot_date");
+                entity.HasIndex(s => new { s.ExpertProfileId, s.SlotDate, s.StartTime }).IsUnique().HasDatabaseName("uq_expert_slots_profile_datetime");
+            });
+
+            // ── ExpertReview ────────────────────────────────────────────────────
+            modelBuilder.Entity<ExpertReview>(entity =>
+            {
+                entity.ToTable("expert_reviews");
+                entity.HasKey(r => r.Id);
+
+                entity.Property(r => r.Id).HasColumnName("id");
+                entity.Property(r => r.ExpertProfileId).HasColumnName("expert_profile_id").IsRequired();
+                entity.Property(r => r.UserId).HasColumnName("user_id").IsRequired();
+                entity.Property(r => r.BookingId).HasColumnName("booking_id");
+                entity.Property(r => r.Rating).HasColumnName("rating").IsRequired();
+                entity.Property(r => r.Comment).HasColumnName("comment");
+                entity.Property(r => r.IsAnonymous).HasColumnName("is_anonymous").HasDefaultValue(false);
+                entity.Property(r => r.IsPublished).HasColumnName("is_published").HasDefaultValue(true);
+                entity.Property(r => r.CreatedAt).HasColumnName("created_at");
+                entity.Property(r => r.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasOne(r => r.ExpertProfile)
+                    .WithMany(p => p.Reviews)
+                    .HasForeignKey(r => r.ExpertProfileId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(r => r.User)
+                    .WithMany(u => u.ExpertReviews)
+                    .HasForeignKey(r => r.UserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasIndex(r => r.ExpertProfileId).HasDatabaseName("idx_expert_reviews_profile_id");
+                entity.HasIndex(r => r.UserId).HasDatabaseName("idx_expert_reviews_user_id");
             });
         }
     }
