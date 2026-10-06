@@ -97,7 +97,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 {
                     await docRepo.AddAsync(doc);
                 }
-                await _unitOfWork.SaveChangesAsync();               
+                await _unitOfWork.SaveChangesAsync();
                 await _unitOfWork.CommitTransactionAsync();
             }
             catch (Exception ex)
@@ -237,6 +237,11 @@ namespace TaxKeepVN.Application.Service.Implementations
             // Giữ nguyên IsIdentityValid đã được hệ thống thẩm định
             document.IsNotReimbursed = dto.IsNotReimbursed;
 
+            // Lưu các trường thuế TNCN vào chính Document
+            document.TotalIncome = dto.TotalIncome ?? dto.TotalAmount;
+            document.TaxWithheld = dto.TaxWithheld ?? dto.TotalAmount;
+            document.InsuranceDeducted = dto.InsuranceDeducted ?? 0;
+
             // Đánh dấu người dùng đã review và lưu chính thức
             document.Status = "CONFIRMED";
 
@@ -261,7 +266,24 @@ namespace TaxKeepVN.Application.Service.Implementations
                 }
             }
 
+            // Lưu trước các thay đổi của Document để trạng thái CONFIRMED được ghi nhận vào DB
             await _unitOfWork.SaveChangesAsync();
+
+            // =========================================================================
+            // NẾU LÀ CHỨNG TỪ KHẤU TRỪ THUẾ (WITHHOLDING_VOUCHER) -> TÍNH TOÁN LẠI TỔNG (SUM) VÀO INCOME_SOURCES
+            // =========================================================================
+            if (string.Equals(document.DocTypeCode, "WITHHOLDING_VOUCHER", StringComparison.OrdinalIgnoreCase))
+            {
+                var taxYear = dto.ExtractedYear ?? document.ExtractedYear ?? period.TaxYear;
+                var taxCode = dto.SellerTaxCode ?? document.SellerTaxCode ?? string.Empty;
+                var companyName = (dto.SellerName ?? document.SellerName ?? "Tổ chức chi trả thu nhập").Trim();
+
+                if (!string.IsNullOrWhiteSpace(taxCode))
+                {
+                    await SyncWithholdingVoucherIncomeSourceAsync(userId, periodId, taxYear, taxCode, companyName);
+                    await _unitOfWork.SaveChangesAsync();
+                }
+            }
 
             _logger.LogInformation("Document {DocId} has been reviewed and CONFIRMED by user {UserId}", documentId, userId);
 
@@ -512,6 +534,109 @@ namespace TaxKeepVN.Application.Service.Implementations
                     Description = $"{prefix} {rawDesc}"
                 };
             }).ToList();
+        }
+
+        /// <summary>
+        /// Đồng bộ nguồn thu nhập (income_sources) theo mô hình Master-Detail SUM từ tất cả các chứng từ khấu trừ thuế đã CONFIRMED của cùng 1 công ty trong kỳ tính thuế.
+        /// </summary>
+        private async Task SyncWithholdingVoucherIncomeSourceAsync(
+            Guid userId,
+            Guid periodId,
+            int taxYear,
+            string taxCode,
+            string companyName)
+        {
+            // chuẩn hóa  lại Mã số thuế của Công ty
+            var normTaxCode = NormalizeTaxCode(taxCode);
+            // rỗng return 
+            if (string.IsNullOrWhiteSpace(normTaxCode)) return;
+
+            var incomeSourceRepo = _unitOfWork.Repository<IncomeSource>();
+            var docRepo = _unitOfWork.Repository<Document>();
+
+            // 1. Lấy tất cả các chứng từ khấu trừ thuế ĐÃ XÁC NHẬN (CONFIRMED) trong kỳ kê khai này
+            var periodDocuments = await docRepo.FindAsync(d =>
+                d.PeriodId == periodId &&
+                d.DocTypeCode == "WITHHOLDING_VOUCHER" &&
+                d.Status == "CONFIRMED");
+
+            // lấy lên tất cả mst của chứng từ thông qua periodDocuments
+            var companyDocs = periodDocuments
+                .Where(d => NormalizeTaxCode(d.SellerTaxCode) == normTaxCode)
+                .ToList();
+
+            // 2. Tìm nguồn thu nhập tương ứng của User theo (TaxpayerId, CompanyTaxCode, TaxYear)
+            // tìm kiếm nguồn thu nhập của người nộp thuế mã số thuế ctym, năm chứng từ
+            var existingSources = await incomeSourceRepo.FindAsync(s =>
+                s.TaxpayerId == userId &&
+                s.CompanyTaxCode == normTaxCode &&
+                s.TaxYear == taxYear);
+
+            // lấy ra cái đầu tiên
+            var incomeSource = existingSources.FirstOrDefault();
+
+            // check xem trong mã số thuế trong documnet còn hay ko nếu ko còn reset lại 0
+            if (!companyDocs.Any())
+            {
+                // Nếu không còn chứng từ nào (ví dụ user đã xóa hết chứng từ của công ty này)
+                if (incomeSource != null)
+                {
+                    incomeSource.TotalIncome = 0;
+                    incomeSource.TaxWithheld = 0;
+                    incomeSource.InsuranceDeducted = 0;
+                    incomeSource.IsActive = false;
+                    incomeSource.UpdatedAt = DateTime.UtcNow;
+                    incomeSourceRepo.Update(incomeSource);
+                    _logger.LogInformation("Deactivated IncomeSource {Id} because no confirmed documents remain for company {TaxCode}",
+                        incomeSource.Id, normTaxCode);
+                }
+                return;
+            }
+
+            // 3. TÍNH TỔNG (SUM) TỪ TẤT CẢ CÁC CHỨNG TỪ CỦA CÔNG TY ĐÓ TRONG KỲ
+            decimal totalIncomeSum = companyDocs.Sum(d => d.TotalIncome ?? d.TotalAmount ?? 0);
+            decimal taxWithheldSum = companyDocs.Sum(d => d.TaxWithheld ?? d.TotalAmount ?? 0);
+            decimal insuranceDeductedSum = companyDocs.Sum(d => d.InsuranceDeducted ?? 0);
+
+            var latestCompanyName = companyDocs
+                .OrderByDescending(d => d.InvoiceDate ?? DateOnly.MinValue)
+                .Select(d => d.SellerName)
+                .FirstOrDefault(name => !string.IsNullOrWhiteSpace(name)) ?? companyName;
+
+            if (incomeSource != null)
+            {
+                incomeSource.CompanyName = latestCompanyName;
+                incomeSource.TotalIncome = totalIncomeSum;
+                incomeSource.TaxWithheld = taxWithheldSum;
+                incomeSource.InsuranceDeducted = insuranceDeductedSum;
+                incomeSource.IsActive = true;
+                incomeSource.UpdatedAt = DateTime.UtcNow;
+
+                incomeSourceRepo.Update(incomeSource);
+                _logger.LogInformation("Recalculated IncomeSource {Id} for User {UserId}: TotalIncome={TotalIncome}, TaxWithheld={TaxWithheld}, Insurance={Insurance} across {Count} documents",
+                    incomeSource.Id, userId, totalIncomeSum, taxWithheldSum, insuranceDeductedSum, companyDocs.Count);
+            }
+            else
+            {
+                var newIncomeSource = new IncomeSource
+                {
+                    Id = Guid.NewGuid(),
+                    TaxpayerId = userId,
+                    CompanyName = latestCompanyName,
+                    CompanyTaxCode = normTaxCode,
+                    TaxYear = taxYear,
+                    TotalIncome = totalIncomeSum,
+                    TaxWithheld = taxWithheldSum,
+                    InsuranceDeducted = insuranceDeductedSum,
+                    IsActive = true,
+                    CreatedAt = DateTime.UtcNow,
+                    UpdatedAt = DateTime.UtcNow
+                };
+
+                await incomeSourceRepo.AddAsync(newIncomeSource);
+                _logger.LogInformation("Created new IncomeSource {Id} for User {UserId}: TotalIncome={TotalIncome}, TaxWithheld={TaxWithheld}, Insurance={Insurance} across {Count} documents",
+                    newIncomeSource.Id, userId, totalIncomeSum, taxWithheldSum, insuranceDeductedSum, companyDocs.Count);
+            }
         }
     }
 }

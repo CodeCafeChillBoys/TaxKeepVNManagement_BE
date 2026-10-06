@@ -36,6 +36,10 @@ namespace TaxKeepVN.Application.DTOs.Documents
         public string Status { get; set; } = "CONFIRMED";
         public DateTime CreatedAt { get; set; }
         public List<DocumentItemResponseDto> Items { get; set; } = new();
+
+        public decimal? TotalIncome { get; set; }
+        public decimal? TaxWithheld { get; set; }
+        public decimal? InsuranceDeducted { get; set; }
     }
 
     public class DocumentItemResponseDto

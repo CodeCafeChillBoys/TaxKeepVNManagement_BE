@@ -254,6 +254,9 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(d => d.BuyerAddress).HasColumnName("buyer_address");
                 entity.Property(d => d.PaymentMethod).HasColumnName("payment_method").HasMaxLength(100);
                 entity.Property(d => d.TotalAmount).HasColumnName("total_amount").HasColumnType("numeric(18,2)");
+                entity.Property(d => d.TotalIncome).HasColumnName("total_income").HasColumnType("numeric(18,2)");
+                entity.Property(d => d.TaxWithheld).HasColumnName("tax_withheld").HasColumnType("numeric(18,2)");
+                entity.Property(d => d.InsuranceDeducted).HasColumnName("insurance_deducted").HasColumnType("numeric(18,2)");
                 entity.Property(d => d.TotalAmountInWords).HasColumnName("total_amount_in_words");
                 entity.Property(d => d.LookupUrl).HasColumnName("lookup_url");
                 entity.Property(d => d.LookupCode).HasColumnName("lookup_code").HasMaxLength(100);
