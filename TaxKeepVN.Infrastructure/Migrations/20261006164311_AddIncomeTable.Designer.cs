@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TaxKeepVN.Infrastructure.Contexts;
@@ -11,9 +12,11 @@ using TaxKeepVN.Infrastructure.Contexts;
 namespace TaxKeepVN.Infrastructure.Migrations
 {
     [DbContext(typeof(TaxKeepDbContext))]
-    partial class TaxKeepDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261006164311_AddIncomeTable")]
+    partial class AddIncomeTable
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -319,10 +322,6 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("file_url");
 
-                    b.Property<decimal?>("InsuranceDeducted")
-                        .HasColumnType("numeric(18,2)")
-                        .HasColumnName("insurance_deducted");
-
                     b.Property<DateOnly?>("InvoiceDate")
                         .HasColumnType("date")
                         .HasColumnName("invoice_date");
@@ -401,10 +400,6 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         .HasDefaultValue("UPLOADED")
                         .HasColumnName("status");
 
-                    b.Property<decimal?>("TaxWithheld")
-                        .HasColumnType("numeric(18,2)")
-                        .HasColumnName("tax_withheld");
-
                     b.Property<decimal?>("TotalAmount")
                         .HasColumnType("numeric(18,2)")
                         .HasColumnName("total_amount");
@@ -412,10 +407,6 @@ namespace TaxKeepVN.Infrastructure.Migrations
                     b.Property<string>("TotalAmountInWords")
                         .HasColumnType("text")
                         .HasColumnName("total_amount_in_words");
-
-                    b.Property<decimal?>("TotalIncome")
-                        .HasColumnType("numeric(18,2)")
-                        .HasColumnName("total_income");
 
                     b.HasKey("Id");
 
