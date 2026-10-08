@@ -7,6 +7,7 @@ namespace TaxKeepVN.Application.DTOs.OcrAI
         public IFormFile File { get; set; } = null!;
         public int? TargetMonth { get; set; }
         public int? TargetYear { get; set; }
-        public float? AppliedThreshold { get; set; }
+
+
     }
 }

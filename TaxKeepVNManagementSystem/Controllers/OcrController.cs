@@ -22,15 +22,18 @@ namespace TaxKeepVNManagementSystem.Controllers
         private readonly IOcrAIProducerService _ocrProducerService;
         private readonly IMemoryCache _cache;
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IFileStorageService _fileStorageService;
 
         public OcrController(
             IOcrAIProducerService ocrProducerService,
             IMemoryCache cache,
-            IHttpClientFactory httpClientFactory)
+            IHttpClientFactory httpClientFactory,
+            IFileStorageService fileStorageService)
         {
             _ocrProducerService = ocrProducerService;
             _cache = cache;
             _httpClientFactory = httpClientFactory;
+            _fileStorageService = fileStorageService;
         }
 
         /// <summary>
@@ -198,8 +201,15 @@ namespace TaxKeepVNManagementSystem.Controllers
                 var client = _httpClientFactory.CreateClient("TaxAIService");
                 using var content = new MultipartFormDataContent();
 
-                using var fileStream = request.File.OpenReadStream();
-                var fileContent = new StreamContent(fileStream);
+
+                // 1. Copy file content to a memory stream so we can reuse it without disposal issues
+                using var memoryStream = new MemoryStream();
+                await request.File.CopyToAsync(memoryStream);
+                memoryStream.Position = 0;
+
+                // 2. Prepare HTTP content for AI Service
+                var fileContent = new StreamContent(memoryStream);
+
                 fileContent.Headers.ContentType = new MediaTypeHeaderValue(request.File.ContentType);
                 content.Add(fileContent, "file", request.File.FileName);
 
@@ -207,8 +217,9 @@ namespace TaxKeepVNManagementSystem.Controllers
                     content.Add(new StringContent(request.TargetMonth.Value.ToString()), "target_month");
                 if (request.TargetYear.HasValue)
                     content.Add(new StringContent(request.TargetYear.Value.ToString()), "target_year");
-                if (request.AppliedThreshold.HasValue)
-                    content.Add(new StringContent(request.AppliedThreshold.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)), "applied_threshold");
+
+
+                // 3. Call AI Service first (fail fast if AI is down or fails)
 
                 var response = await client.PostAsync("/api/incomes/ocr/extract", content);
                 var responseJson = await response.Content.ReadAsStringAsync();
@@ -221,6 +232,18 @@ namespace TaxKeepVNManagementSystem.Controllers
 
                 var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
                 var ocrResult = JsonSerializer.Deserialize<IncomeOcrResponseDto>(responseJson, options);
+
+                // 4. If AI succeeded, save the file to Supabase (using a fresh stream)
+                using var uploadStream = request.File.OpenReadStream();
+                // Create a wrapper FormFile since Supabase uses IFormFile
+                var fileUrl = await _fileStorageService.SaveFileAsync(request.File, "incomes");
+
+                // 5. Update the result with the saved URL
+                if (ocrResult != null && ocrResult.Data != null)
+                {
+                    ocrResult.Data.PayslipFileUrl = fileUrl;
+                }
+
 
                 return Ok(ApiResponse<IncomeOcrResponseDto>.Ok(ocrResult, "Trích xuất OCR phiếu lương thành công."));
             }
