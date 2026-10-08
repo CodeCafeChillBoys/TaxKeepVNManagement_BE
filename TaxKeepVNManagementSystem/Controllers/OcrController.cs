@@ -17,20 +17,24 @@ namespace TaxKeepVNManagementSystem.Controllers
 {
     [ApiController]
     [Route("api/v1/ocr")]
+    [Authorize]
     public class OcrController : ControllerBase
     {
         private readonly IOcrAIProducerService _ocrProducerService;
         private readonly IMemoryCache _cache;
         private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IFileStorageService _fileStorageService;
 
         public OcrController(
             IOcrAIProducerService ocrProducerService,
             IMemoryCache cache,
-            IHttpClientFactory httpClientFactory)
+            IHttpClientFactory httpClientFactory,
+            IFileStorageService fileStorageService)
         {
             _ocrProducerService = ocrProducerService;
             _cache = cache;
             _httpClientFactory = httpClientFactory;
+            _fileStorageService = fileStorageService;
         }
 
         /// <summary>
@@ -171,6 +175,62 @@ namespace TaxKeepVNManagementSystem.Controllers
                 var ocrResult = JsonSerializer.Deserialize<OcrExtractResponseMessage>(responseJson, options);
 
                 return Ok(ApiResponse<OcrExtractResponseMessage>.Ok(ocrResult, "Trích xuất OCR thành công."));
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError,
+                    ApiResponse<object>.Fail("INTERNAL_SERVER_ERROR", $"Lỗi khi kết nối AI Service: {ex.Message}"));
+            }
+        }
+        /// <summary>
+        /// Bóc tách OCR trực tiếp đồng bộ cho Phiếu Lương / Thu Nhập
+        /// </summary>
+        [HttpPost("incomes/direct-extractions", Name = "ExtractIncomeDirectSync")]
+        [Consumes("multipart/form-data")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> ExtractIncomeSync([FromForm] IncomeOcrRequestDto request)
+        {
+            if (request.File == null || request.File.Length == 0)
+            {
+                return BadRequest(ApiResponse<object>.Fail("INVALID_FILE", "Vui lòng chọn file ảnh phiếu lương hợp lệ."));
+            }
+
+            try
+            {
+                var client = _httpClientFactory.CreateClient("TaxAIService");
+                using var content = new MultipartFormDataContent();
+
+                // 1. Copy file content to a memory stream so we can reuse it without disposal issues
+                using var memoryStream = new MemoryStream();
+                await request.File.CopyToAsync(memoryStream);
+                memoryStream.Position = 0;
+
+                // 2. Prepare HTTP content for AI Service
+                var fileContent = new StreamContent(memoryStream);
+                fileContent.Headers.ContentType = new MediaTypeHeaderValue(request.File.ContentType);
+                content.Add(fileContent, "file", request.File.FileName);
+
+                if (request.TargetMonth.HasValue)
+                    content.Add(new StringContent(request.TargetMonth.Value.ToString()), "target_month");
+                if (request.TargetYear.HasValue)
+                    content.Add(new StringContent(request.TargetYear.Value.ToString()), "target_year");
+
+                // 3. Call AI Service first (fail fast if AI is down or fails)
+                var response = await client.PostAsync("/api/incomes/ocr/extract", content);
+                var responseJson = await response.Content.ReadAsStringAsync();
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    return StatusCode((int)response.StatusCode, 
+                        ApiResponse<object>.Fail("AI_SERVICE_ERROR", $"AI Service trả về lỗi: {responseJson}"));
+                }
+
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var ocrResult = JsonSerializer.Deserialize<IncomeOcrResponseDto>(responseJson, options);
+
+                return Ok(ApiResponse<IncomeOcrResponseDto>.Ok(ocrResult, "Trích xuất OCR phiếu lương thành công. Vui lòng gửi kèm file khi lưu vào hệ thống."));
             }
             catch (Exception ex)
             {

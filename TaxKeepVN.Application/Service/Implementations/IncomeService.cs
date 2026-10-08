@@ -14,14 +14,33 @@ namespace TaxKeepVN.Application.Service.Implementations
     public class IncomeService : IIncomeService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IFileStorageService _fileStorageService;
 
-        public IncomeService(IUnitOfWork unitOfWork)
+        public IncomeService(IUnitOfWork unitOfWork, IFileStorageService fileStorageService)
         {
             _unitOfWork = unitOfWork;
+            _fileStorageService = fileStorageService;
         }
 
         public async Task<IncomeResponseDto> CreateIncomeAsync(Guid userId, CreateIncomeRequest request)
         {
+            var existingIncome = await _unitOfWork.Repository<Income>().FindAsync(x => 
+                x.UserId == userId && 
+                x.OrganizationName == request.OrganizationName && 
+                x.Month == request.Month && 
+                x.Year == request.Year);
+                
+            if (existingIncome.Any())
+            {
+                throw new BadRequestException("DUPLICATE_INCOME", $"Đã tồn tại phiếu lương của tổ chức/công ty '{request.OrganizationName}' trong tháng {request.Month}/{request.Year}.");
+            }
+
+            string? fileUrl = null;
+            if (request.PayslipFile != null && request.PayslipFile.Length > 0)
+            {
+                fileUrl = await _fileStorageService.SaveFileAsync(request.PayslipFile, "incomes");
+            }
+
             var income = new Income
             {
                 UserId = userId,
@@ -32,7 +51,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 TotalTaxableIncome = request.TotalTaxableIncome,
                 InsuranceDeducted = request.InsuranceDeducted,
                 TaxAlreadyDeducted = request.TaxAlreadyDeducted,
-                PayslipFileUrl = request.PayslipFileUrl,
+                PayslipFileUrl = fileUrl,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
             };
