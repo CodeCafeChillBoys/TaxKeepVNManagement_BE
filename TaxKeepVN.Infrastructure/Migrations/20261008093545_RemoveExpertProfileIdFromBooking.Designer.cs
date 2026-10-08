@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TaxKeepVN.Infrastructure.Contexts;
@@ -11,9 +12,11 @@ using TaxKeepVN.Infrastructure.Contexts;
 namespace TaxKeepVN.Infrastructure.Migrations
 {
     [DbContext(typeof(TaxKeepDbContext))]
-    partial class TaxKeepDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261008093545_RemoveExpertProfileIdFromBooking")]
+    partial class RemoveExpertProfileIdFromBooking
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -1524,10 +1527,6 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("config_id");
 
-                    b.Property<int?>("AppliesFromYear")
-                        .HasColumnType("integer")
-                        .HasColumnName("applies_from_year");
-
                     b.Property<string>("ConfigKey")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -1559,9 +1558,9 @@ namespace TaxKeepVN.Infrastructure.Migrations
 
                     b.HasKey("ConfigId");
 
-                    b.HasIndex("ConfigKey", "AppliesFromYear")
+                    b.HasIndex("ConfigKey")
                         .IsUnique()
-                        .HasDatabaseName("uq_system_configs_key_year");
+                        .HasDatabaseName("uq_system_configs_key");
 
                     b.ToTable("system_configs", (string)null);
                 });

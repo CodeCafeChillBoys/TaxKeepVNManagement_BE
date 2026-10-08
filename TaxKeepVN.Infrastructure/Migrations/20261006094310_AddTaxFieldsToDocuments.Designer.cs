@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TaxKeepVN.Infrastructure.Contexts;
@@ -11,9 +12,11 @@ using TaxKeepVN.Infrastructure.Contexts;
 namespace TaxKeepVN.Infrastructure.Migrations
 {
     [DbContext(typeof(TaxKeepDbContext))]
-    partial class TaxKeepDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261006094310_AddTaxFieldsToDocuments")]
+    partial class AddTaxFieldsToDocuments
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -21,191 +24,6 @@ namespace TaxKeepVN.Infrastructure.Migrations
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
-
-            modelBuilder.Entity("TaxKeepVN.Domain.Entities.Booking", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTimeOffset?>("ApprovalDeadline")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("approval_deadline");
-
-                    b.Property<DateTimeOffset?>("ApprovedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("approved_at");
-
-                    b.Property<string>("BookingCode")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("booking_code");
-
-                    b.Property<string>("CancellationReason")
-                        .HasColumnType("text")
-                        .HasColumnName("cancellation_reason");
-
-                    b.Property<DateTimeOffset?>("CancelledAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("cancelled_at");
-
-                    b.Property<string>("CancelledBy")
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("cancelled_by");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<int>("DurationMinutes")
-                        .HasColumnType("integer")
-                        .HasColumnName("duration_minutes");
-
-                    b.Property<Guid>("ExpertSlotId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("expert_slot_id");
-
-                    b.Property<decimal>("Fee")
-                        .HasPrecision(15, 2)
-                        .HasColumnType("numeric(15,2)")
-                        .HasColumnName("fee");
-
-                    b.Property<DateTimeOffset>("HoldExpiresAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("hold_expires_at");
-
-                    b.Property<DateTimeOffset?>("PaidAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("paid_at");
-
-                    b.Property<string>("PaymentReference")
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("payment_reference");
-
-                    b.Property<string>("ProblemDescription")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("problem_description");
-
-                    b.Property<string>("RefundStatus")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasDefaultValue("NONE")
-                        .HasColumnName("refund_status");
-
-                    b.Property<DateTimeOffset?>("RefundedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("refunded_at");
-
-                    b.Property<DateTimeOffset?>("RejectedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("rejected_at");
-
-                    b.Property<string>("RejectionReason")
-                        .HasColumnType("text")
-                        .HasColumnName("rejection_reason");
-
-                    b.Property<string>("SessionType")
-                        .IsRequired()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasColumnName("session_type");
-
-                    b.Property<int>("SpecializationId")
-                        .HasColumnType("integer")
-                        .HasColumnName("specialization_id");
-
-                    b.Property<string>("Status")
-                        .IsRequired()
-                        .ValueGeneratedOnAdd()
-                        .HasMaxLength(50)
-                        .HasColumnType("character varying(50)")
-                        .HasDefaultValue("PENDING_PAYMENT")
-                        .HasColumnName("status");
-
-                    b.Property<string>("TopicTitle")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)")
-                        .HasColumnName("topic_title");
-
-                    b.Property<DateTimeOffset>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BookingCode")
-                        .IsUnique()
-                        .HasDatabaseName("uq_bookings_booking_code");
-
-                    b.HasIndex("ExpertSlotId")
-                        .HasDatabaseName("idx_bookings_slot_id");
-
-                    b.HasIndex("SpecializationId");
-
-                    b.HasIndex("UserId")
-                        .HasDatabaseName("idx_bookings_user_id");
-
-                    b.HasIndex("Status", "HoldExpiresAt")
-                        .HasDatabaseName("idx_bookings_status_hold");
-
-                    b.ToTable("bookings", (string)null);
-                });
-
-            modelBuilder.Entity("TaxKeepVN.Domain.Entities.BookingAttachment", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<Guid>("BookingId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("booking_id");
-
-                    b.Property<string>("ContentType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("content_type");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("FileName")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)")
-                        .HasColumnName("file_name");
-
-                    b.Property<long>("FileSize")
-                        .HasColumnType("bigint")
-                        .HasColumnName("file_size");
-
-                    b.Property<string>("FileUrl")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("file_url");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BookingId")
-                        .HasDatabaseName("idx_booking_attachments_booking_id");
-
-                    b.ToTable("booking_attachments", (string)null);
-                });
 
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.ConsultationFeeConfiguration", b =>
                 {
@@ -1146,14 +964,6 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("expert_profile_id");
 
-                    b.Property<DateTimeOffset?>("HoldExpiresAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("hold_expires_at");
-
-                    b.Property<Guid?>("HoldUserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("hold_user_id");
-
                     b.Property<bool>("IsActive")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -1199,68 +1009,6 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         .HasDatabaseName("uq_expert_slots_profile_datetime");
 
                     b.ToTable("expert_slots", (string)null);
-                });
-
-            modelBuilder.Entity("TaxKeepVN.Domain.Entities.Income", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<decimal>("InsuranceDeducted")
-                        .HasColumnType("numeric")
-                        .HasColumnName("insurance_deducted");
-
-                    b.Property<int>("Month")
-                        .HasColumnType("integer")
-                        .HasColumnName("month");
-
-                    b.Property<string>("OrganizationName")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)")
-                        .HasColumnName("organization_name");
-
-                    b.Property<string>("PayslipFileUrl")
-                        .HasColumnType("text")
-                        .HasColumnName("payslip_file_url");
-
-                    b.Property<decimal>("TaxAlreadyDeducted")
-                        .HasColumnType("numeric")
-                        .HasColumnName("tax_already_deducted");
-
-                    b.Property<string>("TaxIdNumber")
-                        .HasMaxLength(20)
-                        .HasColumnType("character varying(20)")
-                        .HasColumnName("tax_id_number");
-
-                    b.Property<decimal>("TotalTaxableIncome")
-                        .HasColumnType("numeric")
-                        .HasColumnName("total_taxable_income");
-
-                    b.Property<DateTime>("UpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("updated_at");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("user_id");
-
-                    b.Property<int>("Year")
-                        .HasColumnType("integer")
-                        .HasColumnName("year");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("UserId")
-                        .HasDatabaseName("idx_incomes_user_id");
-
-                    b.ToTable("incomes", (string)null);
                 });
 
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.IncomeSource", b =>
@@ -1524,10 +1272,6 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("config_id");
 
-                    b.Property<int?>("AppliesFromYear")
-                        .HasColumnType("integer")
-                        .HasColumnName("applies_from_year");
-
                     b.Property<string>("ConfigKey")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -1559,9 +1303,9 @@ namespace TaxKeepVN.Infrastructure.Migrations
 
                     b.HasKey("ConfigId");
 
-                    b.HasIndex("ConfigKey", "AppliesFromYear")
+                    b.HasIndex("ConfigKey")
                         .IsUnique()
-                        .HasDatabaseName("uq_system_configs_key_year");
+                        .HasDatabaseName("uq_system_configs_key");
 
                     b.ToTable("system_configs", (string)null);
                 });
@@ -1952,44 +1696,6 @@ namespace TaxKeepVN.Infrastructure.Migrations
                     b.ToTable("users", (string)null);
                 });
 
-            modelBuilder.Entity("TaxKeepVN.Domain.Entities.Booking", b =>
-                {
-                    b.HasOne("TaxKeepVN.Domain.Entities.ExpertSlot", "ExpertSlot")
-                        .WithMany("Bookings")
-                        .HasForeignKey("ExpertSlotId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("TaxKeepVN.Domain.Entities.Specialization", "Specialization")
-                        .WithMany("Bookings")
-                        .HasForeignKey("SpecializationId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.HasOne("TaxKeepVN.Domain.Entities.User", "User")
-                        .WithMany("Bookings")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Restrict)
-                        .IsRequired();
-
-                    b.Navigation("ExpertSlot");
-
-                    b.Navigation("Specialization");
-
-                    b.Navigation("User");
-                });
-
-            modelBuilder.Entity("TaxKeepVN.Domain.Entities.BookingAttachment", b =>
-                {
-                    b.HasOne("TaxKeepVN.Domain.Entities.Booking", "Booking")
-                        .WithMany("Attachments")
-                        .HasForeignKey("BookingId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Booking");
-                });
-
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.DependentDocument", b =>
                 {
                     b.HasOne("TaxKeepVN.Domain.Entities.Dependent", "Dependent")
@@ -2164,17 +1870,6 @@ namespace TaxKeepVN.Infrastructure.Migrations
                     b.Navigation("ExpertProfile");
                 });
 
-            modelBuilder.Entity("TaxKeepVN.Domain.Entities.Income", b =>
-                {
-                    b.HasOne("TaxKeepVN.Domain.Entities.User", "User")
-                        .WithMany()
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
-                });
-
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.TaxPeriod", b =>
                 {
                     b.HasOne("TaxKeepVN.Domain.Entities.User", "User")
@@ -2208,11 +1903,6 @@ namespace TaxKeepVN.Infrastructure.Migrations
                     b.Navigation("Role");
                 });
 
-            modelBuilder.Entity("TaxKeepVN.Domain.Entities.Booking", b =>
-                {
-                    b.Navigation("Attachments");
-                });
-
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.Dependent", b =>
                 {
                     b.Navigation("Documents");
@@ -2241,11 +1931,6 @@ namespace TaxKeepVN.Infrastructure.Migrations
                     b.Navigation("Slots");
                 });
 
-            modelBuilder.Entity("TaxKeepVN.Domain.Entities.ExpertSlot", b =>
-                {
-                    b.Navigation("Bookings");
-                });
-
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.Role", b =>
                 {
                     b.Navigation("Users");
@@ -2254,8 +1939,6 @@ namespace TaxKeepVN.Infrastructure.Migrations
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.Specialization", b =>
                 {
                     b.Navigation("ApplicationSpecializations");
-
-                    b.Navigation("Bookings");
                 });
 
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.TaxDocumentType", b =>
@@ -2275,8 +1958,6 @@ namespace TaxKeepVN.Infrastructure.Migrations
 
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.User", b =>
                 {
-                    b.Navigation("Bookings");
-
                     b.Navigation("ExpertApplications");
 
                     b.Navigation("ExpertProfile");

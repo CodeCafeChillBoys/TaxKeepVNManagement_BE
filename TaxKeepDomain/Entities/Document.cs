@@ -58,6 +58,15 @@ namespace TaxKeepVN.Domain.Entities
         /// <summary>Tổng cộng tiền thanh toán</summary>
         public decimal? TotalAmount { get; set; }
 
+        /// <summary>Tổng thu nhập chịu thuế phải khấu trừ (Chỉ tiêu [17] trên chứng từ)</summary>
+        public decimal? TotalIncome { get; set; }
+
+        /// <summary>Số thuế TNCN đã khấu trừ tại nguồn (Chỉ tiêu [19] trên chứng từ)</summary>
+        public decimal? TaxWithheld { get; set; }
+
+        /// <summary>Khoản đóng bảo hiểm bắt buộc (Chỉ tiêu [14] trên chứng từ)</summary>
+        public decimal? InsuranceDeducted { get; set; }
+
         /// <summary>Số tiền bằng chữ</summary>
         public string? TotalAmountInWords { get; set; }
 

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 using TaxKeepVN.Infrastructure.Contexts;
@@ -11,9 +12,11 @@ using TaxKeepVN.Infrastructure.Contexts;
 namespace TaxKeepVN.Infrastructure.Migrations
 {
     [DbContext(typeof(TaxKeepDbContext))]
-    partial class TaxKeepDbContextModelSnapshot : ModelSnapshot
+    [Migration("20261008084339_AddBookingConsultationEntities")]
+    partial class AddBookingConsultationEntities
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -63,6 +66,10 @@ namespace TaxKeepVN.Infrastructure.Migrations
                     b.Property<int>("DurationMinutes")
                         .HasColumnType("integer")
                         .HasColumnName("duration_minutes");
+
+                    b.Property<Guid>("ExpertProfileId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("expert_profile_id");
 
                     b.Property<Guid>("ExpertSlotId")
                         .HasColumnType("uuid")
@@ -148,6 +155,9 @@ namespace TaxKeepVN.Infrastructure.Migrations
                     b.HasIndex("BookingCode")
                         .IsUnique()
                         .HasDatabaseName("uq_bookings_booking_code");
+
+                    b.HasIndex("ExpertProfileId")
+                        .HasDatabaseName("idx_bookings_expert_profile_id");
 
                     b.HasIndex("ExpertSlotId")
                         .HasDatabaseName("idx_bookings_slot_id");
@@ -1524,10 +1534,6 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("config_id");
 
-                    b.Property<int?>("AppliesFromYear")
-                        .HasColumnType("integer")
-                        .HasColumnName("applies_from_year");
-
                     b.Property<string>("ConfigKey")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -1559,9 +1565,9 @@ namespace TaxKeepVN.Infrastructure.Migrations
 
                     b.HasKey("ConfigId");
 
-                    b.HasIndex("ConfigKey", "AppliesFromYear")
+                    b.HasIndex("ConfigKey")
                         .IsUnique()
-                        .HasDatabaseName("uq_system_configs_key_year");
+                        .HasDatabaseName("uq_system_configs_key");
 
                     b.ToTable("system_configs", (string)null);
                 });
@@ -1954,6 +1960,12 @@ namespace TaxKeepVN.Infrastructure.Migrations
 
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.Booking", b =>
                 {
+                    b.HasOne("TaxKeepVN.Domain.Entities.ExpertProfile", "ExpertProfile")
+                        .WithMany("Bookings")
+                        .HasForeignKey("ExpertProfileId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("TaxKeepVN.Domain.Entities.ExpertSlot", "ExpertSlot")
                         .WithMany("Bookings")
                         .HasForeignKey("ExpertSlotId")
@@ -1971,6 +1983,8 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("ExpertProfile");
 
                     b.Navigation("ExpertSlot");
 
@@ -2236,6 +2250,8 @@ namespace TaxKeepVN.Infrastructure.Migrations
 
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.ExpertProfile", b =>
                 {
+                    b.Navigation("Bookings");
+
                     b.Navigation("Reviews");
 
                     b.Navigation("Slots");

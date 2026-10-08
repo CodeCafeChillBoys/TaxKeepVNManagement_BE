@@ -69,5 +69,14 @@ namespace TaxKeepVN.Application.DTOs.Documents
 
         /// <summary>Bảng chi tiết các mặt hàng, dịch vụ, viện phí, học phí</summary>
         public System.Collections.Generic.List<TaxKeepVN.Application.DTOs.TaxAI.InvoiceLineItemDto>? Items { get; set; }
+
+        /// <summary>Tổng thu nhập chịu thuế phải khấu trừ (Chỉ tiêu [17] trên chứng từ)</summary>
+        public decimal? TotalIncome { get; set; }
+
+        /// <summary>Số thuế TNCN đã khấu trừ tại nguồn (Chỉ tiêu [19] trên chứng từ)</summary>
+        public decimal? TaxWithheld { get; set; }
+
+        /// <summary>Khoản đóng bảo hiểm bắt buộc (Chỉ tiêu [14] trên chứng từ)</summary>
+        public decimal? InsuranceDeducted { get; set; }
     }
 }
