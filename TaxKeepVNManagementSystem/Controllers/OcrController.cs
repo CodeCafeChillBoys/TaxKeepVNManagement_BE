@@ -17,6 +17,7 @@ namespace TaxKeepVNManagementSystem.Controllers
 {
     [ApiController]
     [Route("api/v1/ocr")]
+    [Authorize]
     public class OcrController : ControllerBase
     {
         private readonly IOcrAIProducerService _ocrProducerService;
@@ -229,18 +230,7 @@ namespace TaxKeepVNManagementSystem.Controllers
                 var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
                 var ocrResult = JsonSerializer.Deserialize<IncomeOcrResponseDto>(responseJson, options);
 
-                // 4. If AI succeeded, save the file to Supabase (using a fresh stream)
-                using var uploadStream = request.File.OpenReadStream();
-                // Create a wrapper FormFile since Supabase uses IFormFile
-                var fileUrl = await _fileStorageService.SaveFileAsync(request.File, "incomes");
-
-                // 5. Update the result with the saved URL
-                if (ocrResult != null && ocrResult.Data != null)
-                {
-                    ocrResult.Data.PayslipFileUrl = fileUrl;
-                }
-
-                return Ok(ApiResponse<IncomeOcrResponseDto>.Ok(ocrResult, "Trích xuất OCR phiếu lương thành công."));
+                return Ok(ApiResponse<IncomeOcrResponseDto>.Ok(ocrResult, "Trích xuất OCR phiếu lương thành công. Vui lòng gửi kèm file khi lưu vào hệ thống."));
             }
             catch (Exception ex)
             {
