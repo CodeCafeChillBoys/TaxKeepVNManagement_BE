@@ -122,6 +122,7 @@ builder.Services.AddScoped<IPasswordHasher, BcryptPasswordHasher>();
 builder.Services.AddScoped<ITokenRevocationService, TokenRevocationService>();
 builder.Services.AddScoped<IProfileService, ProfileService>();
 builder.Services.AddScoped<IDependentService, DependentService>();
+builder.Services.AddScoped<IIncomeService, IncomeService>();
 builder.Services.AddScoped<ITaxAIProducerService, TaxAIProducerService>();
 builder.Services.AddScoped<IDocumentOcrProducerService, DocumentOcrProducerService>();
 builder.Services.AddScoped<IDependentRuleService, DependentRuleService>();

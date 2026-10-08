@@ -21,6 +21,7 @@ namespace TaxKeepVN.Infrastructure.Contexts
         public DbSet<TaxDocumentType> DocumentTypes { get; set; }
         public DbSet<Document> Documents { get; set; }
         public DbSet<DocumentItem> DocumentItems { get; set; }
+        public DbSet<Income> Incomes { get; set; }
 
         // Tax Settlement
         public DbSet<SystemConfig> SystemConfigs { get; set; }
@@ -277,6 +278,14 @@ namespace TaxKeepVN.Infrastructure.Contexts
 
                 entity.HasIndex(d => d.PeriodId).HasDatabaseName("idx_documents_period_id");
                 entity.HasIndex(d => d.DocTypeCode).HasDatabaseName("idx_documents_doc_type_code");
+            });
+
+            // ── Income ───────────────────────────────────────────────────────────
+            modelBuilder.Entity<Income>(entity =>
+            {
+                entity.ToTable("incomes");
+                entity.HasKey(i => i.Id);
+                entity.HasIndex(i => i.UserId).HasDatabaseName("idx_incomes_user_id");
             });
 
             // ── DocumentItem ─────────────────────────────────────────────────────

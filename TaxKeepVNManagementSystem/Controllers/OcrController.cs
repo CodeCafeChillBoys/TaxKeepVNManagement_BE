@@ -178,5 +178,57 @@ namespace TaxKeepVNManagementSystem.Controllers
                     ApiResponse<object>.Fail("INTERNAL_SERVER_ERROR", $"Lỗi khi kết nối AI Service: {ex.Message}"));
             }
         }
+        /// <summary>
+        /// Bóc tách OCR trực tiếp đồng bộ cho Phiếu Lương / Thu Nhập
+        /// </summary>
+        [HttpPost("incomes/direct-extractions", Name = "ExtractIncomeDirectSync")]
+        [Consumes("multipart/form-data")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status500InternalServerError)]
+        public async Task<IActionResult> ExtractIncomeSync([FromForm] IncomeOcrRequestDto request)
+        {
+            if (request.File == null || request.File.Length == 0)
+            {
+                return BadRequest(ApiResponse<object>.Fail("INVALID_FILE", "Vui lòng chọn file ảnh phiếu lương hợp lệ."));
+            }
+
+            try
+            {
+                var client = _httpClientFactory.CreateClient("TaxAIService");
+                using var content = new MultipartFormDataContent();
+
+                using var fileStream = request.File.OpenReadStream();
+                var fileContent = new StreamContent(fileStream);
+                fileContent.Headers.ContentType = new MediaTypeHeaderValue(request.File.ContentType);
+                content.Add(fileContent, "file", request.File.FileName);
+
+                if (request.TargetMonth.HasValue)
+                    content.Add(new StringContent(request.TargetMonth.Value.ToString()), "target_month");
+                if (request.TargetYear.HasValue)
+                    content.Add(new StringContent(request.TargetYear.Value.ToString()), "target_year");
+                if (request.AppliedThreshold.HasValue)
+                    content.Add(new StringContent(request.AppliedThreshold.Value.ToString(System.Globalization.CultureInfo.InvariantCulture)), "applied_threshold");
+
+                var response = await client.PostAsync("/api/incomes/ocr/extract", content);
+                var responseJson = await response.Content.ReadAsStringAsync();
+
+                if (!response.IsSuccessStatusCode)
+                {
+                    return StatusCode((int)response.StatusCode, 
+                        ApiResponse<object>.Fail("AI_SERVICE_ERROR", $"AI Service trả về lỗi: {responseJson}"));
+                }
+
+                var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+                var ocrResult = JsonSerializer.Deserialize<IncomeOcrResponseDto>(responseJson, options);
+
+                return Ok(ApiResponse<IncomeOcrResponseDto>.Ok(ocrResult, "Trích xuất OCR phiếu lương thành công."));
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError,
+                    ApiResponse<object>.Fail("INTERNAL_SERVER_ERROR", $"Lỗi khi kết nối AI Service: {ex.Message}"));
+            }
+        }
     }
 }
