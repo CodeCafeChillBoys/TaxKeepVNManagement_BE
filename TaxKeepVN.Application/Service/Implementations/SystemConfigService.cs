@@ -24,34 +24,56 @@ namespace TaxKeepVN.Application.Service.Implementations
             var repo = _unitOfWork.Repository<SystemConfig>();
             var configs = await repo.GetAllAsync();
 
-            // 1. Filter by IsActive
-            if (query.IsActive.HasValue)
-                configs = configs.Where(c => c.IsActive == query.IsActive.Value);
-
-            // 2. Filter by TaxYear or AppliesFromYear
+            // 1. Lọc theo TaxYear hoặc AppliesFromYear và IsActive
             if (query.TaxYear.HasValue)
             {
                 // Khi lọc theo năm tính thuế cụ thể:
-                // Với mỗi key, lấy đúng config hiệu lực cho năm đó
+                // Cần phản ánh đúng cấu hình ĐANG CÓ HIỆU LỰC dùng để tính thuế cho năm đó.
+                // Ưu tiên các dòng ĐANG BẬT (c.IsActive == true), giống hàm tính thuế GetRequiredConfigValueAsync
                 var targetYear = query.TaxYear.Value;
                 configs = configs
                     .GroupBy(c => c.ConfigKey)
                     .Select(g =>
                     {
-                        var match = g
+                        var activeRows = g.Where(c => c.IsActive).ToList();
+                        SystemConfig? match = null;
+                        if (activeRows.Count > 0)
+                        {
+                            match = activeRows
+                                .Where(c => c.AppliesFromYear.HasValue && c.AppliesFromYear.Value <= targetYear)
+                                .OrderByDescending(c => c.AppliesFromYear!.Value)
+                                .FirstOrDefault()
+                                ?? activeRows.FirstOrDefault(c => c.AppliesFromYear == null);
+                        }
+
+                        // Fallback: nếu toàn bộ các dòng của key này đều bị tắt, lấy dòng phù hợp nhất để Admin vẫn thấy trong danh sách
+                        match ??= g
                             .Where(c => c.AppliesFromYear.HasValue && c.AppliesFromYear.Value <= targetYear)
                             .OrderByDescending(c => c.AppliesFromYear!.Value)
-                            .FirstOrDefault();
-                        return match ?? g.FirstOrDefault(c => c.AppliesFromYear == null);
+                            .FirstOrDefault()
+                            ?? g.FirstOrDefault(c => c.AppliesFromYear == null);
+
+                        return match;
                     })
                     .Where(c => c != null)!;
+
+                // Sau khi đã chọn được đúng cấu hình hiệu lực của năm, lọc theo IsActive nếu có truyền
+                if (query.IsActive.HasValue)
+                    configs = configs.Where(c => c.IsActive == query.IsActive.Value);
             }
-            else if (query.AppliesFromYear.HasValue)
+            else
             {
-                if (query.AppliesFromYear.Value == 0)
-                    configs = configs.Where(c => c.AppliesFromYear == null);
-                else
-                    configs = configs.Where(c => c.AppliesFromYear == query.AppliesFromYear.Value);
+                // Khi không lọc theo taxYear: lọc độc lập theo IsActive và AppliesFromYear
+                if (query.IsActive.HasValue)
+                    configs = configs.Where(c => c.IsActive == query.IsActive.Value);
+
+                if (query.AppliesFromYear.HasValue)
+                {
+                    if (query.AppliesFromYear.Value == 0)
+                        configs = configs.Where(c => c.AppliesFromYear == null);
+                    else
+                        configs = configs.Where(c => c.AppliesFromYear == query.AppliesFromYear.Value);
+                }
             }
 
             // 3. Searching by ConfigKey or Description
