@@ -25,6 +25,6 @@ namespace TaxKeepVN.Application.DTOs.Requests.Income
 
         public decimal TaxAlreadyDeducted { get; set; }
 
-        public string? PayslipFileUrl { get; set; }
+        public Microsoft.AspNetCore.Http.IFormFile? PayslipFile { get; set; }
     }
 }

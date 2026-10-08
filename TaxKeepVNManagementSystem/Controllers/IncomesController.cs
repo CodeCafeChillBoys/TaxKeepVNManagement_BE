@@ -34,8 +34,9 @@ namespace TaxKeepVNManagementSystem.Controllers
         }
 
         [HttpPost]
+        [Consumes("multipart/form-data")]
         [ProducesResponseType(StatusCodes.Status201Created)]
-        public async Task<IActionResult> CreateIncome([FromBody] CreateIncomeRequest request)
+        public async Task<IActionResult> CreateIncome([FromForm] CreateIncomeRequest request)
         {
             var userId = GetUserId();
             var result = await _incomeService.CreateIncomeAsync(userId, request);

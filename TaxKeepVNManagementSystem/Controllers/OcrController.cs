@@ -17,6 +17,7 @@ namespace TaxKeepVNManagementSystem.Controllers
 {
     [ApiController]
     [Route("api/v1/ocr")]
+    [Authorize]
     public class OcrController : ControllerBase
     {
         private readonly IOcrAIProducerService _ocrProducerService;
@@ -201,7 +202,6 @@ namespace TaxKeepVNManagementSystem.Controllers
                 var client = _httpClientFactory.CreateClient("TaxAIService");
                 using var content = new MultipartFormDataContent();
 
-
                 // 1. Copy file content to a memory stream so we can reuse it without disposal issues
                 using var memoryStream = new MemoryStream();
                 await request.File.CopyToAsync(memoryStream);
@@ -209,7 +209,6 @@ namespace TaxKeepVNManagementSystem.Controllers
 
                 // 2. Prepare HTTP content for AI Service
                 var fileContent = new StreamContent(memoryStream);
-
                 fileContent.Headers.ContentType = new MediaTypeHeaderValue(request.File.ContentType);
                 content.Add(fileContent, "file", request.File.FileName);
 
@@ -218,9 +217,7 @@ namespace TaxKeepVNManagementSystem.Controllers
                 if (request.TargetYear.HasValue)
                     content.Add(new StringContent(request.TargetYear.Value.ToString()), "target_year");
 
-
                 // 3. Call AI Service first (fail fast if AI is down or fails)
-
                 var response = await client.PostAsync("/api/incomes/ocr/extract", content);
                 var responseJson = await response.Content.ReadAsStringAsync();
 
@@ -233,19 +230,7 @@ namespace TaxKeepVNManagementSystem.Controllers
                 var options = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
                 var ocrResult = JsonSerializer.Deserialize<IncomeOcrResponseDto>(responseJson, options);
 
-                // 4. If AI succeeded, save the file to Supabase (using a fresh stream)
-                using var uploadStream = request.File.OpenReadStream();
-                // Create a wrapper FormFile since Supabase uses IFormFile
-                var fileUrl = await _fileStorageService.SaveFileAsync(request.File, "incomes");
-
-                // 5. Update the result with the saved URL
-                if (ocrResult != null && ocrResult.Data != null)
-                {
-                    ocrResult.Data.PayslipFileUrl = fileUrl;
-                }
-
-
-                return Ok(ApiResponse<IncomeOcrResponseDto>.Ok(ocrResult, "Trích xuất OCR phiếu lương thành công."));
+                return Ok(ApiResponse<IncomeOcrResponseDto>.Ok(ocrResult, "Trích xuất OCR phiếu lương thành công. Vui lòng gửi kèm file khi lưu vào hệ thống."));
             }
             catch (Exception ex)
             {
