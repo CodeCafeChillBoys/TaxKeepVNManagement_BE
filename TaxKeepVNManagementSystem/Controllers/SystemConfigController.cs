@@ -32,7 +32,21 @@ namespace TaxKeepVNManagementSystem.Controllers
         }
 
         /// <summary>
-        /// Lấy chi tiết một cấu hình hệ thống theo Key (vd: TAX_SETTLEMENT_REMINDER_DAYS)
+        /// Lấy chi tiết một cấu hình hệ thống theo Id
+        /// </summary>
+        [HttpGet("id/{id:guid}", Name = "GetSystemConfigById")]
+        public async Task<IActionResult> GetById([FromRoute] Guid id)
+        {
+            var data = await _service.GetByIdAsync(id);
+            if (data == null)
+            {
+                return NotFound(ApiResponse<object>.Fail("NOT_FOUND", $"Không tìm thấy cấu hình với Id '{id}'."));
+            }
+            return Ok(ApiResponse<object>.Ok(data, "Lấy thông tin cấu hình thành công."));
+        }
+
+        /// <summary>
+        /// Lấy chi tiết một cấu hình hệ thống theo Key (vd: PIT_BRACKETS_JSON)
         /// </summary>
         [HttpGet("{key}", Name = "GetSystemConfigByKey")]
         public async Task<IActionResult> GetByKey([FromRoute] string key)
@@ -68,6 +82,32 @@ namespace TaxKeepVNManagementSystem.Controllers
         }
 
         /// <summary>
+        /// Admin cập nhật cấu hình hệ thống theo Id (Khuyên dùng cho Admin UI khi chỉnh sửa dòng cụ thể)
+        /// </summary>
+        [HttpPut("id/{id:guid}", Name = "UpdateSystemConfigById")]
+        public async Task<IActionResult> UpdateById([FromRoute] Guid id, [FromBody] SystemConfigUpdateDto dto)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ApiResponse<object>.ValidationFail(ModelState));
+            }
+
+            try
+            {
+                var data = await _service.UpdateByIdAsync(id, dto);
+                return Ok(ApiResponse<object>.Ok(data, $"Cập nhật cấu hình thành công."));
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(ApiResponse<object>.Fail("NOT_FOUND", ex.Message));
+            }
+            catch (InvalidOperationException ex)
+            {
+                return Conflict(ApiResponse<object>.Fail("ALREADY_EXISTS", ex.Message));
+            }
+        }
+
+        /// <summary>
         /// Admin cập nhật cấu hình hệ thống theo Key
         /// </summary>
         [HttpPut("{key}", Name = "UpdateSystemConfig")]
@@ -80,6 +120,20 @@ namespace TaxKeepVNManagementSystem.Controllers
 
             var data = await _service.UpdateAsync(key, dto);
             return Ok(ApiResponse<object>.Ok(data, $"Cập nhật cấu hình '{key}' thành công."));
+        }
+
+        /// <summary>
+        /// Admin xóa cấu hình hệ thống theo Id
+        /// </summary>
+        [HttpDelete("id/{id:guid}", Name = "DeleteSystemConfigById")]
+        public async Task<IActionResult> DeleteById([FromRoute] Guid id)
+        {
+            var success = await _service.DeleteByIdAsync(id);
+            if (!success)
+            {
+                return NotFound(ApiResponse<object>.Fail("NOT_FOUND", $"Không tìm thấy cấu hình với Id '{id}'."));
+            }
+            return Ok(ApiResponse<object>.Ok(null, $"Xóa cấu hình thành công."));
         }
     }
 }
