@@ -201,6 +201,7 @@ namespace TaxKeepVNManagementSystem.Controllers
                 var client = _httpClientFactory.CreateClient("TaxAIService");
                 using var content = new MultipartFormDataContent();
 
+
                 // 1. Copy file content to a memory stream so we can reuse it without disposal issues
                 using var memoryStream = new MemoryStream();
                 await request.File.CopyToAsync(memoryStream);
@@ -208,6 +209,7 @@ namespace TaxKeepVNManagementSystem.Controllers
 
                 // 2. Prepare HTTP content for AI Service
                 var fileContent = new StreamContent(memoryStream);
+
                 fileContent.Headers.ContentType = new MediaTypeHeaderValue(request.File.ContentType);
                 content.Add(fileContent, "file", request.File.FileName);
 
@@ -216,7 +218,9 @@ namespace TaxKeepVNManagementSystem.Controllers
                 if (request.TargetYear.HasValue)
                     content.Add(new StringContent(request.TargetYear.Value.ToString()), "target_year");
 
+
                 // 3. Call AI Service first (fail fast if AI is down or fails)
+
                 var response = await client.PostAsync("/api/incomes/ocr/extract", content);
                 var responseJson = await response.Content.ReadAsStringAsync();
 
@@ -239,6 +243,7 @@ namespace TaxKeepVNManagementSystem.Controllers
                 {
                     ocrResult.Data.PayslipFileUrl = fileUrl;
                 }
+
 
                 return Ok(ApiResponse<IncomeOcrResponseDto>.Ok(ocrResult, "Trích xuất OCR phiếu lương thành công."));
             }
