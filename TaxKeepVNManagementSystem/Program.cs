@@ -144,6 +144,7 @@ builder.Services.AddScoped<ISpecializationService, SpecializationService>();
 builder.Services.AddScoped<IExpertApplicationService, ExpertApplicationService>();
 builder.Services.AddScoped<IConsultationFeeConfigService, ConsultationFeeConfigService>();
 builder.Services.AddScoped<IExpertSearchService, ExpertSearchService>();
+builder.Services.AddScoped<IBookingService, BookingService>();
 
 // ── HTTP Clients ────────────────────────────────────────────────────────────
 builder.Services.AddHttpClient("TaxAIService", client =>
@@ -210,6 +211,7 @@ builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.TaxAI
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.OcrAIConsumerBackgroundService>();
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.DocumentOcrConsumerBackgroundService>();
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.TaxSettlementReminderJob>();
+builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.BookingExpirationBackgroundService>();
 
 // ── QuestPDF Community License Configuration (WBS 3.6.T7) ───────────────────
 QuestPDF.Settings.License = LicenseType.Community;

@@ -24,5 +24,6 @@ namespace TaxKeepVN.Domain.Entities
 
         // Navigation properties
         public ICollection<ExpertApplicationSpecialization> ApplicationSpecializations { get; set; } = new List<ExpertApplicationSpecialization>();
+        public ICollection<Booking> Bookings { get; set; } = new List<Booking>();
     }
 }

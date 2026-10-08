@@ -42,6 +42,8 @@ namespace TaxKeepVN.Infrastructure.Contexts
         public DbSet<ExpertProfile> ExpertProfiles { get; set; }
         public DbSet<ExpertSlot> ExpertSlots { get; set; }
         public DbSet<ExpertReview> ExpertReviews { get; set; }
+        public DbSet<Booking> Bookings { get; set; }
+        public DbSet<BookingAttachment> BookingAttachments { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -628,6 +630,8 @@ namespace TaxKeepVN.Infrastructure.Contexts
                     .IsRequired();
                 entity.Property(s => s.IsBooked).HasColumnName("is_booked").HasDefaultValue(false);
                 entity.Property(s => s.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+                entity.Property(s => s.HoldExpiresAt).HasColumnName("hold_expires_at");
+                entity.Property(s => s.HoldUserId).HasColumnName("hold_user_id");
                 entity.Property(s => s.CreatedAt).HasColumnName("created_at");
                 entity.Property(s => s.UpdatedAt).HasColumnName("updated_at");
 
@@ -670,6 +674,97 @@ namespace TaxKeepVN.Infrastructure.Contexts
 
                 entity.HasIndex(r => r.ExpertProfileId).HasDatabaseName("idx_expert_reviews_profile_id");
                 entity.HasIndex(r => r.UserId).HasDatabaseName("idx_expert_reviews_user_id");
+            });
+
+            // ── Booking ─────────────────────────────────────────────────────────
+            modelBuilder.Entity<Booking>(entity =>
+            {
+                entity.ToTable("bookings");
+                entity.HasKey(b => b.Id);
+
+                entity.Property(b => b.Id).HasColumnName("id");
+                entity.Property(b => b.BookingCode).HasColumnName("booking_code").HasMaxLength(50).IsRequired();
+                entity.Property(b => b.UserId).HasColumnName("user_id").IsRequired();
+                entity.Property(b => b.ExpertSlotId).HasColumnName("expert_slot_id").IsRequired();
+                entity.Property(b => b.SpecializationId).HasColumnName("specialization_id").IsRequired();
+
+                entity.Property(b => b.SessionType)
+                    .HasColumnName("session_type")
+                    .HasMaxLength(50)
+                    .HasConversion<string>()
+                    .IsRequired();
+
+                entity.Property(b => b.DurationMinutes).HasColumnName("duration_minutes").IsRequired();
+                entity.Property(b => b.Fee).HasColumnName("fee").HasPrecision(15, 2).IsRequired();
+                entity.Property(b => b.TopicTitle).HasColumnName("topic_title").HasMaxLength(255).IsRequired();
+                entity.Property(b => b.ProblemDescription).HasColumnName("problem_description").IsRequired();
+
+                entity.Property(b => b.Status)
+                    .HasColumnName("status")
+                    .HasMaxLength(50)
+                    .HasConversion<string>()
+                    .HasDefaultValue(BookingStatus.PENDING_PAYMENT)
+                    .IsRequired();
+
+                entity.Property(b => b.HoldExpiresAt).HasColumnName("hold_expires_at").IsRequired();
+                entity.Property(b => b.ApprovalDeadline).HasColumnName("approval_deadline");
+                entity.Property(b => b.ApprovedAt).HasColumnName("approved_at");
+                entity.Property(b => b.RejectedAt).HasColumnName("rejected_at");
+                entity.Property(b => b.RejectionReason).HasColumnName("rejection_reason");
+
+                entity.Property(b => b.PaidAt).HasColumnName("paid_at");
+                entity.Property(b => b.PaymentReference).HasColumnName("payment_reference").HasMaxLength(100);
+                entity.Property(b => b.RefundStatus).HasColumnName("refund_status").HasMaxLength(50).HasDefaultValue("NONE");
+                entity.Property(b => b.RefundedAt).HasColumnName("refunded_at");
+
+                entity.Property(b => b.CancelledAt).HasColumnName("cancelled_at");
+                entity.Property(b => b.CancellationReason).HasColumnName("cancellation_reason");
+                entity.Property(b => b.CancelledBy).HasColumnName("cancelled_by").HasMaxLength(50);
+
+                entity.Property(b => b.CreatedAt).HasColumnName("created_at");
+                entity.Property(b => b.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasOne(b => b.User)
+                    .WithMany(u => u.Bookings)
+                    .HasForeignKey(b => b.UserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(b => b.ExpertSlot)
+                    .WithMany(s => s.Bookings)
+                    .HasForeignKey(b => b.ExpertSlotId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(b => b.Specialization)
+                    .WithMany(s => s.Bookings)
+                    .HasForeignKey(b => b.SpecializationId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasIndex(b => b.BookingCode).IsUnique().HasDatabaseName("uq_bookings_booking_code");
+                entity.HasIndex(b => b.UserId).HasDatabaseName("idx_bookings_user_id");
+                entity.HasIndex(b => b.ExpertSlotId).HasDatabaseName("idx_bookings_slot_id");
+                entity.HasIndex(b => new { b.Status, b.HoldExpiresAt }).HasDatabaseName("idx_bookings_status_hold");
+            });
+
+            // ── BookingAttachment ───────────────────────────────────────────────
+            modelBuilder.Entity<BookingAttachment>(entity =>
+            {
+                entity.ToTable("booking_attachments");
+                entity.HasKey(a => a.Id);
+
+                entity.Property(a => a.Id).HasColumnName("id");
+                entity.Property(a => a.BookingId).HasColumnName("booking_id").IsRequired();
+                entity.Property(a => a.FileName).HasColumnName("file_name").HasMaxLength(255).IsRequired();
+                entity.Property(a => a.FileUrl).HasColumnName("file_url").IsRequired();
+                entity.Property(a => a.FileSize).HasColumnName("file_size").IsRequired();
+                entity.Property(a => a.ContentType).HasColumnName("content_type").HasMaxLength(100).IsRequired();
+                entity.Property(a => a.CreatedAt).HasColumnName("created_at");
+
+                entity.HasOne(a => a.Booking)
+                    .WithMany(b => b.Attachments)
+                    .HasForeignKey(a => a.BookingId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(a => a.BookingId).HasDatabaseName("idx_booking_attachments_booking_id");
             });
         }
     }

@@ -31,10 +31,17 @@ namespace TaxKeepVN.Domain.Entities
         /// <summary>Chuyên gia có đang mở nhận slot này không (hoặc tạm khóa/nghỉ đột xuất)</summary>
         public bool IsActive { get; set; } = true;
 
+        /// <summary>Thời điểm hết hạn tạm giữ slot 10 phút chờ thanh toán</summary>
+        public DateTimeOffset? HoldExpiresAt { get; set; }
+
+        /// <summary>User ID đang tạm giữ slot này</summary>
+        public Guid? HoldUserId { get; set; }
+
         public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
         public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 
         // Navigation property
         public ExpertProfile? ExpertProfile { get; set; }
+        public ICollection<Booking> Bookings { get; set; } = new List<Booking>();
     }
 }

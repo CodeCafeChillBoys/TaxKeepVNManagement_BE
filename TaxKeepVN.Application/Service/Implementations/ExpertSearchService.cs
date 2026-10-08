@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using TaxKeepVN.Application.DTOs.Common;
 using TaxKeepVN.Application.DTOs.Experts;
 using TaxKeepVN.Application.Exceptions;
+using TaxKeepVN.Application.Helpers;
 using TaxKeepVN.Application.Service.Interfaces;
 using TaxKeepVN.Domain.Entities;
 using TaxKeepVN.Domain.Enums;
@@ -37,7 +38,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 {
                     Items = new List<ExpertListItemResponse>(),
                     Pagination = new PaginationMeta { Page = query.Page, PageSize = query.Size, TotalItems = 0, TotalPages = 0 },
-                    Suggestion = BuildEmptySuggestions(query)
+                    Suggestion = ExpertSearchHelper.BuildEmptySuggestions(query)
                 };
             }
             // lấy hồ sơ trong profile ra tránh bị lặp
@@ -65,7 +66,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 {
                     Items = new List<ExpertListItemResponse>(),
                     Pagination = new PaginationMeta { Page = query.Page, PageSize = query.Size, TotalItems = 0, TotalPages = 0 },
-                    Suggestion = BuildEmptySuggestions(query)
+                    Suggestion = ExpertSearchHelper.BuildEmptySuggestions(query)
                 };
             }
             // lọc qua tất cả profileID và lấy lên tất cả các profileID hợp lệ
@@ -214,7 +215,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 var earliestDate = pSlots.FirstOrDefault()?.SlotDate;
 
                 // BR-02: Thuật toán Ranking mặc định
-                var rankingScore = CalculateRankingScore(p, hasSlotSoon, pSlots.Any());
+                var rankingScore = ExpertSearchHelper.CalculateRankingScore(p, hasSlotSoon, pSlots.Any());
 
                 return new ExpertListItemResponse
                 {
@@ -257,7 +258,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             ExpertSearchSuggestionDto? suggestion = null;
             if (totalItems == 0)
             {
-                suggestion = BuildEmptySuggestions(query);
+                suggestion = ExpertSearchHelper.BuildEmptySuggestions(query);
             }
 
             return new ExpertSearchResultDto
@@ -315,7 +316,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 Id = c.Id,
                 CertificateType = c.CertificateType,
                 CertificateName = c.CertificateName,
-                MaskedCertificateNumber = MaskCertificateNumber(c.CertificateNumber),
+                MaskedCertificateNumber = ExpertSearchHelper.MaskCertificateNumber(c.CertificateNumber),
                 IssuingAuthority = c.IssuingAuthority,
                 IssueDate = c.IssueDate,
                 HasExpiry = c.HasExpiry,
@@ -348,7 +349,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                     Id = r.Id,
                     Rating = r.Rating,
                     Comment = r.Comment,
-                    ReviewerDisplayName = MaskReviewerName(reviewerName, r.IsAnonymous),
+                    ReviewerDisplayName = ExpertSearchHelper.MaskReviewerName(reviewerName, r.IsAnonymous),
                     CreatedAt = r.CreatedAt
                 };
             }).ToList();
@@ -428,7 +429,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                     Id = r.Id,
                     Rating = r.Rating,
                     Comment = r.Comment,
-                    ReviewerDisplayName = MaskReviewerName(name, r.IsAnonymous),
+                    ReviewerDisplayName = ExpertSearchHelper.MaskReviewerName(name, r.IsAnonymous),
                     CreatedAt = r.CreatedAt
                 };
             }).ToList();
@@ -460,12 +461,14 @@ namespace TaxKeepVN.Application.Service.Implementations
             var start = fromDate ?? DateOnly.FromDateTime(DateTime.UtcNow);
             var end = start.AddDays(Math.Max(1, Math.Min(days, 30)));
 
+            var nowUtc = DateTimeOffset.UtcNow;
             var slots = (await _unitOfWork.Repository<ExpertSlot>().FindAsync(s =>
                 s.ExpertProfileId == expertProfileId &&
                 s.SlotDate >= start &&
                 s.SlotDate <= end &&
                 !s.IsBooked &&
-                s.IsActive)).OrderBy(s => s.SlotDate).ThenBy(s => s.StartTime).ToList();
+                s.IsActive &&
+                (s.HoldExpiresAt == null || s.HoldExpiresAt <= nowUtc))).OrderBy(s => s.SlotDate).ThenBy(s => s.StartTime).ToList();
 
             return slots.Select(s => new ExpertAvailableSlotDto
             {
@@ -477,67 +480,6 @@ namespace TaxKeepVN.Application.Service.Implementations
                 IsBooked = s.IsBooked,
                 IsActive = s.IsActive
             }).ToList();
-        }
-
-        // ── HELPER: THUẬT TOÁN TÍNH ĐIỂM XẾP HẠNG (BR-02) ──────────────────────────────
-        private static double CalculateRankingScore(ExpertProfile profile, bool hasSlotSoon, bool hasAnySlot)
-        {
-            // Trọng số: Rating (50%), Hoàn thành ca tư vấn (25%), Tổng lượt đánh giá (10%), Lịch trống sớm (15%)
-            double ratingScore = (double)profile.Rating * 20.0; // Tối đa 100 điểm
-            double completionScore = Math.Min(profile.CompletedConsultationsCount, 50) * 0.5; // Tối đa 25 điểm
-            double reviewsScore = Math.Min(profile.TotalReviews, 50) * 0.3; // Tối đa 15 điểm
-            double availabilityScore = hasSlotSoon ? 15.0 : (hasAnySlot ? 5.0 : -20.0); // Phạt nếu không còn slot nào trống
-
-            var total = ratingScore + completionScore + reviewsScore + availabilityScore;
-            return Math.Round(total, 2);
-        }
-
-        // ── HELPER: DATA MASKING BẢO MẬT (BR-03) ─────────────────────────────────────────
-        private static string MaskCertificateNumber(string certNumber)
-        {
-            if (string.IsNullOrWhiteSpace(certNumber)) return "***";
-            if (certNumber.Length <= 4) return "****";
-
-            // Giữ lại 3 ký tự cuối, các ký tự trước chuyển thành *
-            var keepLength = 3;
-            var maskedPart = new string('*', certNumber.Length - keepLength);
-            var visiblePart = certNumber[^keepLength..];
-            return $"{maskedPart}{visiblePart}";
-        }
-
-        private static string MaskReviewerName(string fullName, bool isAnonymous)
-        {
-            if (isAnonymous || string.IsNullOrWhiteSpace(fullName))
-            {
-                return "Khách hàng ẩn danh";
-            }
-
-            var parts = fullName.Trim().Split(' ', StringSplitOptions.RemoveEmptyEntries);
-            if (parts.Length == 1)
-            {
-                var single = parts[0];
-                return single.Length > 2 ? $"{single[0]}***{single[^1]}" : $"{single[0]}*";
-            }
-
-            // Ví dụ: "Nguyễn Văn Hùng" -> "Nguyễn V. H***"
-            var firstName = parts[0];
-            var lastName = parts[^1];
-            var maskedLastName = lastName.Length > 2 ? $"{lastName[0]}***" : $"{lastName[0]}*";
-            return $"{firstName} {maskedLastName}";
-        }
-
-        // ── HELPER: XỬ LÝ GỢI Ý KHI KHÔNG CÓ KẾT QUẢ PHÙ HỢP (Mục 6) ───────────────────
-        private static ExpertSearchSuggestionDto BuildEmptySuggestions(ExpertSearchQueryParameters query)
-        {
-            return new ExpertSearchSuggestionDto
-            {
-                Message = "Không tìm thấy chuyên gia phù hợp với tiêu chí lọc hiện tại của bạn.",
-                SuggestRelaxRating = query.MinRating.HasValue && query.MinRating.Value >= 4.0m,
-                SuggestExpandPriceRange = query.MinFee.HasValue || query.MaxFee.HasValue,
-                SuggestExpandTimeFilter = query.TimeFilter != ExpertTimeFilter.All,
-                AiAssistantCtaUrl = "/assistant/chat",
-                RequestSupportCtaUrl = "/consultation/request-match"
-            };
         }
     }
 }
