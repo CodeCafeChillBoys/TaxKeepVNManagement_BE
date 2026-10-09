@@ -36,7 +36,28 @@ namespace TaxKeepVN.Infrastructure.Storage
             }
         }
 
+        
+        private string SanitizeFileName(string fileName)
+        {
+            if (string.IsNullOrWhiteSpace(fileName)) return "file";
+            var normalizedString = fileName.Normalize(System.Text.NormalizationForm.FormD);
+            var stringBuilder = new System.Text.StringBuilder();
+
+            foreach (var c in normalizedString)
+            {
+                var unicodeCategory = System.Globalization.CharUnicodeInfo.GetUnicodeCategory(c);
+                if (unicodeCategory != System.Globalization.UnicodeCategory.NonSpacingMark)
+                {
+                    stringBuilder.Append(c);
+                }
+            }
+
+            var cleanName = stringBuilder.ToString().Normalize(System.Text.NormalizationForm.FormC);
+            return System.Text.RegularExpressions.Regex.Replace(cleanName, @"[^a-zA-Z0-9\.\-_]", "_");
+        }
+
         public async Task<string> SaveFileAsync(IFormFile file, string folderName)
+
         {
             if (file == null || file.Length == 0)
             {
@@ -44,7 +65,7 @@ namespace TaxKeepVN.Infrastructure.Storage
             }
 
             // 1. Tạo tên file duy nhất tránh trùng lặp
-            var cleanFileName = Path.GetFileName(file.FileName).Replace(" ", "_");
+            var cleanFileName = SanitizeFileName(Path.GetFileName(file.FileName));
             var uniqueFileName = $"{Guid.NewGuid()}_{cleanFileName}";
             var sanitizedFolderName = folderName?.Trim().Trim('/') ?? "default";
             var storagePath = $"{sanitizedFolderName}/{uniqueFileName}";

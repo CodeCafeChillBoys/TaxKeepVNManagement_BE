@@ -95,5 +95,16 @@ namespace TaxKeepVNManagementSystem.Controllers
             }
             return userId;
         }
+
+        [HttpPost("cross-check", Name = "CrossCheckIncomeSource")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> CrossCheck([FromBody] IncomeSourceCrossCheckRequestDto request)
+        {
+            Guid userId = GetUserIdFromToken();
+            var result = await _service.CrossCheckAsync(userId, request);
+            
+            var msg = result.IsMatch ? "Số liệu chứng từ khớp với dữ liệu hệ thống." : "Phát hiện chênh lệch giữa chứng từ và hệ thống.";
+            return Ok(ApiResponse<IncomeSourceCrossCheckResponseDto>.Ok(result, msg));
+        }
     }
 }
