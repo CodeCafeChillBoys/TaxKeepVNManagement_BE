@@ -15,6 +15,7 @@ namespace TaxKeepVN.Application.DTOs.Documents
         public Guid Id { get; set; }
         public Guid UserId { get; set; }
         public Guid PeriodId { get; set; }
+        public int? IncomeYear { get; set; }
         public string? DocTypeCode { get; set; }
         public string? OriginalFilename { get; set; }
         public string FileUrl { get; set; } = string.Empty;

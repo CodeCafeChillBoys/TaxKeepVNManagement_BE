@@ -122,8 +122,10 @@ namespace TaxKeepVN.Application.Service.Implementations
             var durationMinutes = (int)(slot.EndTime - slot.StartTime).TotalMinutes;
             var fee = await BookingHelper.CalculateConsultationFeeAsync(_unitOfWork, profile, slot.SessionType, durationMinutes);
 
+            
             var leadTimeHours = BookingHelper.MinimumLeadTimeHours;
             var nowUtc = DateTimeOffset.UtcNow;
+            // lấy lên thời gian bắt đầu đc truyền vào
             var slotStartUtc = new DateTimeOffset(slot.SlotDate.ToDateTime(slot.StartTime), TimeSpan.Zero);
 
             bool isValid = true;

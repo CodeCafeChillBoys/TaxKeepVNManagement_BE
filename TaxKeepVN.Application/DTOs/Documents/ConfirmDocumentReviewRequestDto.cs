@@ -58,6 +58,9 @@ namespace TaxKeepVN.Application.DTOs.Documents
         /// <summary>Năm chứng từ</summary>
         public short? ExtractedYear { get; set; }
 
+        /// <summary>Năm thu nhập của chứng từ</summary>
+        public int? IncomeYear { get; set; }
+
         /// <summary>Hợp lệ năm tính thuế</summary>
         public bool? IsYearValid { get; set; }
 

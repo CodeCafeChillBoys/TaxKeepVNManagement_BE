@@ -22,6 +22,7 @@ namespace TaxKeepVN.Application.Mappers
                 Id = doc.Id,
                 UserId = userId,
                 PeriodId = doc.PeriodId,
+                IncomeYear = doc.IncomeYear,
                 DocTypeCode = doc.DocTypeCode,
                 OriginalFilename = doc.OriginalFilename,
                 FileUrl = doc.FileUrl,
@@ -106,6 +107,7 @@ namespace TaxKeepVN.Application.Mappers
                 LookupUrl = doc.LookupUrl,
                 LookupCode = doc.LookupCode,
                 ExtractedYear = doc.ExtractedYear,
+                IncomeYear = doc.IncomeYear,
                 IsYearValid = doc.IsYearValid,
                 IsIdentityValid = doc.IsIdentityValid,
                 ValidationErrors = BuildValidationErrors(doc),
@@ -116,9 +118,9 @@ namespace TaxKeepVN.Application.Mappers
                     ? itemsList.Select(i => i.ToItemDto()).ToList()
                     : new List<DocumentItemResponseDto>(),
                 // Đối với WITHHOLDING_VOUCHER: lấy trực tiếp từ thuộc tính chứng từ đã lưu (fallback TotalAmount)
-                TaxWithheld = doc.TaxWithheld ?? doc.TotalAmount,
-                TotalIncome = doc.TotalIncome ?? doc.TotalAmount,
-                InsuranceDeducted = doc.InsuranceDeducted ?? 0,
+                TaxWithheld = doc.TaxWithheld,
+                TotalIncome = doc.TotalIncome,
+                InsuranceDeducted = doc.InsuranceDeducted,
             };
         }
 

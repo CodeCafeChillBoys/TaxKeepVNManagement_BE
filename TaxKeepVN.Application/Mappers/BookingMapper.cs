@@ -48,7 +48,9 @@ namespace TaxKeepVN.Application.Mappers
             if (booking == null) return null!;
 
             var nowUtc = DateTimeOffset.UtcNow;
+            // Thời gian để hết bị block => giấy  còn lại trước khi booking
             var holdCountdown = (int)Math.Max(0, (booking.HoldExpiresAt - nowUtc).TotalSeconds);
+            // Thời gian đc duyệt => giây còn lại trc khi duyệt
             int? approvalCountdown = booking.ApprovalDeadline.HasValue
                 ? (int)Math.Max(0, (booking.ApprovalDeadline.Value - nowUtc).TotalSeconds)
                 : null;
