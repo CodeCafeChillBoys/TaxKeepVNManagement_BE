@@ -213,6 +213,9 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
             document.BuyerAddress = data.BuyerAddress;
             document.PaymentMethod = data.PaymentMethod;
             document.TotalAmount = data.TotalAmount;
+            document.TotalIncome = data.TotalIncome;
+            document.TaxWithheld = data.TaxWithheld;
+            document.InsuranceDeducted = data.InsuranceDeducted;
             document.TotalAmountInWords = data.TotalAmountInWords;
             document.LookupUrl = data.LookupUrl;
             document.LookupCode = data.LookupCode;

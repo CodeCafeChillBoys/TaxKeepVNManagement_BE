@@ -84,6 +84,15 @@ namespace TaxKeepVN.Application.DTOs.TaxAI
         public decimal? InsuranceDeducted { get; set; }  // Mục 14b: Bảo hiểm bắt buộc
 
 
+        [JsonPropertyName("totalIncome")]
+        public decimal? TotalIncome { get; set; }
+
+        [JsonPropertyName("taxWithheld")]
+        public decimal? TaxWithheld { get; set; }
+
+        [JsonPropertyName("insuranceDeducted")]
+        public decimal? InsuranceDeducted { get; set; }
+
         [JsonPropertyName("totalAmountInWords")]
         public string? TotalAmountInWords { get; set; }
 
