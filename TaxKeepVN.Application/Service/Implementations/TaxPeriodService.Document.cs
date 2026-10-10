@@ -81,6 +81,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                     DocTypeCode = null,
                     OriginalFilename = file.FileName,
                     FileUrl = fileUrl,
+                    IncomeYear = period.TaxYear,
                     Status = "UPLOADED",
                     CreatedAt = DateTime.UtcNow
                 };
@@ -185,16 +186,39 @@ namespace TaxKeepVN.Application.Service.Implementations
                 else
                 {
                     if (confirmedDocs.Any(d => NormalizeTaxCode(d.SellerTaxCode) == normTaxCode 
-                        && d.DocumentType == document.DocumentType 
+                        && string.Equals(d.DocTypeCode, document.DocTypeCode, StringComparison.OrdinalIgnoreCase)
                         && d.TotalIncome == dto.TotalIncome && d.TotalAmount == dto.TotalAmount))
                     {
                         throw new ConflictException(ErrorCodes.DuplicateDocument, "Đã tồn tại chứng từ/hóa đơn có cùng Mã số thuế và Số tiền trong kỳ tính thuế này.");
                     }
                 }
             }
-            document.TotalIncome = dto.TotalIncome;
-            document.TaxWithheld = dto.TaxWithheld;
-            document.InsuranceDeducted = dto.InsuranceDeducted;
+
+            document.InvoiceSeries = dto.InvoiceSeries;
+            document.InvoiceNumber = dto.InvoiceNumber;
+            document.InvoiceDate = dto.InvoiceDate;
+            document.SellerName = dto.SellerName;
+            document.SellerTaxCode = dto.SellerTaxCode;
+            document.SellerAddress = dto.SellerAddress;
+            document.SellerPhone = dto.SellerPhone;
+            // Giữ nguyên thông tin định danh người mua từ bóc tách OCR gốc để đảm bảo tính pháp lý
+            // Không cho phép ghi đè thông tin người mua
+            document.BuyerAddress = dto.BuyerAddress ?? document.BuyerAddress;
+            document.PaymentMethod = dto.PaymentMethod;
+            document.TotalAmount = dto.TotalAmount;
+            document.TotalAmountInWords = dto.TotalAmountInWords;
+            document.LookupUrl = dto.LookupUrl;
+            document.LookupCode = dto.LookupCode;
+            document.ExtractedYear = dto.ExtractedYear;
+            document.IncomeYear = dto.IncomeYear ?? document.IncomeYear ?? period.TaxYear;
+            document.IsYearValid = dto.IsYearValid;
+            // Giữ nguyên IsIdentityValid đã được hệ thống thẩm định
+            document.IsNotReimbursed = dto.IsNotReimbursed;
+
+            // Lưu các trường thuế TNCN vào chính Document
+            document.TotalIncome = dto.TotalIncome ?? dto.TotalAmount;
+            document.TaxWithheld = dto.TaxWithheld ?? dto.TotalAmount;
+            document.InsuranceDeducted = dto.InsuranceDeducted ?? 0;
 
             // Đánh dấu người dùng đã review và lưu chính thức
             document.Status = "CONFIRMED";

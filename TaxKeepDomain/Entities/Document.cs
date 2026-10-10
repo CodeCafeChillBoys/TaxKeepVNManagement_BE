@@ -79,6 +79,9 @@ namespace TaxKeepVN.Domain.Entities
         /// <summary>Năm AI bóc tách</summary>
         public short? ExtractedYear { get; set; }
 
+        /// <summary>Năm thu nhập của chứng từ</summary>
+        public int? IncomeYear { get; set; }
+
         /// <summary>Có khớp năm kê khai</summary>
         public bool? IsYearValid { get; set; }
 
