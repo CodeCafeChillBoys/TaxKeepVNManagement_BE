@@ -168,79 +168,33 @@ namespace TaxKeepVN.Application.Service.Implementations
             }
 
             // 409: Trùng số hóa đơn & MST người bán trong cùng kỳ tính thuế
-            if (!string.IsNullOrWhiteSpace(dto.SellerTaxCode) && !string.IsNullOrWhiteSpace(dto.InvoiceNumber))
+            if (!string.IsNullOrWhiteSpace(dto.SellerTaxCode))
             {
                 var normTaxCode = NormalizeTaxCode(dto.SellerTaxCode);
-                var normInvNum = NormalizeInvoiceNumber(dto.InvoiceNumber);
-                // Chuẩn hóa cả dữ liệu cũ trong DB để bắt được khác biệt về khoảng trắng, dấu gạch và hoa thường.
-                var periodDocuments = await docRepo.FindAsync(d =>
-                    d.PeriodId == periodId &&
-                    d.Id != documentId);
-                var duplicateDocs = periodDocuments.Where(d =>
-                    string.Equals(d.Status, "CONFIRMED", StringComparison.OrdinalIgnoreCase) &&
-                    NormalizeTaxCode(d.SellerTaxCode) == normTaxCode &&
-                    NormalizeInvoiceNumber(d.InvoiceNumber) == normInvNum);
+                var periodDocuments = await docRepo.FindAsync(d => d.PeriodId == periodId && d.Id != documentId);
+                var confirmedDocs = periodDocuments.Where(d => string.Equals(d.Status, "CONFIRMED", StringComparison.OrdinalIgnoreCase)).ToList();
 
-                if (duplicateDocs.Any())
+                if (!string.IsNullOrWhiteSpace(dto.InvoiceNumber))
                 {
-                    throw new ConflictException(ErrorCodes.DuplicateDocument,
-                        ErrorMessages.DuplicateDocumentExists(dto.InvoiceNumber.Trim(), dto.SellerTaxCode.Trim()));
+                    var normInvNum = NormalizeInvoiceNumber(dto.InvoiceNumber);
+                    if (confirmedDocs.Any(d => NormalizeTaxCode(d.SellerTaxCode) == normTaxCode && NormalizeInvoiceNumber(d.InvoiceNumber) == normInvNum))
+                    {
+                        throw new ConflictException(ErrorCodes.DuplicateDocument, ErrorMessages.DuplicateDocumentExists(dto.InvoiceNumber.Trim(), dto.SellerTaxCode.Trim()));
+                    }
+                }
+                else
+                {
+                    if (confirmedDocs.Any(d => NormalizeTaxCode(d.SellerTaxCode) == normTaxCode 
+                        && d.DocumentType == document.DocumentType 
+                        && d.TotalIncome == dto.TotalIncome && d.TotalAmount == dto.TotalAmount))
+                    {
+                        throw new ConflictException(ErrorCodes.DuplicateDocument, "Đã tồn tại chứng từ/hóa đơn có cùng Mã số thuế và Số tiền trong kỳ tính thuế này.");
+                    }
                 }
             }
-
-            // Cập nhật thông tin document dựa trên dữ liệu từ DTO
-            if (!string.IsNullOrWhiteSpace(dto.DocTypeCode))
-            {
-                // Chuẩn hóa mã loại chứng từ trước khi tìm kiếm
-                var normalizedCode = dto.DocTypeCode.Trim().ToUpperInvariant();
-                var docTypeRepo = _unitOfWork.Repository<TaxDocumentType>();
-                // Tìm loại chứng từ trong danh mục dựa trên mã chuẩn hóa
-                var existingDocType = (await docTypeRepo.FindAsync(t => t.Code == normalizedCode)).FirstOrDefault();
-                // Nếu không tìm thấy loại chứng từ -> ném lỗi
-                if (existingDocType == null)
-                {
-                    throw new BadRequestException(ErrorCodes.InvalidDocType, ErrorMessages.InvalidDocType(normalizedCode));
-                }
-
-                if (!existingDocType.IsTaxEligible)
-                {
-                    throw new BadRequestException(ErrorCodes.NonTaxDocumentType,
-                        ErrorMessages.NonTaxDocumentType(normalizedCode));
-                }
-
-                document.DocTypeCode = existingDocType.Code;
-            }
-            // 400: Không cho phép xác nhận nếu thông tin người mua không khớp với Người nộp thuế hoặc Người phụ thuộc
-            if (document.IsIdentityValid == false)
-            {
-                throw new BadRequestException(ErrorCodes.IdentityMismatch,
-                    ErrorMessages.IdentityMismatch(document.BuyerName ?? "Không xác định"));
-            }
-
-            document.InvoiceSeries = dto.InvoiceSeries;
-            document.InvoiceNumber = dto.InvoiceNumber;
-            document.InvoiceDate = dto.InvoiceDate;
-            document.SellerName = dto.SellerName;
-            document.SellerTaxCode = dto.SellerTaxCode;
-            document.SellerAddress = dto.SellerAddress;
-            document.SellerPhone = dto.SellerPhone;
-            // Giữ nguyên thông tin định danh người mua từ bóc tách OCR gốc để đảm bảo tính pháp lý
-            // Không cho phép ghi đè thông tin người mua
-            document.BuyerAddress = dto.BuyerAddress ?? document.BuyerAddress;
-            document.PaymentMethod = dto.PaymentMethod;
-            document.TotalAmount = dto.TotalAmount;
-            document.TotalAmountInWords = dto.TotalAmountInWords;
-            document.LookupUrl = dto.LookupUrl;
-            document.LookupCode = dto.LookupCode;
-            document.ExtractedYear = dto.ExtractedYear;
-            document.IsYearValid = dto.IsYearValid;
-            // Giữ nguyên IsIdentityValid đã được hệ thống thẩm định
-            document.IsNotReimbursed = dto.IsNotReimbursed;
-
-            // Lưu các trường thuế TNCN vào chính Document
-            document.TotalIncome = dto.TotalIncome ?? dto.TotalAmount;
-            document.TaxWithheld = dto.TaxWithheld ?? dto.TotalAmount;
-            document.InsuranceDeducted = dto.InsuranceDeducted ?? 0;
+            document.TotalIncome = dto.TotalIncome;
+            document.TaxWithheld = dto.TaxWithheld;
+            document.InsuranceDeducted = dto.InsuranceDeducted;
 
             // Đánh dấu người dùng đã review và lưu chính thức
             document.Status = "CONFIRMED";

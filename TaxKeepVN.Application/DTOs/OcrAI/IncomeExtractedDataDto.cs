@@ -17,7 +17,7 @@ namespace TaxKeepVN.Application.DTOs.OcrAI
         public int Year { get; set; }
 
         [JsonPropertyName("totalTaxableIncome")]
-        public decimal TotalTaxableIncome { get; set; }
+        public decimal? TotalTaxableIncome { get; set; }
 
         [JsonPropertyName("insuranceDeducted")]
         public decimal InsuranceDeducted { get; set; }

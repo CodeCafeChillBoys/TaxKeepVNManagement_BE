@@ -116,9 +116,9 @@ namespace TaxKeepVN.Application.Mappers
                     ? itemsList.Select(i => i.ToItemDto()).ToList()
                     : new List<DocumentItemResponseDto>(),
                 // Đối với WITHHOLDING_VOUCHER: lấy trực tiếp từ thuộc tính chứng từ đã lưu (fallback TotalAmount)
-                TaxWithheld = doc.TaxWithheld ?? doc.TotalAmount,
-                TotalIncome = doc.TotalIncome ?? doc.TotalAmount,
-                InsuranceDeducted = doc.InsuranceDeducted ?? 0,
+                TaxWithheld = doc.TaxWithheld,
+                TotalIncome = doc.TotalIncome,
+                InsuranceDeducted = doc.InsuranceDeducted,
             };
         }
 
