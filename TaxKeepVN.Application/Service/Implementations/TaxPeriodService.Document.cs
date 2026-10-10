@@ -81,6 +81,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                     DocTypeCode = null,
                     OriginalFilename = file.FileName,
                     FileUrl = fileUrl,
+                    IncomeYear = period.TaxYear,
                     Status = "UPLOADED",
                     CreatedAt = DateTime.UtcNow
                 };
@@ -233,6 +234,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             document.LookupUrl = dto.LookupUrl;
             document.LookupCode = dto.LookupCode;
             document.ExtractedYear = dto.ExtractedYear;
+            document.IncomeYear = dto.IncomeYear ?? document.IncomeYear ?? period.TaxYear;
             document.IsYearValid = dto.IsYearValid;
             // Giữ nguyên IsIdentityValid đã được hệ thống thẩm định
             document.IsNotReimbursed = dto.IsNotReimbursed;

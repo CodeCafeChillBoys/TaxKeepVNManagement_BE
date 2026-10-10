@@ -264,6 +264,7 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(d => d.LookupUrl).HasColumnName("lookup_url");
                 entity.Property(d => d.LookupCode).HasColumnName("lookup_code").HasMaxLength(100);
                 entity.Property(d => d.ExtractedYear).HasColumnName("extracted_year");
+                entity.Property(d => d.IncomeYear).HasColumnName("income_year");
                 entity.Property(d => d.IsYearValid).HasColumnName("is_year_valid");
                 entity.Property(d => d.IsIdentityValid).HasColumnName("is_identity_valid");
                 entity.Property(d => d.IsNotReimbursed).HasColumnName("is_not_reimbursed").HasDefaultValue(false);

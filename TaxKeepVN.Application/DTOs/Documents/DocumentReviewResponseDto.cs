@@ -29,6 +29,7 @@ namespace TaxKeepVN.Application.DTOs.Documents
         public string? LookupUrl { get; set; }
         public string? LookupCode { get; set; }
         public short? ExtractedYear { get; set; }
+        public int? IncomeYear { get; set; }
         public bool? IsYearValid { get; set; }
         public bool? IsIdentityValid { get; set; }
         public List<string> ValidationErrors { get; set; } = new();
