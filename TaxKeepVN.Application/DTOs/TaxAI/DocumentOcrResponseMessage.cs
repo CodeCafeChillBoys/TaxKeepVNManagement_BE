@@ -75,6 +75,15 @@ namespace TaxKeepVN.Application.DTOs.TaxAI
         [JsonPropertyName("totalAmount")]
         public decimal? TotalAmount { get; set; }
 
+        [JsonPropertyName("totalIncome")]
+        public decimal? TotalIncome { get; set; }
+
+        [JsonPropertyName("taxWithheld")]
+        public decimal? TaxWithheld { get; set; }
+
+        [JsonPropertyName("insuranceDeducted")]
+        public decimal? InsuranceDeducted { get; set; }
+
         [JsonPropertyName("totalAmountInWords")]
         public string? TotalAmountInWords { get; set; }
 

@@ -83,7 +83,7 @@ namespace TaxKeepVN.Application.Helpers
             var systemConfig = (await unitOfWork.Repository<ConsultationFeeConfiguration>().FindAsync(c =>
                 c.SessionType == sessionType && c.IsActive)).FirstOrDefault();
 
-            return systemConfig?.MinFee ?? 200000m;
+            return systemConfig?.MinFee ?? 200000m; 
         }
 
         /// <summary>
