@@ -36,11 +36,13 @@ namespace TaxKeepVN.Application.Service.Implementations
             {
                 throw new NotFoundException($"Không tìm thấy chuyên gia với Id = {expertProfileId}.");
             }
-            // 4 tiếng quy định booking lich trước 4 tiếng
-            var leadTimeHours = BookingHelper.MinimumLeadTimeHours;
+            // Đọc động thời gian đặt trước tối thiểu từ bảng system_configs (Zero-Hardcode)
+            var leadTimeHours = await BookingHelper.GetRequiredConfigIntAsync(
+                _unitOfWork,
+                BookingHelper.ConfigKeyMinLeadTimeHours);
             // lấy lên tg hiện tại 
             var nowUtc = DateTimeOffset.UtcNow;
-            // add thêm 4 tiếng vào trước khi đặt lịch
+            // add thêm thời gian đặt trước tối thiểu vào trước khi đặt lịch
             var minAllowedDateTime = nowUtc.AddHours(leadTimeHours);
 
             // Thời gian bắt đầu ngày đc chọn
@@ -61,7 +63,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             // 2. Thỏa mãn Lead-time (thời gian bắt đầu slot >= nowUtc + leadTimeHours)
             var availableSlots = slots.Where(s =>
             {
-                // kiểm tra xem thời gian này có bị lock 10 phút và && thời gian có lớn hơn tg lấy ra hiện tại hay ko
+                // kiểm tra xem thời gian này có bị lock và && thời gian có lớn hơn tg lấy ra hiện tại hay ko
                 var isHeld = s.HoldExpiresAt.HasValue && s.HoldExpiresAt.Value > nowUtc;
                 // nếu true nhảy xuống đẩy
                 if (isHeld) return false;
@@ -122,8 +124,9 @@ namespace TaxKeepVN.Application.Service.Implementations
             var durationMinutes = (int)(slot.EndTime - slot.StartTime).TotalMinutes;
             var fee = await BookingHelper.CalculateConsultationFeeAsync(_unitOfWork, profile, slot.SessionType, durationMinutes);
 
-            
-            var leadTimeHours = BookingHelper.MinimumLeadTimeHours;
+            var leadTimeHours = await BookingHelper.GetRequiredConfigIntAsync(
+                _unitOfWork,
+                BookingHelper.ConfigKeyMinLeadTimeHours);
             var nowUtc = DateTimeOffset.UtcNow;
             // lấy lên thời gian bắt đầu đc truyền vào
             var slotStartUtc = new DateTimeOffset(slot.SlotDate.ToDateTime(slot.StartTime), TimeSpan.Zero);
@@ -209,24 +212,29 @@ namespace TaxKeepVN.Application.Service.Implementations
                 }
 
                 var nowUtc = DateTimeOffset.UtcNow;
-                var leadTimeHours = BookingHelper.MinimumLeadTimeHours;
+                var leadTimeHours = await BookingHelper.GetRequiredConfigIntAsync(
+                    _unitOfWork,
+                    BookingHelper.ConfigKeyMinLeadTimeHours);
+                var holdMinutes = await BookingHelper.GetRequiredConfigIntAsync(
+                    _unitOfWork,
+                    BookingHelper.ConfigKeySlotHoldMinutes);
                 var slotStartUtc = new DateTimeOffset(slot.SlotDate.ToDateTime(slot.StartTime), TimeSpan.Zero);
 
-                // 2. Kiểm tra Minimum Lead-time (Đặc tả 6 & 8)
+                // 2. Kiểm tra Minimum Lead-time (Đặc tả 3)
                 if (slotStartUtc < nowUtc.AddHours(leadTimeHours))
                 {
                     throw new BadRequestException("LEAD_TIME_VIOLATION",
                         $"Bạn phải đặt trước giờ hẹn tối thiểu {leadTimeHours} tiếng theo quy định.");
                 }
 
-                // 3. Kiểm tra trùng slot (Atomic Concurrency Check - Đặc tả 6)
+                // 3. Kiểm tra trùng slot (Atomic Concurrency Check - Đặc tả 3)
                 if (slot.IsBooked || (slot.HoldExpiresAt.HasValue && slot.HoldExpiresAt.Value > nowUtc && slot.HoldUserId != userId))
                 {
                     throw new ConflictException("SLOT_ALREADY_TAKEN",
                         "Khung giờ này vừa có người đặt, vui lòng chọn khung giờ khác.");
                 }
 
-                // 4. Kiểm tra User không bị trùng lịch với chuyên gia khác (Đặc tả 8)
+                // 4. Kiểm tra User không bị trùng lịch với chuyên gia khác (Đặc tả 3)
                 var hasConflict = await BookingHelper.CheckUserSlotConflictAsync(_unitOfWork, userId, slot.SlotDate, slot.StartTime, slot.EndTime);
                 if (hasConflict)
                 {
@@ -237,8 +245,8 @@ namespace TaxKeepVN.Application.Service.Implementations
                 var durationMinutes = (int)(slot.EndTime - slot.StartTime).TotalMinutes;
                 var fee = await BookingHelper.CalculateConsultationFeeAsync(_unitOfWork, profile, slot.SessionType, durationMinutes);
 
-                // Tạm khóa slot trong 10 phút (Hold slot)
-                var holdExpiresAt = nowUtc.AddMinutes(BookingHelper.DefaultHoldMinutes);
+                // Tạm khóa slot theo cấu hình động BOOKING_SLOT_HOLD_MINUTES (mặc định 10 phút)
+                var holdExpiresAt = nowUtc.AddMinutes(holdMinutes);
                 slot.HoldExpiresAt = holdExpiresAt;
                 slot.HoldUserId = userId;
                 slot.UpdatedAt = nowUtc;
@@ -493,6 +501,20 @@ namespace TaxKeepVN.Application.Service.Implementations
             booking.UpdatedAt = nowUtc;
 
             _unitOfWork.Repository<Booking>().Update(booking);
+
+            // Gửi thông báo cho khách hàng khi chuyên gia chính thức xác nhận lịch (Đặc tả 4)
+            await _unitOfWork.Repository<SystemNotification>().AddAsync(new SystemNotification
+            {
+                NotificationId = Guid.NewGuid(),
+                UserId = booking.UserId,
+                Title = "Chuyên gia đã xác nhận lịch tư vấn của bạn!",
+                Message = $"Chuyên gia đã đồng ý tiếp nhận ca tư vấn #{booking.BookingCode} vào ngày {slot.SlotDate:dd/MM/yyyy} ({slot.StartTime:HH\\:mm} - {slot.EndTime:HH\\:mm}).",
+                NotificationType = "BOOKING_CONFIRMED_BY_EXPERT",
+                IsRead = false,
+                TargetActionUrl = $"/bookings/{booking.Id}",
+                CreatedAt = nowUtc.UtcDateTime
+            });
+
             await _unitOfWork.SaveChangesAsync();
 
             _logger.LogInformation("Chuyên gia {ExpertUserId} đã đồng ý tiếp nhận booking {BookingCode}.",
@@ -501,7 +523,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             return await GetBookingByIdAsync(booking.Id, expertUserId, "expert");
         }
 
-        // ── 9. CHUYÊN GIA TỪ CHỐI TIẾP NHẬN CA TƯ VẤN (REJECT) ───────────────────────
+        // ── 9. CHUYÊN GIA TỪ CHỐI TIẾP NHẬN CA TƯ VẤN (REJECT - ĐẶC TẢ 4) ─────────────
         public async Task<BookingDetailResponse> RejectBookingAsync(Guid expertUserId, Guid bookingId, RejectBookingRequest request)
         {
             var booking = await _unitOfWork.Repository<Booking>().GetByIdAsync(bookingId);
@@ -529,13 +551,29 @@ namespace TaxKeepVN.Application.Service.Implementations
             }
 
             var nowUtc = DateTimeOffset.UtcNow;
+            var cleanReason = request.Reason.Trim();
+
             booking.Status = BookingStatus.REJECTED_BY_EXPERT;
             booking.RejectedAt = nowUtc;
-            booking.RejectionReason = request.Reason.Trim();
-            booking.RefundStatus = "PENDING_REFUND";
+            booking.RejectionReason = cleanReason;
+            booking.RefundStatus = "REFUNDED";
+            booking.RefundedAt = nowUtc;
             booking.CancelledBy = "EXPERT";
             booking.CancelledAt = nowUtc;
             booking.UpdatedAt = nowUtc;
+
+            // Hoàn tiền 100% từ Ví tạm giữ Escrow về cho khách hàng (Đặc tả 4 - Mục 5.3 Trường hợp 2)
+            var escrows = await _unitOfWork.Repository<EscrowTransaction>().FindAsync(e => e.BookingId == booking.Id);
+            var escrow = escrows.FirstOrDefault();
+            if (escrow != null)
+            {
+                escrow.EscrowStatus = EscrowStatus.Refunded;
+                escrow.RefundAmount = escrow.Amount;
+                escrow.RefundReason = $"Chuyên gia từ chối tiếp nhận lịch hẹn: {cleanReason}";
+                escrow.RefundedAt = nowUtc;
+                escrow.UpdatedAt = nowUtc;
+                _unitOfWork.Repository<EscrowTransaction>().Update(escrow);
+            }
 
             // Mở lại khung giờ
             if (slot != null)
@@ -548,15 +586,29 @@ namespace TaxKeepVN.Application.Service.Implementations
             }
 
             _unitOfWork.Repository<Booking>().Update(booking);
+
+            // Gửi thông báo hoàn tiền cho khách hàng
+            await _unitOfWork.Repository<SystemNotification>().AddAsync(new SystemNotification
+            {
+                NotificationId = Guid.NewGuid(),
+                UserId = booking.UserId,
+                Title = "Chuyên gia không thể tiếp nhận lịch hẹn – Đã hoàn tiền 100%",
+                Message = $"Chuyên gia đã từ chối lịch hẹn #{booking.BookingCode} (Lý do: {cleanReason}). Khoản tiền {booking.Fee:N0} VNĐ trong ví Escrow đã được hoàn trả 100%.",
+                NotificationType = "BOOKING_REJECTED_AND_REFUNDED",
+                IsRead = false,
+                TargetActionUrl = "/experts",
+                CreatedAt = nowUtc.UtcDateTime
+            });
+
             await _unitOfWork.SaveChangesAsync();
 
-            _logger.LogInformation("Chuyên gia {ExpertUserId} đã từ chối booking {BookingCode}. Lý do: {Reason}",
-                expertUserId, booking.BookingCode, request.Reason);
+            _logger.LogInformation("Chuyên gia {ExpertUserId} đã từ chối booking {BookingCode}. Đã hoàn tiền 100% từ Escrow. Lý do: {Reason}",
+                expertUserId, booking.BookingCode, cleanReason);
 
             return await GetBookingByIdAsync(booking.Id, expertUserId, "expert");
         }
 
-        // ── 10. KHÁCH HÀNG HỦY LỊCH HẸN (CANCEL) ──────────────────────────────────────
+        // ── 10. KHÁCH HÀNG HỦY LỊCH HẸN & ĐỐI SOÁT HOÀN TIỀN ESCROW (CANCEL) ─────────
         public async Task<BookingDetailResponse> CancelBookingAsync(Guid userId, Guid bookingId, string reason)
         {
             var booking = await _unitOfWork.Repository<Booking>().GetByIdAsync(bookingId);
@@ -570,7 +622,9 @@ namespace TaxKeepVN.Application.Service.Implementations
                 throw new ForbiddenException("Bạn không có quyền hủy lịch hẹn này.");
             }
 
-            if (booking.Status == BookingStatus.COMPLETED ||
+            if (booking.Status == BookingStatus.IN_PROGRESS ||
+                booking.Status == BookingStatus.COMPLETED ||
+                booking.Status == BookingStatus.SETTLED ||
                 booking.Status == BookingStatus.CANCELLED_BY_USER ||
                 booking.Status == BookingStatus.CANCELLED_BY_EXPERT ||
                 booking.Status == BookingStatus.EXPIRED_UNPAID ||
@@ -580,21 +634,93 @@ namespace TaxKeepVN.Application.Service.Implementations
                 throw new BadRequestException("CANNOT_CANCEL", $"Lịch hẹn đã ở trạng thái '{booking.Status}', không thể hủy.");
             }
 
+            var previousStatus = booking.Status;
             var nowUtc = DateTimeOffset.UtcNow;
+            var cleanReason = string.IsNullOrWhiteSpace(reason) ? "Khách hàng chủ động hủy." : reason.Trim();
+
             booking.Status = BookingStatus.CANCELLED_BY_USER;
             booking.CancelledBy = "USER";
             booking.CancelledAt = nowUtc;
-            booking.CancellationReason = string.IsNullOrWhiteSpace(reason) ? "Khách hàng chủ động hủy." : reason.Trim();
+            booking.CancellationReason = cleanReason;
             booking.UpdatedAt = nowUtc;
 
-            // Nếu đã thanh toán -> kích hoạt hoàn tiền
+            var slot = await _unitOfWork.Repository<ExpertSlot>().GetByIdAsync(booking.ExpertSlotId);
+            var escrows = await _unitOfWork.Repository<EscrowTransaction>().FindAsync(e => e.BookingId == booking.Id);
+            var escrow = escrows.FirstOrDefault();
+
+            // Nếu đã thanh toán vào Escrow -> Tính toán tỷ lệ hoàn tiền theo cấu hình động trong system_configs (Zero-Hardcode)
             if (booking.PaidAt.HasValue)
             {
-                booking.RefundStatus = "PENDING_REFUND";
+                var fullRefundHours = await BookingHelper.GetRequiredConfigIntAsync(
+                    _unitOfWork,
+                    BookingHelper.ConfigKeyCancelFullRefundHours);
+                var partialRefundHours = await BookingHelper.GetRequiredConfigIntAsync(
+                    _unitOfWork,
+                    BookingHelper.ConfigKeyCancelPartialRefundHours);
+                var partialRefundPercent = await BookingHelper.GetRequiredConfigDecimalAsync(
+                    _unitOfWork,
+                    BookingHelper.ConfigKeyCancelPartialRefundPercent);
+
+                var slotStartUtc = slot != null
+                    ? new DateTimeOffset(slot.SlotDate.ToDateTime(slot.StartTime), TimeSpan.Zero)
+                    : nowUtc;
+                var hoursBeforeSlot = (slotStartUtc - nowUtc).TotalHours;
+
+                // Nếu chuyên gia chưa xác nhận (AWAITING_EXPERT_APPROVAL) hoặc hủy sớm >= CANCEL_FULL_REFUND_HOURS (24h) -> Hoàn 100%
+                if (previousStatus == BookingStatus.AWAITING_EXPERT_APPROVAL || hoursBeforeSlot >= fullRefundHours)
+                {
+                    booking.RefundStatus = "REFUNDED";
+                    booking.RefundedAt = nowUtc;
+
+                    if (escrow != null)
+                    {
+                        escrow.EscrowStatus = EscrowStatus.Refunded;
+                        escrow.RefundAmount = escrow.Amount;
+                        escrow.RefundReason = $"Khách hàng hủy lịch hợp lệ (hoàn 100%): {cleanReason}";
+                        escrow.RefundedAt = nowUtc;
+                        escrow.UpdatedAt = nowUtc;
+                        _unitOfWork.Repository<EscrowTransaction>().Update(escrow);
+                    }
+                }
+                else if (hoursBeforeSlot >= partialRefundHours)
+                {
+                    // Hủy trong khoảng [CANCEL_PARTIAL_REFUND_HOURS, CANCEL_FULL_REFUND_HOURS) -> Hoàn một phần (mặc định 50%)
+                    booking.RefundStatus = "REFUNDED";
+                    booking.RefundedAt = nowUtc;
+
+                    if (escrow != null)
+                    {
+                        var refundAmt = Math.Round(escrow.Amount * (partialRefundPercent / 100m), 2);
+                        escrow.EscrowStatus = EscrowStatus.PartiallyRefunded;
+                        escrow.RefundAmount = refundAmt;
+                        escrow.RefundReason = $"Khách hàng hủy lịch cận giờ (hoàn {partialRefundPercent}%): {cleanReason}";
+                        escrow.RefundedAt = nowUtc;
+                        escrow.UpdatedAt = nowUtc;
+                        _unitOfWork.Repository<EscrowTransaction>().Update(escrow);
+                    }
+                }
+                else
+                {
+                    // Hủy sát giờ (< CANCEL_PARTIAL_REFUND_HOURS) đối với lịch đã CONFIRMED -> Không hoàn tiền
+                    booking.RefundStatus = "NONE";
+                    if (escrow != null)
+                    {
+                        escrow.RefundAmount = 0m;
+                        escrow.RefundReason = $"Khách hàng hủy lịch quá sát giờ hẹn (< {partialRefundHours} giờ, không hoàn tiền): {cleanReason}";
+                        escrow.UpdatedAt = nowUtc;
+                        _unitOfWork.Repository<EscrowTransaction>().Update(escrow);
+                    }
+                }
+            }
+            else if (escrow != null && escrow.EscrowStatus == EscrowStatus.PendingPayment)
+            {
+                escrow.EscrowStatus = EscrowStatus.Cancelled;
+                escrow.RefundReason = "Khách hàng hủy lịch trước khi thanh toán.";
+                escrow.UpdatedAt = nowUtc;
+                _unitOfWork.Repository<EscrowTransaction>().Update(escrow);
             }
 
             // Giải phóng slot
-            var slot = await _unitOfWork.Repository<ExpertSlot>().GetByIdAsync(booking.ExpertSlotId);
             if (slot != null)
             {
                 slot.IsBooked = false;
@@ -607,7 +733,8 @@ namespace TaxKeepVN.Application.Service.Implementations
             _unitOfWork.Repository<Booking>().Update(booking);
             await _unitOfWork.SaveChangesAsync();
 
-            _logger.LogInformation("User {UserId} đã hủy booking {BookingCode}.", userId, booking.BookingCode);
+            _logger.LogInformation("User {UserId} đã hủy booking {BookingCode} (RefundStatus = {RefundStatus}).",
+                userId, booking.BookingCode, booking.RefundStatus);
 
             return await GetBookingByIdAsync(booking.Id, userId, "taxpayer");
         }

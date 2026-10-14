@@ -48,8 +48,18 @@ namespace TaxKeepVN.Domain.Enums
         CANCELLED_BY_EXPERT,
 
         /// <summary>
-        /// Phiên tư vấn đã diễn ra và hoàn thành thành công (mở quyền đánh giá review)
+        /// Phiên tư vấn trực tuyến 1-1 đang diễn ra (cả hai bên đã vào phòng - Đặc tả 5)
         /// </summary>
-        COMPLETED
+        IN_PROGRESS,
+
+        /// <summary>
+        /// Phiên tư vấn đã diễn ra và hoàn thành thành công (mở quyền đánh giá review & bắt đầu Cool-down Escrow)
+        /// </summary>
+        COMPLETED,
+
+        /// <summary>
+        /// Khoản tiền tạm giữ trong Escrow đã được quyết toán / giải ngân cho chuyên gia sau thời gian Cool-down (Đặc tả 7)
+        /// </summary>
+        SETTLED
     }
 }

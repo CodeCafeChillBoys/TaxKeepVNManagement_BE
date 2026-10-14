@@ -82,6 +82,7 @@ namespace TaxKeepVN.Domain.Entities
         public User? User { get; set; }
         public ExpertSlot? ExpertSlot { get; set; }
         public Specialization? Specialization { get; set; }
+        public EscrowTransaction? EscrowTransaction { get; set; }
         public ICollection<BookingAttachment> Attachments { get; set; } = new List<BookingAttachment>();
     }
 }
