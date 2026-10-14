@@ -83,7 +83,6 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// POST /api/v1/bookings
         /// </summary>
         [HttpPost]
-        [Authorize]
         [Consumes("multipart/form-data")]
         [ProducesResponseType(typeof(ApiResponse<BookingDetailResponse>), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
