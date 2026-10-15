@@ -18,6 +18,7 @@ namespace TaxKeepVNManagementSystem.Controllers
     [ApiController]
     [Route("api/v1/expert/bookings")]
     [Authorize]
+    [Produces("application/json")]
     public class ExpertBookingController : ControllerBase
     {
         private readonly IBookingService _bookingService;
@@ -33,7 +34,7 @@ namespace TaxKeepVNManagementSystem.Controllers
 
         private Guid GetCurrentUserId()
         {
-            var claim = User.FindFirst("userId")?.Value 
+            var claim = User.FindFirst("userId")?.Value
                      ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             return Guid.TryParse(claim, out var id) ? id : Guid.Empty;
         }
@@ -102,8 +103,13 @@ namespace TaxKeepVNManagementSystem.Controllers
         public async Task<IActionResult> RejectBooking([FromRoute] Guid id, [FromBody] RejectBookingRequest request)
         {
             var expertUserId = GetCurrentUserId();
-            var result = await _bookingService.RejectBookingAsync(expertUserId, id, request);
-            return Ok(ApiResponse<BookingDetailResponse>.Ok(result, "Bạn đã từ chối ca tư vấn. Hệ thống sẽ tiến hành hoàn tiền cho khách hàng và giải phóng khung giờ."));
+            var role = User.FindFirst(ClaimTypes.Role)?.Value ?? "EXPERT";
+            var fullName = User.FindFirst("fullName")?.Value;
+            // Bạn có thể chọn 1 trong các cách lưu:
+            // var cancelledBy = role.ToUpperInvariant(); // Lưu: "EXPERT"
+            var cancelledBy = !string.IsNullOrEmpty(fullName) ? $"{role.ToUpperInvariant()}: {fullName}" : role.ToUpperInvariant();
+            var result = await _bookingService.RejectBookingAsync(expertUserId, id, request, cancelledBy);
+            return Ok(ApiResponse<BookingDetailResponse>.Ok(result, "Bạn đã từ chối ca tư vấn..."));
         }
 
         /// <summary>

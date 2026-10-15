@@ -48,12 +48,13 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
         }
 
         /// <summary>
-        /// Xử lý các booking PENDING_PAYMENT quá hạn giữ chỗ 10 phút
+        /// Xử lý các booking PENDING_PAYMENT quá hạn giữ chỗ chờ thanh toán
         /// </summary>
         private async Task ProcessExpiredHoldBookingsAsync(TaxKeepDbContext dbContext, DateTimeOffset now)
         {
             var expiredBookings = await dbContext.Bookings
                 .Include(b => b.ExpertSlot)
+                .Include(b => b.EscrowTransaction)
                 .Where(b => b.Status == BookingStatus.PENDING_PAYMENT && b.HoldExpiresAt <= now)
                 .ToListAsync();
 
@@ -64,6 +65,13 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
                 booking.Status = BookingStatus.EXPIRED_UNPAID;
                 booking.UpdatedAt = now;
 
+                if (booking.EscrowTransaction != null && booking.EscrowTransaction.EscrowStatus == EscrowStatus.PendingPayment)
+                {
+                    booking.EscrowTransaction.EscrowStatus = EscrowStatus.Cancelled;
+                    booking.EscrowTransaction.RefundReason = "Quá thời hạn giữ chỗ nhưng khách hàng chưa hoàn tất thanh toán.";
+                    booking.EscrowTransaction.UpdatedAt = now;
+                }
+
                 if (booking.ExpertSlot != null)
                 {
                     booking.ExpertSlot.IsBooked = false;
@@ -72,7 +80,7 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
                     booking.ExpertSlot.UpdatedAt = now;
                 }
 
-                _logger.LogInformation("Booking {BookingCode} (Id: {BookingId}) hết hạn giữ chỗ 10 phút. Đã giải phóng slot {SlotId}.",
+                _logger.LogInformation("Booking {BookingCode} (Id: {BookingId}) hết hạn giữ chỗ chờ thanh toán. Đã giải phóng slot {SlotId}.",
                     booking.BookingCode, booking.Id, booking.ExpertSlotId);
             }
 
@@ -92,12 +100,13 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
         }
 
         /// <summary>
-        /// Xử lý các booking AWAITING_EXPERT_APPROVAL quá hạn 2 giờ chuyên gia không phản hồi
+        /// Xử lý các booking AWAITING_EXPERT_APPROVAL quá hạn chuyên gia không phản hồi -> Hoàn tiền 100% từ Escrow (Đặc tả 4)
         /// </summary>
         private async Task ProcessExpiredApprovalBookingsAsync(TaxKeepDbContext dbContext, DateTimeOffset now)
         {
             var timeoutBookings = await dbContext.Bookings
                 .Include(b => b.ExpertSlot)
+                .Include(b => b.EscrowTransaction)
                 .Where(b => b.Status == BookingStatus.AWAITING_EXPERT_APPROVAL 
                          && b.ApprovalDeadline.HasValue 
                          && b.ApprovalDeadline.Value <= now)
@@ -108,11 +117,21 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
             foreach (var booking in timeoutBookings)
             {
                 booking.Status = BookingStatus.EXPIRED_NO_RESPONSE;
-                booking.RefundStatus = "PENDING_REFUND"; // Kích hoạt quy trình hoàn tiền cho khách
-                booking.CancellationReason = "Chuyên gia không phản hồi yêu cầu tiếp nhận trong vòng 2 giờ.";
+                booking.RefundStatus = "REFUNDED";
+                booking.RefundedAt = now;
+                booking.CancellationReason = "Chuyên gia không phản hồi yêu cầu tiếp nhận trong thời hạn quy định.";
                 booking.CancelledBy = "SYSTEM";
                 booking.CancelledAt = now;
                 booking.UpdatedAt = now;
+
+                if (booking.EscrowTransaction != null)
+                {
+                    booking.EscrowTransaction.EscrowStatus = EscrowStatus.Refunded;
+                    booking.EscrowTransaction.RefundAmount = booking.EscrowTransaction.Amount;
+                    booking.EscrowTransaction.RefundReason = booking.CancellationReason;
+                    booking.EscrowTransaction.RefundedAt = now;
+                    booking.EscrowTransaction.UpdatedAt = now;
+                }
 
                 if (booking.ExpertSlot != null)
                 {
@@ -122,7 +141,19 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
                     booking.ExpertSlot.UpdatedAt = now;
                 }
 
-                _logger.LogInformation("Booking {BookingCode} (Id: {BookingId}) quá hạn phê duyệt 2 giờ từ chuyên gia. Đã kích hoạt hoàn tiền và giải phóng slot.",
+                await dbContext.SystemNotifications.AddAsync(new TaxKeepVN.Domain.Entities.SystemNotification
+                {
+                    NotificationId = Guid.NewGuid(),
+                    UserId = booking.UserId,
+                    Title = "Lịch hẹn quá hạn chờ chuyên gia xác nhận – Đã hoàn tiền 100%",
+                    Message = $"Chuyên gia chưa kịp phản hồi lịch hẹn #{booking.BookingCode}. Hệ thống đã tự động hủy lịch và hoàn trả 100% số tiền {booking.Fee:N0} VNĐ từ ví Escrow.",
+                    NotificationType = "BOOKING_APPROVAL_EXPIRED_REFUNDED",
+                    IsRead = false,
+                    TargetActionUrl = "/experts",
+                    CreatedAt = now.UtcDateTime
+                });
+
+                _logger.LogInformation("Booking {BookingCode} (Id: {BookingId}) quá hạn phê duyệt từ chuyên gia. Đã hoàn tiền 100% từ Escrow và giải phóng slot.",
                     booking.BookingCode, booking.Id);
             }
 
