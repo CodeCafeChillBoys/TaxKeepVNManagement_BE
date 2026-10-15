@@ -45,6 +45,7 @@ namespace TaxKeepVN.Infrastructure.Contexts
         public DbSet<Booking> Bookings { get; set; }
         public DbSet<BookingAttachment> BookingAttachments { get; set; }
         public DbSet<EscrowTransaction> EscrowTransactions { get; set; }
+        public DbSet<ConsultationSession> ConsultationSessions { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -831,6 +832,31 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.HasIndex(e => e.BookingId).IsUnique().HasDatabaseName("uq_escrow_transactions_booking_id");
                 entity.HasIndex(e => e.OrderCode).IsUnique().HasDatabaseName("uq_escrow_transactions_order_code");
                 entity.HasIndex(e => e.EscrowStatus).HasDatabaseName("idx_escrow_transactions_status");
+            });
+
+            // ── ConsultationSession (Đặc tả 5) ──────────────────────────────────
+            modelBuilder.Entity<ConsultationSession>(entity =>
+            {
+                entity.ToTable("consultation_sessions");
+                entity.HasKey(s => s.Id);
+
+                entity.Property(s => s.Id).HasColumnName("id");
+                entity.Property(s => s.BookingId).HasColumnName("booking_id").IsRequired();
+                entity.Property(s => s.RoomName).HasColumnName("room_name").HasMaxLength(150).IsRequired();
+                entity.Property(s => s.RoomUrl).HasColumnName("room_url").HasMaxLength(500).IsRequired();
+                entity.Property(s => s.UserCheckInAt).HasColumnName("user_check_in_at");
+                entity.Property(s => s.ExpertCheckInAt).HasColumnName("expert_check_in_at");
+                entity.Property(s => s.StartedAt).HasColumnName("started_at");
+                entity.Property(s => s.EndedAt).HasColumnName("ended_at");
+                entity.Property(s => s.ActualDurationMinutes).HasColumnName("actual_duration_minutes");
+                entity.Property(s => s.SharedNotes).HasColumnName("shared_notes");
+                entity.Property(s => s.NoShowType).HasColumnName("no_show_type").HasMaxLength(50).HasDefaultValue("NONE").IsRequired();
+                entity.Property(s => s.NoShowReportedBy).HasColumnName("no_show_reported_by").HasMaxLength(50);
+                entity.Property(s => s.NoShowReportedAt).HasColumnName("no_show_reported_at");
+                entity.Property(s => s.CreatedAt).HasColumnName("created_at");
+                entity.Property(s => s.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasIndex(s => s.BookingId).IsUnique().HasDatabaseName("uq_consultation_sessions_booking_id");
             });
         }
     }
