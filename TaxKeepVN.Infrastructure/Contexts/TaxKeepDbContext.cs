@@ -662,8 +662,12 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(r => r.BookingId).HasColumnName("booking_id");
                 entity.Property(r => r.Rating).HasColumnName("rating").IsRequired();
                 entity.Property(r => r.Comment).HasColumnName("comment");
+                entity.Property(r => r.DetailScoresJson).HasColumnName("detail_scores_json");
                 entity.Property(r => r.IsAnonymous).HasColumnName("is_anonymous").HasDefaultValue(false);
                 entity.Property(r => r.IsPublished).HasColumnName("is_published").HasDefaultValue(true);
+                entity.Property(r => r.IsFlaggedForReview).HasColumnName("is_flagged_for_review").HasDefaultValue(false);
+                entity.Property(r => r.ExpertReply).HasColumnName("expert_reply");
+                entity.Property(r => r.ExpertRepliedAt).HasColumnName("expert_replied_at");
                 entity.Property(r => r.CreatedAt).HasColumnName("created_at");
                 entity.Property(r => r.UpdatedAt).HasColumnName("updated_at");
 
@@ -679,6 +683,9 @@ namespace TaxKeepVN.Infrastructure.Contexts
 
                 entity.HasIndex(r => r.ExpertProfileId).HasDatabaseName("idx_expert_reviews_profile_id");
                 entity.HasIndex(r => r.UserId).HasDatabaseName("idx_expert_reviews_user_id");
+                // Ràng buộc: mỗi Booking chỉ có đúng 1 review của User (Business Rule - chỉ review 1 lần)
+                entity.HasIndex(r => r.BookingId).IsUnique().HasDatabaseName("uq_expert_reviews_booking_id")
+                    .HasFilter("booking_id IS NOT NULL");
             });
 
             // ── Booking ─────────────────────────────────────────────────────────
@@ -721,6 +728,9 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(b => b.PaymentReference).HasColumnName("payment_reference").HasMaxLength(100);
                 entity.Property(b => b.RefundStatus).HasColumnName("refund_status").HasMaxLength(50).HasDefaultValue("NONE");
                 entity.Property(b => b.RefundedAt).HasColumnName("refunded_at");
+
+                entity.Property(b => b.CompletedAt).HasColumnName("completed_at");
+                entity.Property(b => b.ReviewDeadline).HasColumnName("review_deadline");
 
                 entity.Property(b => b.CancelledAt).HasColumnName("cancelled_at");
                 entity.Property(b => b.CancellationReason).HasColumnName("cancellation_reason");

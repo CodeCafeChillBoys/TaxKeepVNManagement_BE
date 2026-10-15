@@ -430,6 +430,8 @@ namespace TaxKeepVN.Application.Service.Implementations
                     Rating = r.Rating,
                     Comment = r.Comment,
                     ReviewerDisplayName = ExpertSearchHelper.MaskReviewerName(name, r.IsAnonymous),
+                    ExpertReply = r.ExpertReply,
+                    ExpertRepliedAt = r.ExpertRepliedAt,
                     CreatedAt = r.CreatedAt
                 };
             }).ToList();

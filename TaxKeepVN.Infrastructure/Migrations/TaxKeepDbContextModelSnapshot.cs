@@ -56,6 +56,10 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         .HasColumnType("character varying(50)")
                         .HasColumnName("cancelled_by");
 
+                    b.Property<DateTimeOffset?>("CompletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("completed_at");
+
                     b.Property<DateTimeOffset>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -110,6 +114,10 @@ namespace TaxKeepVN.Infrastructure.Migrations
                     b.Property<string>("RejectionReason")
                         .HasColumnType("text")
                         .HasColumnName("rejection_reason");
+
+                    b.Property<DateTimeOffset?>("ReviewDeadline")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("review_deadline");
 
                     b.Property<string>("SessionType")
                         .IsRequired()
@@ -1092,15 +1100,33 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
 
+                    b.Property<string>("DetailScoresJson")
+                        .HasColumnType("text")
+                        .HasColumnName("detail_scores_json");
+
                     b.Property<Guid>("ExpertProfileId")
                         .HasColumnType("uuid")
                         .HasColumnName("expert_profile_id");
+
+                    b.Property<DateTimeOffset?>("ExpertRepliedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expert_replied_at");
+
+                    b.Property<string>("ExpertReply")
+                        .HasColumnType("text")
+                        .HasColumnName("expert_reply");
 
                     b.Property<bool>("IsAnonymous")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
                         .HasDefaultValue(false)
                         .HasColumnName("is_anonymous");
+
+                    b.Property<bool>("IsFlaggedForReview")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("is_flagged_for_review");
 
                     b.Property<bool>("IsPublished")
                         .ValueGeneratedOnAdd()
@@ -1121,6 +1147,11 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         .HasColumnName("user_id");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("BookingId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_expert_reviews_booking_id")
+                        .HasFilter("booking_id IS NOT NULL");
 
                     b.HasIndex("ExpertProfileId")
                         .HasDatabaseName("idx_expert_reviews_profile_id");
