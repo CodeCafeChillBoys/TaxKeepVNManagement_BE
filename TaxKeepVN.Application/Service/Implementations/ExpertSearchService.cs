@@ -41,9 +41,9 @@ namespace TaxKeepVN.Application.Service.Implementations
                     Suggestion = ExpertSearchHelper.BuildEmptySuggestions(query)
                 };
             }
-            // lấy hồ sơ trong profile ra tránh bị lặp
+            // lấy hồ sơ trong profile có application ra tránh bị lặp
             var appIds = activeProfiles.Select(p => p.LatestApplicationId).Distinct().ToList();
-            // lấy chuyên gia trong profile ra tránh bị lặp
+            // lấy chuyên gia trong profile cuae user ra tránh bị lặp
             var userIds = activeProfiles.Select(p => p.UserId).Distinct().ToList();
             // lấy profileid ra hết tránh bị lặp
             var profileIds = activeProfiles.Select(p => p.Id).Distinct().ToList();
@@ -287,18 +287,20 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             var result = await SearchExpertsAsync(defaultQuery);
             return result.Items;
-        }
+        }   
 
         // ── 3. XEM CHI TIẾT HỒ SƠ CHUYÊN GIA (Public Detail - Masking BR-03) ────────────
         public async Task<ExpertDetailResponse> GetExpertDetailByIdAsync(Guid expertProfileId)
         {
+            // tìm kiếm hồ sơ của chuyên gia
             var profile = await _unitOfWork.Repository<ExpertProfile>().GetByIdAsync(expertProfileId);
             if (profile == null)
             {
                 throw new NotFoundException($"Không tìm thấy hồ sơ chuyên gia với Id = {expertProfileId}.");
             }
-
+            // tìm kiếm chuyên gia vừa lấy ra có application hay ko
             var app = await _unitOfWork.Repository<ExpertApplication>().GetByIdAsync(profile.LatestApplicationId);
+            // tìm kiếm hồ sơ đó có phải user này tạo hay ko
             var user = await _unitOfWork.Repository<User>().GetByIdAsync(profile.UserId);
 
             // Tải chuyên môn
@@ -311,6 +313,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 c.ApplicationId == profile.LatestApplicationId &&
                 c.VerificationStatus == CertificateVerificationStatus.Verified)).ToList();
 
+        
             var maskedCerts = certs.Select(c => new ExpertPublicCertificateDto
             {
                 Id = c.Id,
@@ -337,7 +340,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             // Tải 5 review công khai gần nhất (Mask tên reviewer nếu IsAnonymous)
             var reviews = (await _unitOfWork.Repository<ExpertReview>().FindAsync(r =>
                 r.ExpertProfileId == profile.Id && r.IsPublished)).OrderByDescending(r => r.CreatedAt).Take(5).ToList();
-
+            
             var reviewerUserIds = reviews.Select(r => r.UserId).Distinct().ToList();
             var reviewerUsers = (await _unitOfWork.Repository<User>().FindAsync(u => reviewerUserIds.Contains(u.UserId))).ToDictionary(u => u.UserId);
 

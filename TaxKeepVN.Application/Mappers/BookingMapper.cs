@@ -44,11 +44,12 @@ namespace TaxKeepVN.Application.Mappers
             User? expertUser,
             ExpertApplication? app,
             List<BookingAttachmentDto> attachments)
-        {
+        {   
+            
             if (booking == null) return null!;
-
+            // lấy ngày và mốc thời gian hiên tại
             var nowUtc = DateTimeOffset.UtcNow;
-            // Thời gian để hết bị block => giấy  còn lại trước khi booking
+            // Thời gian để hết bị block => giây còn lại trước khi booking
             var holdCountdown = (int)Math.Max(0, (booking.HoldExpiresAt - nowUtc).TotalSeconds);
             // Thời gian đc duyệt => giây còn lại trc khi duyệt
             int? approvalCountdown = booking.ApprovalDeadline.HasValue
@@ -176,36 +177,39 @@ namespace TaxKeepVN.Application.Mappers
             List<Booking> bookings)
         {
             if (!bookings.Any()) return new List<BookingListItemResponse>();
-
+            // kiểm tra userid tromg booking check trong bảng user
             var userIds = bookings.Select(b => b.UserId).Distinct().ToList();
             var users = (await unitOfWork.Repository<User>().FindAsync(u => userIds.Contains(u.UserId)))
                 .ToDictionary(u => u.UserId);
-
+            // kiểm tra slot trong booking sau đó check trong ExpertSlot
             var slotIds = bookings.Select(b => b.ExpertSlotId).Distinct().ToList();
             var slots = (await unitOfWork.Repository<ExpertSlot>().FindAsync(s => slotIds.Contains(s.Id)))
                 .ToDictionary(s => s.Id);
-
+            // kiểm tra profileIds trong slot check trong ExpertProfile
             var profileIds = slots.Values.Select(s => s.ExpertProfileId).Distinct().ToList();
             var profiles = (await unitOfWork.Repository<ExpertProfile>().FindAsync(p => profileIds.Contains(p.Id)))
                 .ToDictionary(p => p.Id);
-
+            // kiểm tra expertUserIds sau đó check trong User
             var expertUserIds = profiles.Values.Select(p => p.UserId).Distinct().ToList();
             var expertUsers = (await unitOfWork.Repository<User>().FindAsync(u => expertUserIds.Contains(u.UserId)))
                 .ToDictionary(u => u.UserId);
-
+            //  check trong appp trong profile sau đó check ExpertApplication
             var appIds = profiles.Values.Select(p => p.LatestApplicationId).Distinct().ToList();
             var apps = (await unitOfWork.Repository<ExpertApplication>().FindAsync(a => appIds.Contains(a.Id)))
                 .ToDictionary(a => a.Id);
-
+            // check specID trong booking sau đó check Specialization
             var specIds = bookings.Select(b => b.SpecializationId).Distinct().ToList();
             var specs = (await unitOfWork.Repository<Specialization>().FindAsync(s => specIds.Contains(s.Id)))
                 .ToDictionary(s => s.Id);
-
+            // lấy lên tất cả booking 
             var bookingIds = bookings.Select(b => b.Id).ToList();
+            // sau đó check trong BookingAttachment
             var attachments = (await unitOfWork.Repository<BookingAttachment>().FindAsync(a => bookingIds.Contains(a.BookingId))).ToList();
 
             return bookings.Select(b =>
             {
+
+                // TryGetValue : dùng để kiềm dic dạng key và value 
                 users.TryGetValue(b.UserId, out var clientUser);
                 slots.TryGetValue(b.ExpertSlotId, out var slot);
                 ExpertProfile? profile = null;

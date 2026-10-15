@@ -18,6 +18,25 @@ namespace TaxKeepVN.Application.Helpers
     /// </summary>
     public static class BookingHelper
     {
+        /// <summary>Múi giờ chuẩn Việt Nam (UTC+7)</summary>
+        public static readonly TimeSpan VietnamTimeZoneOffset = TimeSpan.FromHours(7);
+
+        /// <summary>
+        /// Chuyển đổi ngày và giờ của Slot (lưu theo giờ Việt Nam) sang thời điểm DateTimeOffset UTC để so sánh chuẩn xác
+        /// </summary>
+        public static DateTimeOffset ConvertSlotToUtc(DateOnly slotDate, TimeOnly startTime)
+        {
+            return new DateTimeOffset(slotDate.ToDateTime(startTime), VietnamTimeZoneOffset).ToUniversalTime();
+        }
+
+        /// <summary>
+        /// Lấy thời điểm hiện tại theo giờ Việt Nam (UTC+7)
+        /// </summary>
+        public static DateTimeOffset GetVietnamNow()
+        {
+            return DateTimeOffset.UtcNow.ToOffset(VietnamTimeZoneOffset);
+        }
+
         // ── CÁC KHÓA CẤU HÌNH ĐỘNG TRONG BẢNG SYSTEM_CONFIGS (Mục 1.4 Đặc tả Flow 4) ──
         public const string ConfigKeyExpertMinFeeVnd = "EXPERT_MIN_FEE_VND";
         public const string ConfigKeyExpertMaxFeeVnd = "EXPERT_MAX_FEE_VND";
@@ -34,6 +53,11 @@ namespace TaxKeepVN.Application.Helpers
         public const string ConfigKeyCancelPartialRefundPercent = "CANCEL_PARTIAL_REFUND_PERCENT";
         public const string ConfigKeyExpertMaxDailySlots = "EXPERT_MAX_DAILY_SLOTS";
         public const string ConfigKeyExpertMinWithdrawalVnd = "EXPERT_MIN_WITHDRAWAL_VND";
+
+        /// <summary>Thời gian đặt trước tối thiểu fallback theo quy định nghiệp vụ (Minimum Lead-time: 4 giờ)</summary>
+        public const int MinimumLeadTimeHours = 4;
+        public const int DefaultHoldMinutes = 10;
+        public const int DefaultApprovalHours = 2;
 
         /// <summary>
         /// Đọc bắt buộc giá trị số nguyên từ bảng system_configs (Zero-Hardcode).

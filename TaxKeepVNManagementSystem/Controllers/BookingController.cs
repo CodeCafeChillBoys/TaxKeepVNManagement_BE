@@ -31,15 +31,15 @@ namespace TaxKeepVNManagementSystem.Controllers
 
         private Guid GetCurrentUserId()
         {
-            var claim = User.FindFirst("userId")?.Value 
+            var claim = User.FindFirst("userId")?.Value
                      ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             return Guid.TryParse(claim, out var id) ? id : Guid.Empty;
         }
 
         private string GetCurrentUserRole()
         {
-            return User.FindFirst(ClaimTypes.Role)?.Value 
-                ?? User.FindFirst("role")?.Value 
+            return User.FindFirst(ClaimTypes.Role)?.Value
+                ?? User.FindFirst("role")?.Value
                 ?? "taxpayer";
         }
 
@@ -84,7 +84,6 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// POST /api/v1/bookings
         /// </summary>
         [HttpPost]
-        [Authorize]
         [Consumes("multipart/form-data")]
         [ProducesResponseType(typeof(ApiResponse<BookingDetailResponse>), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -93,7 +92,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         {
             var userId = GetCurrentUserId();
             var result = await _bookingService.CreateBookingAsync(userId, request);
-            return StatusCode(StatusCodes.Status201Created, 
+            return StatusCode(StatusCodes.Status201Created,
                 ApiResponse<BookingDetailResponse>.Ok(result, "Khởi tạo lịch hẹn thành công. Khung giờ đã được tạm giữ 10 phút chờ thanh toán."));
         }
 
@@ -145,7 +144,12 @@ namespace TaxKeepVNManagementSystem.Controllers
         public async Task<IActionResult> CancelBooking([FromRoute] Guid id, [FromBody] string? reason = null)
         {
             var userId = GetCurrentUserId();
-            var result = await _bookingService.CancelBookingAsync(userId, id, reason ?? "Khách hàng chủ động hủy.");
+            // 1. Nếu muốn lấy Vai trò (Role) từ Token:
+            var role = GetCurrentUserRole(); 
+            var fullName = User.FindFirst("fullName")?.Value ?? "USER";
+            // 3. Hoặc gộp cả Tên & Role (Ví dụ: "TAXPAYER: Vu Ngoc Quang"):
+            var cancelledBy = $"{role.ToUpperInvariant()}: {fullName}";
+            var result = await _bookingService.CancelBookingAsync(userId, id, reason ?? "Khách hàng chủ động hủy.", cancelledBy);
             return Ok(ApiResponse<BookingDetailResponse>.Ok(result, "Hủy lịch hẹn thành công."));
         }
 

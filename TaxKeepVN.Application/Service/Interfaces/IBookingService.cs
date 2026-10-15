@@ -53,12 +53,12 @@ namespace TaxKeepVN.Application.Service.Interfaces
         /// <summary>
         /// Chuyên gia từ chối tiếp nhận ca tư vấn trong vòng 2 giờ (kèm lý do)
         /// </summary>
-        Task<BookingDetailResponse> RejectBookingAsync(Guid expertUserId, Guid bookingId, RejectBookingRequest request);
+        Task<BookingDetailResponse> RejectBookingAsync(Guid expertUserId, Guid bookingId, RejectBookingRequest request,string? cancelledBy = null);
 
         /// <summary>
         /// Khách hàng chủ động hủy lịch hẹn
         /// </summary>
-        Task<BookingDetailResponse> CancelBookingAsync(Guid userId, Guid bookingId, string reason);
+        Task<BookingDetailResponse> CancelBookingAsync(Guid userId, Guid bookingId, string reason, string? cancelledBy = null);
 
         /// <summary>
         /// Lấy URL tải an toàn cho tệp chứng từ đính kèm (kiểm tra quyền sở hữu)
