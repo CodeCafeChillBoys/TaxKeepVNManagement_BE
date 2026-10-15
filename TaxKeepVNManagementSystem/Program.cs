@@ -146,6 +146,8 @@ builder.Services.AddScoped<IConsultationFeeConfigService, ConsultationFeeConfigS
 builder.Services.AddScoped<IExpertSearchService, ExpertSearchService>();
 builder.Services.AddScoped<IBookingService, BookingService>();
 builder.Services.AddScoped<IPaymentEscrowService, PaymentEscrowService>();
+builder.Services.AddScoped<IConsultationRealtimeNotifier, TaxKeepVNManagementSystem.Services.ConsultationRealtimeNotifier>();
+builder.Services.AddScoped<IConsultationService, ConsultationService>();
 
 // ── HTTP Clients ────────────────────────────────────────────────────────────
 builder.Services.AddHttpClient("TaxAIService", client =>
@@ -213,6 +215,7 @@ builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.OcrAI
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.DocumentOcrConsumerBackgroundService>();
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.TaxSettlementReminderJob>();
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.BookingExpirationBackgroundService>();
+builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.ConsultationNoShowBackgroundService>();
 
 // ── QuestPDF Community License Configuration (WBS 3.6.T7) ───────────────────
 QuestPDF.Settings.License = LicenseType.Community;
@@ -245,6 +248,7 @@ app.UseAuthorization();
 
 app.MapControllers();
 app.MapHub<TaxAIHub>("/hubs/tax-ai");
+app.MapHub<TaxKeepVNManagementSystem.Hubs.ConsultationHub>("/hubs/consultation");
 
 app.Run();
 
