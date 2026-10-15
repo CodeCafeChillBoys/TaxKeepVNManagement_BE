@@ -1,9 +1,19 @@
-﻿using System;
+using System;
 
 namespace TaxKeepVN.Application.Exceptions
 {
     public class ForbiddenException : Exception
     {
-        public ForbiddenException(string message) : base(message) { }
+        public string ErrorCode { get; }
+
+        public ForbiddenException(string message) : base(message)
+        {
+            ErrorCode = "FORBIDDEN";
+        }
+
+        public ForbiddenException(string errorCode, string message) : base(message)
+        {
+            ErrorCode = errorCode;
+        }
     }
 }

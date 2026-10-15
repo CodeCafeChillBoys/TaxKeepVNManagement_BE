@@ -163,6 +163,60 @@ namespace TaxKeepVN.Application.Service.Implementations
             await _unitOfWork.SaveChangesAsync();
         }
 
+        public async Task<IncomeSourceCrossCheckResponseDto> CrossCheckAsync(Guid userId, IncomeSourceCrossCheckRequestDto request)
+        {
+            // 1. Fetch all incomes for this user, year, and organization
+            var incomes = await _unitOfWork.Repository<Income>().FindAsync(x =>
+                x.UserId == userId &&
+                x.Year == request.TaxYear &&
+                x.OrganizationName.ToLower() == request.CompanyName.ToLower());
+
+            // 2. Sum them up
+            var summedTotalIncome = incomes.Sum(x => x.TotalTaxableIncome);
+            var summedTaxWithheld = incomes.Sum(x => x.TaxAlreadyDeducted);
+            var summedInsurance = incomes.Sum(x => x.InsuranceDeducted);
+
+            // 3. Compare with Certificate
+            var diffTotalIncome = request.CertificateTotalIncome - summedTotalIncome;
+            var diffTaxWithheld = request.CertificateTaxWithheld - summedTaxWithheld;
+            var diffInsurance = request.CertificateInsuranceDeducted - summedInsurance;
+
+            var response = new IncomeSourceCrossCheckResponseDto
+            {
+                SummedTotalIncome = summedTotalIncome,
+                SummedTaxWithheld = summedTaxWithheld,
+                SummedInsuranceDeducted = summedInsurance,
+                DiffTotalIncome = diffTotalIncome,
+                DiffTaxWithheld = diffTaxWithheld,
+                DiffInsuranceDeducted = diffInsurance,
+                IsMatch = true
+            };
+
+            // 4. Generate mismatch messages if there's any discrepancy
+            // We allow a small tolerance for rounding differences (e.g., 1000 VND)
+            decimal tolerance = 1000;
+
+            if (Math.Abs(diffTotalIncome) > tolerance)
+            {
+                response.IsMatch = false;
+                response.MismatchMessages.Add($"Tổng thu nhập chênh lệch: {Math.Abs(diffTotalIncome):N0} VNĐ (Chứng từ: {request.CertificateTotalIncome:N0}, Hệ thống: {summedTotalIncome:N0})");
+            }
+            
+            if (Math.Abs(diffTaxWithheld) > tolerance)
+            {
+                response.IsMatch = false;
+                response.MismatchMessages.Add($"Thuế đã khấu trừ chênh lệch: {Math.Abs(diffTaxWithheld):N0} VNĐ (Chứng từ: {request.CertificateTaxWithheld:N0}, Hệ thống: {summedTaxWithheld:N0})");
+            }
+
+            if (Math.Abs(diffInsurance) > tolerance)
+            {
+                response.IsMatch = false;
+                response.MismatchMessages.Add($"Bảo hiểm đã đóng chênh lệch: {Math.Abs(diffInsurance):N0} VNĐ (Chứng từ: {request.CertificateInsuranceDeducted:N0}, Hệ thống: {summedInsurance:N0})");
+            }
+
+            return response;
+        }
+
         #endregion
 
         #region Private Helpers

@@ -18,6 +18,7 @@ namespace TaxKeepVNManagementSystem.Controllers
     [ApiController]
     [Route("api/v1/expert/bookings")]
     [Authorize]
+    [Produces("application/json")]
     public class ExpertBookingController : ControllerBase
     {
         private readonly IBookingService _bookingService;

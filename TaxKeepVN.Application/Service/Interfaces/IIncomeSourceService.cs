@@ -13,5 +13,6 @@ namespace TaxKeepVN.Application.Service.Interfaces
         Task<IncomeSourceResponseDto> CreateAsync(Guid userId, IncomeSourceCreateDto dto);
         Task<IncomeSourceResponseDto> UpdateAsync(Guid id, Guid userId, IncomeSourceUpdateDto dto);
         Task DeleteAsync(Guid id, Guid userId);
+        Task<IncomeSourceCrossCheckResponseDto> CrossCheckAsync(Guid userId, IncomeSourceCrossCheckRequestDto request);
     }
 }

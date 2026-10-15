@@ -19,6 +19,7 @@ namespace TaxKeepVNManagementSystem.Controllers
     /// </summary>
     [ApiController]
     [Route("api/v1/bookings")]
+    [Produces("application/json")]
     public class BookingController : ControllerBase
     {
         private readonly IBookingService _bookingService;

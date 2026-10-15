@@ -44,6 +44,8 @@ namespace TaxKeepVN.Infrastructure.Contexts
         public DbSet<ExpertReview> ExpertReviews { get; set; }
         public DbSet<Booking> Bookings { get; set; }
         public DbSet<BookingAttachment> BookingAttachments { get; set; }
+        public DbSet<EscrowTransaction> EscrowTransactions { get; set; }
+        public DbSet<ConsultationSession> ConsultationSessions { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -334,6 +336,25 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.HasIndex(c => new { c.ConfigKey, c.AppliesFromYear })
                       .IsUnique()
                       .HasDatabaseName("uq_system_configs_key_year");
+
+                var seedTime = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+                entity.HasData(
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000001"), ConfigKey = "EXPERT_MIN_FEE_VND", ConfigValue = "100000", Description = "Mức phí tư vấn sàn tối thiểu cho 1 phiên (VNĐ)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000002"), ConfigKey = "EXPERT_MAX_FEE_VND", ConfigValue = "2000000", Description = "Mức phí tư vấn trần tối đa cho 1 phiên (VNĐ)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000003"), ConfigKey = "BOOKING_SLOT_HOLD_MINUTES", ConfigValue = "10", Description = "Thời gian tạm khóa slot chờ người nộp thuế hoàn tất thanh toán (Phút)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000004"), ConfigKey = "BOOKING_MIN_LEAD_TIME_HOURS", ConfigValue = "4", Description = "Thời gian tối thiểu phải đặt lịch trước giờ hẹn (Giờ)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000005"), ConfigKey = "EXPERT_CONFIRM_TIMEOUT_HOURS", ConfigValue = "2", Description = "Thời hạn tối đa để Chuyên gia Chấp nhận/Từ chối yêu cầu đặt lịch (Giờ)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000006"), ConfigKey = "PLATFORM_COMMISSION_RATE_PERCENT", ConfigValue = "20", Description = "Tỷ lệ phí hoa hồng nền tảng (A%) trích từ giá trị ca tư vấn (%)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000007"), ConfigKey = "SESSION_OPEN_BEFORE_MINUTES", ConfigValue = "10", Description = "Thời gian mở phòng tư vấn trước giờ hẹn chính thức (Phút)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000008"), ConfigKey = "SESSION_NO_SHOW_MINUTES", ConfigValue = "15", Description = "Ngưỡng thời gian xác định vắng mặt không phép No-Show (Phút)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000009"), ConfigKey = "RATING_WINDOW_DAYS", ConfigValue = "7", Description = "Thời hạn cho phép người nộp thuế gửi đánh giá sau khi kết thúc phiên (Ngày)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000010"), ConfigKey = "ESCROW_COOLDOWN_HOURS", ConfigValue = "24", Description = "Thời gian tạm giữ tiền chờ khiếu nại trước khi tự động giải ngân (Giờ)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000011"), ConfigKey = "CANCEL_FULL_REFUND_HOURS", ConfigValue = "24", Description = "Mốc hủy lịch sớm được hoàn tiền 100% trước giờ hẹn (Giờ)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000012"), ConfigKey = "CANCEL_PARTIAL_REFUND_HOURS", ConfigValue = "4", Description = "Mốc hủy lịch cận giờ được hoàn một phần trước giờ hẹn (Giờ)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000013"), ConfigKey = "CANCEL_PARTIAL_REFUND_PERCENT", ConfigValue = "50", Description = "Tỷ lệ phần trăm tiền hoàn lại khi hủy lịch cận giờ (%)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000014"), ConfigKey = "EXPERT_MAX_DAILY_SLOTS", ConfigValue = "6", Description = "Số lượng ca tư vấn tối đa Chuyên gia được mở trong 1 ngày (Ca/ngày)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000015"), ConfigKey = "EXPERT_MIN_WITHDRAWAL_VND", ConfigValue = "500000", Description = "Số tiền tối thiểu cho mỗi lệnh rút tiền từ Ví thu nhập chuyên gia (VNĐ)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime }
+                );
             });
 
             // ── TaxSettlementDossier ─────────────────────────────────────────────
@@ -357,7 +378,7 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(i => i.IsSelected).HasDefaultValue(true);
             });
 
-            // ── Specialization ──────────────────────────────────────────────────
+            // ── Specialization (Chuẩn hóa 100% theo phạm vi Thuế TNCN Tiền lương) ──
             modelBuilder.Entity<Specialization>(entity =>
             {
                 entity.ToTable("specializations");
@@ -372,14 +393,11 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.HasIndex(s => s.Code).IsUnique().HasDatabaseName("idx_specializations_code");
 
                 entity.HasData(
-                    new Specialization { Id = 1, Code = "PIT", Name = "Thuế thu nhập cá nhân (TNCN)", IsActive = true },
-                    new Specialization { Id = 2, Code = "CIT", Name = "Thuế thu nhập doanh nghiệp (TNDN)", IsActive = true },
-                    new Specialization { Id = 3, Code = "FINALIZATION", Name = "Quyết toán thuế", IsActive = true },
-                    new Specialization { Id = 4, Code = "TAX_REFUND", Name = "Hoàn thuế", IsActive = true },
-                    new Specialization { Id = 5, Code = "INTERNAL_ACCOUNTING", Name = "Kế toán nội bộ", IsActive = true },
-                    new Specialization { Id = 6, Code = "TRANSFER_PRICING", Name = "Chuyển giá", IsActive = true },
-                    new Specialization { Id = 7, Code = "TAX_AGENT", Name = "Đại lý thuế", IsActive = true },
-                    new Specialization { Id = 8, Code = "CORPORATE_TAX_LEGAL", Name = "Pháp lý thuế doanh nghiệp", IsActive = true }
+                    new Specialization { Id = 1, Code = "MULTI_SOURCE_SALARY_PIT", Name = "Quyết toán thuế TNCN đa nguồn thu nhập", Description = "Tư vấn quyết toán thuế TNCN từ tiền lương, tiền công tại nhiều nơi chi trả trong năm", IsActive = true },
+                    new Specialization { Id = 2, Code = "DEPENDENT_DEDUCTION_TT87", Name = "Tối ưu giảm trừ gia cảnh & Hồ sơ Người phụ thuộc (Thông tư 87/2026/TT-BTC)", Description = "Rà soát điều kiện và bộ chứng từ chứng minh người phụ thuộc hợp lệ", IsActive = true },
+                    new Specialization { Id = 3, Code = "MEDICAL_EDUCATION_DEDUCTION", Name = "Thẩm định chứng từ giảm trừ Y tế & Giáo dục (Luật 109/2025/QH15 & NĐ 253/2026)", Description = "Kiểm tra tính hợp pháp của hóa đơn viện phí, bảng kê Bộ Y tế và học phí", IsActive = true },
+                    new Specialization { Id = 4, Code = "TAX_EXEMPT_OVERTIME_ALLOWANCE", Name = "Tư vấn bóc tách thu nhập miễn thuế (Lương làm thêm giờ OT, làm đêm, phụ cấp)", Description = "Bóc tách phần chênh lệch lương làm thêm giờ, làm đêm được miễn thuế TNCN", IsActive = true },
+                    new Specialization { Id = 5, Code = "PIT_REFUND_EXPLANATION", Name = "Thủ tục Hoàn thuế TNCN nộp thừa & Giải trình cơ quan thuế", Description = "Hướng dẫn lập hồ sơ hoàn thuế Mẫu 02/QTT-TNCN và giải trình số liệu với cơ quan thuế", IsActive = true }
                 );
             });
 
@@ -770,6 +788,75 @@ namespace TaxKeepVN.Infrastructure.Contexts
                     .OnDelete(DeleteBehavior.Cascade);
 
                 entity.HasIndex(a => a.BookingId).HasDatabaseName("idx_booking_attachments_booking_id");
+            });
+
+            // ── EscrowTransaction (Đặc tả 4 & 7) ────────────────────────────────
+            modelBuilder.Entity<EscrowTransaction>(entity =>
+            {
+                entity.ToTable("escrow_transactions");
+                entity.HasKey(e => e.Id);
+
+                entity.Property(e => e.Id).HasColumnName("id");
+                entity.Property(e => e.BookingId).HasColumnName("booking_id").IsRequired();
+                entity.Property(e => e.OrderCode).HasColumnName("order_code").IsRequired();
+                entity.Property(e => e.Amount).HasColumnName("amount").HasColumnType("numeric(18,2)").IsRequired();
+                entity.Property(e => e.CommissionRate).HasColumnName("commission_rate").HasColumnType("numeric(5,2)").IsRequired();
+                entity.Property(e => e.CommissionAmount).HasColumnName("commission_amount").HasColumnType("numeric(18,2)").IsRequired();
+                entity.Property(e => e.ExpertReceivable).HasColumnName("expert_receivable").HasColumnType("numeric(18,2)").IsRequired();
+
+                entity.Property(e => e.EscrowStatus)
+                    .HasColumnName("escrow_status")
+                    .HasMaxLength(50)
+                    .HasConversion<string>()
+                    .HasDefaultValue(EscrowStatus.PendingPayment)
+                    .IsRequired();
+
+                entity.Property(e => e.PaymentGateway).HasColumnName("payment_gateway").HasMaxLength(50).HasDefaultValue("VNPAY").IsRequired();
+                entity.Property(e => e.PaymentReference).HasColumnName("payment_reference").HasMaxLength(100);
+                entity.Property(e => e.PaymentLinkId).HasColumnName("payment_link_id").HasMaxLength(100);
+                entity.Property(e => e.CheckoutUrl).HasColumnName("checkout_url");
+                entity.Property(e => e.QrCode).HasColumnName("qr_code");
+                entity.Property(e => e.RefundAmount).HasColumnName("refund_amount").HasColumnType("numeric(18,2)").HasDefaultValue(0m);
+                entity.Property(e => e.RefundReason).HasColumnName("refund_reason");
+                entity.Property(e => e.PaidAt).HasColumnName("paid_at");
+                entity.Property(e => e.SettledAt).HasColumnName("settled_at");
+                entity.Property(e => e.RefundedAt).HasColumnName("refunded_at");
+                entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+                entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasOne(e => e.Booking)
+                    .WithOne(b => b.EscrowTransaction)
+                    .HasForeignKey<EscrowTransaction>(e => e.BookingId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(e => e.BookingId).IsUnique().HasDatabaseName("uq_escrow_transactions_booking_id");
+                entity.HasIndex(e => e.OrderCode).IsUnique().HasDatabaseName("uq_escrow_transactions_order_code");
+                entity.HasIndex(e => e.EscrowStatus).HasDatabaseName("idx_escrow_transactions_status");
+            });
+
+            // ── ConsultationSession (Đặc tả 5) ──────────────────────────────────
+            modelBuilder.Entity<ConsultationSession>(entity =>
+            {
+                entity.ToTable("consultation_sessions");
+                entity.HasKey(s => s.Id);
+
+                entity.Property(s => s.Id).HasColumnName("id");
+                entity.Property(s => s.BookingId).HasColumnName("booking_id").IsRequired();
+                entity.Property(s => s.RoomName).HasColumnName("room_name").HasMaxLength(150).IsRequired();
+                entity.Property(s => s.RoomUrl).HasColumnName("room_url").HasMaxLength(500).IsRequired();
+                entity.Property(s => s.UserCheckInAt).HasColumnName("user_check_in_at");
+                entity.Property(s => s.ExpertCheckInAt).HasColumnName("expert_check_in_at");
+                entity.Property(s => s.StartedAt).HasColumnName("started_at");
+                entity.Property(s => s.EndedAt).HasColumnName("ended_at");
+                entity.Property(s => s.ActualDurationMinutes).HasColumnName("actual_duration_minutes");
+                entity.Property(s => s.SharedNotes).HasColumnName("shared_notes");
+                entity.Property(s => s.NoShowType).HasColumnName("no_show_type").HasMaxLength(50).HasDefaultValue("NONE").IsRequired();
+                entity.Property(s => s.NoShowReportedBy).HasColumnName("no_show_reported_by").HasMaxLength(50);
+                entity.Property(s => s.NoShowReportedAt).HasColumnName("no_show_reported_at");
+                entity.Property(s => s.CreatedAt).HasColumnName("created_at");
+                entity.Property(s => s.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasIndex(s => s.BookingId).IsUnique().HasDatabaseName("uq_consultation_sessions_booking_id");
             });
         }
     }

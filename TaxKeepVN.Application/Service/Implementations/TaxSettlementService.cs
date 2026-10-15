@@ -429,12 +429,16 @@ namespace TaxKeepVN.Application.Service.Implementations
 
         /// <summary>
         /// Áp biểu thuế lũy tiến từng phần theo tháng.
-        /// Dùng công thức rút gọn: Thuế/tháng = TNTT/tháng × Rate - QuickDeduct
-        /// Số bậc (5 hay 7) do Admin cấu hình, code không biết cứng.
+        /// Kết quả trả về:
+        ///   - taxMonthly: Tổng thuế/tháng (dùng công thức rút gọn cho chính xác và nhanh).
+        ///   - bracketNo: Số thứ tự bậc đang áp dụng.
+        ///   - details: Chi tiết TỪNG BẬC từ bậc 1 → bậc áp dụng (để FE hiển thị "Show your work").
+        ///              Mỗi bậc có TaxableMonthly (phần TNTT rơi vào bậc đó) và TaxMonthly (thuế tại bậc đó).
         /// </summary>
         private (decimal taxMonthly, int bracketNo, List<BracketCalculationDetailDto> details)
             ApplyProgressiveBrackets(decimal taxableMonthly, List<PitBracketConfigDto> brackets)
         {
+            // Khởi tạo tất cả bậc với giá trị 0, IsApplied = false
             var details = brackets.Select(b => new BracketCalculationDetailDto
             {
                 BracketNo = b.BracketNo,
@@ -448,7 +452,7 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             if (taxableMonthly <= 0) return (0, 0, details);
 
-            // Tìm bậc phù hợp (bậc cao nhất mà TNTT/tháng > From)
+            // Xác định bậc áp dụng (bậc cao nhất mà TNTT/tháng > From của bậc đó)
             var appliedBracket = brackets
                 .Where(b => taxableMonthly > b.FromMonthly)
                 .OrderByDescending(b => b.BracketNo)
@@ -456,14 +460,31 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             if (appliedBracket == null) return (0, 0, details);
 
-            // Áp công thức rút gọn: Tax = TNTT × Rate - QuickDeduct
+            // ── Tính tổng thuế bằng công thức rút gọn (chính xác và nhanh) ───────
             var taxMonthly = Math.Max(0, Math.Round(taxableMonthly * appliedBracket.Rate - appliedBracket.QuickDeduct, 0));
 
-            // Cập nhật detail cho bậc áp dụng
-            var detail = details.First(d => d.BracketNo == appliedBracket.BracketNo);
-            detail.TaxableMonthly = taxableMonthly;
-            detail.TaxMonthly = taxMonthly;
-            detail.IsApplied = true;
+            // ── Tính chi tiết từng bậc từ bậc 1 → bậc đang áp dụng ──────────────
+            // Mục đích: Giúp FE hiển thị từng bước tính "bậc 1 có TNTT bao nhiêu, thuế bao nhiêu"
+            var sortedBrackets = brackets.OrderBy(b => b.BracketNo).ToList();
+            foreach (var bracket in sortedBrackets)
+            {
+                if (taxableMonthly <= bracket.FromMonthly) break; // Không rơi vào bậc này
+
+                // Phần TNTT rơi vào bậc này:
+                //   = min(TNTT, ToMonthly của bậc này) - FromMonthly của bậc này
+                var upperBound = bracket.ToMonthly.HasValue
+                    ? Math.Min(taxableMonthly, bracket.ToMonthly.Value)
+                    : taxableMonthly;
+                var taxableInBracket = Math.Round(upperBound - bracket.FromMonthly, 0);
+
+                // Thuế phát sinh trong bậc này = phần TNTT rơi vào × thuế suất bậc
+                var taxInBracket = Math.Round(taxableInBracket * bracket.Rate, 0);
+
+                var detail = details.First(d => d.BracketNo == bracket.BracketNo);
+                detail.TaxableMonthly = taxableInBracket;
+                detail.TaxMonthly = taxInBracket;
+                detail.IsApplied = true;
+            }
 
             return (taxMonthly, appliedBracket.BracketNo, details);
         }
