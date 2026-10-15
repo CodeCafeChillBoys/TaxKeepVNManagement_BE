@@ -11,6 +11,25 @@ namespace TaxKeepVN.Application.Helpers
     /// </summary>
     public static class BookingHelper
     {
+        /// <summary>Múi giờ chuẩn Việt Nam (UTC+7)</summary>
+        public static readonly TimeSpan VietnamTimeZoneOffset = TimeSpan.FromHours(7);
+
+        /// <summary>
+        /// Chuyển đổi ngày và giờ của Slot (lưu theo giờ Việt Nam) sang thời điểm DateTimeOffset UTC để so sánh chuẩn xác
+        /// </summary>
+        public static DateTimeOffset ConvertSlotToUtc(DateOnly slotDate, TimeOnly startTime)
+        {
+            return new DateTimeOffset(slotDate.ToDateTime(startTime), VietnamTimeZoneOffset).ToUniversalTime();
+        }
+
+        /// <summary>
+        /// Lấy thời điểm hiện tại theo giờ Việt Nam (UTC+7)
+        /// </summary>
+        public static DateTimeOffset GetVietnamNow()
+        {
+            return DateTimeOffset.UtcNow.ToOffset(VietnamTimeZoneOffset);
+        }
+
         /// <summary>Thời gian đặt trước tối thiểu theo quy định nghiệp vụ (Minimum Lead-time: 4 giờ)</summary>
         public const int MinimumLeadTimeHours = 4;
         public const int DefaultHoldMinutes = 10;
@@ -41,6 +60,7 @@ namespace TaxKeepVN.Application.Helpers
             TimeOnly startTime,
             TimeOnly endTime)
         {
+            // lấy những status này lên
             var activeBookings = (await unitOfWork.Repository<Booking>().FindAsync(b =>
                 b.UserId == userId &&
                 (b.Status == BookingStatus.PENDING_PAYMENT ||
@@ -48,8 +68,9 @@ namespace TaxKeepVN.Application.Helpers
                  b.Status == BookingStatus.CONFIRMED))).ToList();
 
             if (!activeBookings.Any()) return false;
-
+            // lấy lên những slotId có status
             var slotIds = activeBookings.Select(b => b.ExpertSlotId).Distinct().ToList();
+            // tìm kiếm slot có tồn tại ko
             var slots = (await unitOfWork.Repository<ExpertSlot>().FindAsync(s => slotIds.Contains(s.Id))).ToList();
 
             return slots.Any(s => s.SlotDate == slotDate && s.StartTime < endTime && s.EndTime > startTime);

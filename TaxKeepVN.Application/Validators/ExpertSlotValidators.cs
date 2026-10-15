@@ -29,11 +29,11 @@ namespace TaxKeepVN.Application.Validators
             RuleFor(x => x)
                 .Must(x =>
                 {
-                    var today = DateOnly.FromDateTime(DateTime.UtcNow);
+                    var nowVietnam = DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(7));
+                    var today = DateOnly.FromDateTime(nowVietnam.DateTime);
                     if (x.SlotDate == today)
                     {
-                        var nowTime = TimeOnly.FromDateTime(DateTime.UtcNow);
-                        // Cho phép chênh lệch tối thiểu
+                        var nowTime = TimeOnly.FromDateTime(nowVietnam.DateTime);
                         return x.StartTime > nowTime;
                     }
                     return true;
