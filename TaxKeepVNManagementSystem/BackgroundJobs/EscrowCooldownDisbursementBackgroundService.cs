@@ -60,16 +60,30 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
             IDisbursementDisputeService disbursementService,
             DateTimeOffset nowUtc)
         {
-            // 1. Đọc ngưỡng thời gian Cool-down từ bảng system_configs (mặc định 24 giờ)
-            var config = await dbContext.SystemConfigs
+            // 1. Đọc ngưỡng thời gian Cool-down từ bảng consultation_platform_policies hoặc system_configs (mặc định 24 giờ)
+            var policy = await dbContext.ConsultationPlatformPolicies
                 .AsNoTracking()
-                .Where(c => c.ConfigKey == BookingHelper.ConfigKeyEscrowCooldownHours && c.IsActive)
-                .OrderByDescending(c => c.AppliesFromYear ?? int.MinValue)
+                .Where(p => p.IsActive)
+                .OrderByDescending(p => p.Id)
                 .FirstOrDefaultAsync();
 
-            var coolDownHours = (config != null && int.TryParse(config.ConfigValue, out var val) && val > 0)
-                ? val
+            int coolDownHours = (policy != null && policy.EscrowCooldownHours > 0)
+                ? policy.EscrowCooldownHours
                 : 24;
+
+            if (coolDownHours == 24)
+            {
+                var config = await dbContext.SystemConfigs
+                    .AsNoTracking()
+                    .Where(c => c.ConfigKey == BookingHelper.ConfigKeyEscrowCooldownHours && c.IsActive)
+                    .OrderByDescending(c => c.AppliesFromYear ?? int.MinValue)
+                    .FirstOrDefaultAsync();
+
+                if (config != null && int.TryParse(config.ConfigValue, out var val) && val > 0)
+                {
+                    coolDownHours = val;
+                }
+            }
 
             var thresholdUtc = nowUtc.AddHours(-coolDownHours);
 
