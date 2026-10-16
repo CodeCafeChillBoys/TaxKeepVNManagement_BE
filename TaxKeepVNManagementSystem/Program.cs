@@ -219,6 +219,7 @@ builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.Docum
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.TaxSettlementReminderJob>();
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.BookingExpirationBackgroundService>();
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.ConsultationNoShowBackgroundService>();
+builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.ConsultationMeetingReminderJob>();
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.EscrowCooldownDisbursementBackgroundService>();
 
 // ── QuestPDF Community License Configuration (WBS 3.6.T7) ───────────────────

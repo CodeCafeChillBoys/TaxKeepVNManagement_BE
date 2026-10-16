@@ -77,7 +77,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 _unitOfWork,
                 BookingHelper.ConfigKeySessionOpenBeforeMinutes);
 
-            var slotStartUtc = new DateTimeOffset(slot.SlotDate.ToDateTime(slot.StartTime), TimeSpan.Zero);
+            var slotStartUtc = BookingHelper.ConvertSlotToUtc(slot.SlotDate, slot.StartTime);
             var earliestOpenUtc = slotStartUtc.AddMinutes(-openBeforeMinutes);
 
             if (nowUtc < earliestOpenUtc)
@@ -204,7 +204,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 _unitOfWork,
                 BookingHelper.ConfigKeySessionOpenBeforeMinutes);
 
-            var slotStartUtc = new DateTimeOffset(slot.SlotDate.ToDateTime(slot.StartTime), TimeSpan.Zero);
+            var slotStartUtc = BookingHelper.ConvertSlotToUtc(slot.SlotDate, slot.StartTime);
             var isRoomOpen = nowUtc >= slotStartUtc.AddMinutes(-openBeforeMinutes);
 
             var scheduledDuration = (int)(slot.EndTime - slot.StartTime).TotalMinutes;
@@ -598,7 +598,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 _unitOfWork,
                 BookingHelper.ConfigKeySessionNoShowMinutes);
 
-            var slotStartUtc = new DateTimeOffset(slot.SlotDate.ToDateTime(slot.StartTime), TimeSpan.Zero);
+            var slotStartUtc = BookingHelper.ConvertSlotToUtc(slot.SlotDate, slot.StartTime);
             var nowUtc = DateTimeOffset.UtcNow;
             var noShowThresholdUtc = slotStartUtc.AddMinutes(noShowMinutes);
 
@@ -767,6 +767,162 @@ namespace TaxKeepVN.Application.Service.Implementations
             await _unitOfWork.SaveChangesAsync();
 
             return await GetSessionAsync(currentUserId, currentUserRole, bookingId);
+        }
+
+        // ── 7. NHẮC NHỞ LỊCH HẸN MEETING SẮP TỚI (UPCOMING MEETING REMINDER) ──────────────
+        public async Task<UpcomingMeetingReminderDto> GetUpcomingMeetingReminderAsync(Guid currentUserId)
+        {
+            var nowUtc = DateTimeOffset.UtcNow;
+
+            int sessionOpenBeforeMinutes = 10;
+            try
+            {
+                sessionOpenBeforeMinutes = await BookingHelper.GetRequiredConfigIntAsync(
+                    _unitOfWork,
+                    BookingHelper.ConfigKeySessionOpenBeforeMinutes);
+            }
+            catch
+            {
+                // Fallback mặc định 10 phút
+            }
+
+            // Lấy tất cả ca CONFIRMED hoặc IN_PROGRESS mà user là khách hàng
+            var clientBookings = await _unitOfWork.Repository<Booking>().FindAsync(b =>
+                b.UserId == currentUserId &&
+                (b.Status == BookingStatus.CONFIRMED || b.Status == BookingStatus.IN_PROGRESS));
+
+            // Tìm hồ sơ ExpertProfile của user (nếu user này cũng là chuyên gia)
+            var expertProfiles = await _unitOfWork.Repository<ExpertProfile>().FindAsync(ep => ep.UserId == currentUserId);
+            var expertProfile = expertProfiles.FirstOrDefault();
+
+            var expertBookings = new List<Booking>();
+            if (expertProfile != null)
+            {
+                var expertSlots = await _unitOfWork.Repository<ExpertSlot>().FindAsync(s => s.ExpertProfileId == expertProfile.Id);
+                var slotIds = expertSlots.Select(s => s.Id).ToHashSet();
+
+                var allConfirmed = await _unitOfWork.Repository<Booking>().FindAsync(b =>
+                    slotIds.Contains(b.ExpertSlotId) &&
+                    (b.Status == BookingStatus.CONFIRMED || b.Status == BookingStatus.IN_PROGRESS));
+
+                expertBookings.AddRange(allConfirmed);
+            }
+
+            var allUserBookings = clientBookings.Concat(expertBookings).DistinctBy(b => b.Id).ToList();
+            if (!allUserBookings.Any())
+            {
+                return new UpcomingMeetingReminderDto
+                {
+                    HasUpcomingMeeting = false,
+                    ReminderMessage = "Bạn hiện không có lịch hẹn tư vấn trực tuyến nào sắp diễn ra."
+                };
+            }
+
+            // Tải thông tin slot và tìm ca gần nhất
+            Booking? nearestBooking = null;
+            ExpertSlot? nearestSlot = null;
+            DateTimeOffset nearestSlotStartUtc = DateTimeOffset.MaxValue;
+            DateTimeOffset nearestSlotEndUtc = DateTimeOffset.MaxValue;
+
+            foreach (var b in allUserBookings)
+            {
+                var s = await _unitOfWork.Repository<ExpertSlot>().GetByIdAsync(b.ExpertSlotId);
+                if (s == null) continue;
+
+                var startUtc = BookingHelper.ConvertSlotToUtc(s.SlotDate, s.StartTime);
+                var endUtc = BookingHelper.ConvertSlotToUtc(s.SlotDate, s.EndTime);
+
+                // Ca đã kết thúc -> bỏ qua
+                if (nowUtc > endUtc) continue;
+
+                if (startUtc < nearestSlotStartUtc)
+                {
+                    nearestSlotStartUtc = startUtc;
+                    nearestSlotEndUtc = endUtc;
+                    nearestBooking = b;
+                    nearestSlot = s;
+                }
+            }
+
+            if (nearestBooking == null || nearestSlot == null)
+            {
+                return new UpcomingMeetingReminderDto
+                {
+                    HasUpcomingMeeting = false,
+                    ReminderMessage = "Bạn hiện không có lịch hẹn tư vấn trực tuyến nào sắp diễn ra."
+                };
+            }
+
+            bool isClient = nearestBooking.UserId == currentUserId;
+            string partnerRole = isClient ? "EXPERT" : "TAXPAYER";
+            string partnerName = "Đối tác";
+
+            if (isClient)
+            {
+                var ep = await _unitOfWork.Repository<ExpertProfile>().GetByIdAsync(nearestSlot.ExpertProfileId);
+                if (ep != null)
+                {
+                    var expUser = await _unitOfWork.Repository<User>().GetByIdAsync(ep.UserId);
+                    partnerName = expUser?.FullName ?? ep.JobTitle;
+                }
+            }
+            else
+            {
+                var taxUser = await _unitOfWork.Repository<User>().GetByIdAsync(nearestBooking.UserId);
+                partnerName = taxUser?.FullName ?? "Khách hàng";
+            }
+
+            var diff = nearestSlotStartUtc - nowUtc;
+            int minutesRemaining = (int)Math.Round(diff.TotalMinutes);
+            bool isRoomOpen = minutesRemaining <= sessionOpenBeforeMinutes && nowUtc <= nearestSlotEndUtc;
+            bool canJoinRoom = isRoomOpen;
+
+            // Xác định UrgencyLevel & Thông điệp
+            string urgencyLevel;
+            string reminderMessage;
+
+            if (nearestBooking.Status == BookingStatus.IN_PROGRESS || (minutesRemaining <= 0 && nowUtc <= nearestSlotEndUtc))
+            {
+                urgencyLevel = "IN_PROGRESS";
+                reminderMessage = $"Ca tư vấn #{nearestBooking.BookingCode} với {partnerName} đang diễn ra! Nhấn vào để tham gia ngay.";
+            }
+            else if (isRoomOpen)
+            {
+                urgencyLevel = "OPENED";
+                reminderMessage = $"Phòng tư vấn #{nearestBooking.BookingCode} với {partnerName} đã mở trước {sessionOpenBeforeMinutes} phút. Bạn có thể vào phòng ngay bây giờ.";
+            }
+            else if (minutesRemaining <= 60)
+            {
+                urgencyLevel = "SOON";
+                reminderMessage = $"Ca tư vấn #{nearestBooking.BookingCode} với {partnerName} sẽ bắt đầu sau {minutesRemaining} phút nữa ({nearestSlot.StartTime:HH\\:mm}).";
+            }
+            else
+            {
+                urgencyLevel = "NORMAL";
+                var hoursRemaining = (int)Math.Ceiling(minutesRemaining / 60.0);
+                reminderMessage = $"Lịch hẹn tư vấn #{nearestBooking.BookingCode} với {partnerName} còn {hoursRemaining} giờ nữa sẽ diễn ra ({nearestSlot.StartTime:HH\\:mm} ngày {nearestSlot.SlotDate:dd/MM/yyyy}).";
+            }
+
+            string roomUrl = $"https://meet.jit.si/TaxKeepVN_{nearestBooking.BookingCode.Replace("-", "_")}";
+
+            return new UpcomingMeetingReminderDto
+            {
+                HasUpcomingMeeting = true,
+                BookingId = nearestBooking.Id,
+                BookingCode = nearestBooking.BookingCode,
+                TopicTitle = nearestBooking.TopicTitle,
+                PartnerName = partnerName,
+                PartnerRole = partnerRole,
+                SlotDate = nearestSlot.SlotDate,
+                StartTime = nearestSlot.StartTime,
+                EndTime = nearestSlot.EndTime,
+                MinutesRemaining = minutesRemaining,
+                IsRoomOpen = isRoomOpen,
+                CanJoinRoom = canJoinRoom,
+                RoomUrl = isRoomOpen ? roomUrl : null,
+                UrgencyLevel = urgencyLevel,
+                ReminderMessage = reminderMessage
+            };
         }
     }
 }

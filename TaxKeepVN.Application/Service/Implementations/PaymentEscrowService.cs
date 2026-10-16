@@ -221,54 +221,13 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             if (responseCode == "00")
             {
-                var confirmTimeoutHours = await BookingHelper.GetRequiredConfigIntAsync(
-                    _unitOfWork,
-                    BookingHelper.ConfigKeyExpertConfirmTimeoutHours);
-
-                var nowUtc = DateTimeOffset.UtcNow;
-                var approvalDeadline = nowUtc.AddHours(confirmTimeoutHours);
-
-                await _unitOfWork.BeginTransactionAsync();
                 try
                 {
-                    // 1. Ghi nhận tiền vào ví bảo đảm Escrow (HeldInEscrow)
-                    escrow.EscrowStatus = EscrowStatus.HeldInEscrow;
-                    escrow.PaidAt = nowUtc;
-                    escrow.PaymentReference = transactionNo;
-                    escrow.UpdatedAt = nowUtc;
-                    _unitOfWork.Repository<EscrowTransaction>().Update(escrow);
-
-                    // 2. Chuyển trạng thái Booking sang AWAITING_EXPERT_APPROVAL và gán SLA 2 giờ
-                    booking.Status = BookingStatus.AWAITING_EXPERT_APPROVAL;
-                    booking.PaidAt = nowUtc;
-                    booking.PaymentReference = transactionNo;
-                    booking.ApprovalDeadline = approvalDeadline;
-                    booking.UpdatedAt = nowUtc;
-                    _unitOfWork.Repository<Booking>().Update(booking);
-
-                    // 3. Khóa chính thức khung giờ làm việc của Chuyên gia
-                    var slot = await _unitOfWork.Repository<ExpertSlot>().GetByIdAsync(booking.ExpertSlotId);
-                    if (slot != null)
-                    {
-                        slot.IsBooked = true;
-                        slot.HoldExpiresAt = null;
-                        slot.HoldUserId = null;
-                        slot.UpdatedAt = nowUtc;
-                        _unitOfWork.Repository<ExpertSlot>().Update(slot);
-                    }
-
-                    await _unitOfWork.CommitTransactionAsync();
-
-                    _logger.LogInformation(
-                        "VNPay IPN thành công cho OrderCode {OrderCode} (Booking {BookingCode}). Tiền đã chuyển vào HeldInEscrow, hạn duyệt chuyên gia: {Deadline}.",
-                        orderCode, booking.BookingCode, approvalDeadline);
-
+                    await ApplyPaymentSuccessAsync(escrow, booking, transactionNo);
                     return VnPayIpnResponse.Success();
                 }
                 catch (Exception ex)
                 {
-                    await _unitOfWork.RollbackTransactionAsync();
-                    _logger.LogError(ex, "Lỗi khi cập nhật giao dịch Escrow từ VNPay IPN cho OrderCode {OrderCode}.", orderCode);
                     return VnPayIpnResponse.OtherError(ex.Message);
                 }
             }
@@ -310,7 +269,73 @@ namespace TaxKeepVN.Application.Service.Implementations
                 throw new NotFoundException($"Không tìm thấy lịch hẹn liên kết.");
             }
 
+            var responseCode = queryParams.TryGetValue("vnp_ResponseCode", out var rspVal) ? rspVal : "99";
+            var transactionNo = queryParams.TryGetValue("vnp_TransactionNo", out var txnVal) ? txnVal : $"VNPAY_{orderCode}";
+
+            // Fail-safe & Hỗ trợ Local Dev: Nếu thanh toán thành công (00) và giao dịch đang PendingPayment,
+            // tự động cập nhật sang HeldInEscrow (tránh trường hợp test local không nhận được Webhook IPN từ Internet)
+            if (responseCode == "00" && escrow.EscrowStatus == EscrowStatus.PendingPayment)
+            {
+                await ApplyPaymentSuccessAsync(escrow, booking, transactionNo);
+            }
+
             return MapToEscrowResponse(escrow, booking);
+        }
+
+        /// <summary>
+        /// Logic dùng chung cập nhật thanh toán thành công: Chuyển Escrow sang HeldInEscrow,
+        /// chuyển Booking sang AWAITING_EXPERT_APPROVAL (gán SLA 2h) và khóa chính thức slot làm việc.
+        /// </summary>
+        private async Task ApplyPaymentSuccessAsync(EscrowTransaction escrow, Booking booking, string transactionNo)
+        {
+            var confirmTimeoutHours = await BookingHelper.GetRequiredConfigIntAsync(
+                _unitOfWork,
+                BookingHelper.ConfigKeyExpertConfirmTimeoutHours);
+
+            var nowUtc = DateTimeOffset.UtcNow;
+            var approvalDeadline = nowUtc.AddHours(confirmTimeoutHours);
+
+            await _unitOfWork.BeginTransactionAsync();
+            try
+            {
+                // 1. Ghi nhận tiền vào ví bảo đảm Escrow (HeldInEscrow)
+                escrow.EscrowStatus = EscrowStatus.HeldInEscrow;
+                escrow.PaidAt = nowUtc;
+                escrow.PaymentReference = transactionNo;
+                escrow.UpdatedAt = nowUtc;
+                _unitOfWork.Repository<EscrowTransaction>().Update(escrow);
+
+                // 2. Chuyển trạng thái Booking sang AWAITING_EXPERT_APPROVAL và gán SLA 2 giờ
+                booking.Status = BookingStatus.AWAITING_EXPERT_APPROVAL;
+                booking.PaidAt = nowUtc;
+                booking.PaymentReference = transactionNo;
+                booking.ApprovalDeadline = approvalDeadline;
+                booking.UpdatedAt = nowUtc;
+                _unitOfWork.Repository<Booking>().Update(booking);
+
+                // 3. Khóa chính thức khung giờ làm việc của Chuyên gia
+                var slot = await _unitOfWork.Repository<ExpertSlot>().GetByIdAsync(booking.ExpertSlotId);
+                if (slot != null)
+                {
+                    slot.IsBooked = true;
+                    slot.HoldExpiresAt = null;
+                    slot.HoldUserId = null;
+                    slot.UpdatedAt = nowUtc;
+                    _unitOfWork.Repository<ExpertSlot>().Update(slot);
+                }
+
+                await _unitOfWork.CommitTransactionAsync();
+
+                _logger.LogInformation(
+                    "Thanh toán thành công cho OrderCode {OrderCode} (Booking {BookingCode}). Tiền đã chuyển vào HeldInEscrow, hạn duyệt chuyên gia: {Deadline}.",
+                    escrow.OrderCode, booking.BookingCode, approvalDeadline);
+            }
+            catch (Exception ex)
+            {
+                await _unitOfWork.RollbackTransactionAsync();
+                _logger.LogError(ex, "Lỗi khi cập nhật giao dịch Escrow cho OrderCode {OrderCode}.", escrow.OrderCode);
+                throw;
+            }
         }
 
         // ── 4. XEM CHI TIẾT ESCROW THEO BOOKING ID (ĐẶC TẢ 4) ─────────────────────────

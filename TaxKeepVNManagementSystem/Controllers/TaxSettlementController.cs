@@ -4,12 +4,15 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using TaxKeepVN.Application.DTOs.Responses;
 using TaxKeepVN.Application.DTOs.SystemConfigs;
 using TaxKeepVN.Application.DTOs.TaxSettlement;
 using TaxKeepVN.Application.Exceptions;
 using TaxKeepVN.Application.Service.Interfaces;
+using TaxKeepVN.Domain.Entities;
+using TaxKeepVN.Domain.IRepositories;
 
 namespace TaxKeepVNManagementSystem.Controllers
 {
@@ -24,24 +27,126 @@ namespace TaxKeepVNManagementSystem.Controllers
         private readonly ITaxSettlementPackageService _packageService;
         private readonly IDownloadTokenService _downloadTokenService;
         private readonly IWebHostEnvironment _env;
+        private readonly IUnitOfWork _unitOfWork;
 
         public TaxSettlementController(
             ITaxSettlementService service,
             ISystemConfigService configService,
             ITaxSettlementPackageService packageService,
             IDownloadTokenService downloadTokenService,
-            IWebHostEnvironment env)
+            IWebHostEnvironment env,
+            IUnitOfWork unitOfWork)
         {
             _service = service;
             _configService = configService;
             _packageService = packageService;
             _downloadTokenService = downloadTokenService;
             _env = env;
+            _unitOfWork = unitOfWork;
         }
 
         // ══════════════════════════════════════════════════════════════════════════
         //  USER Endpoints
         // ══════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Đếm ngược hạn nộp quyết toán thuế TNCN kèm số ngày còn lại và mức độ cấp bách (Mục 4 Góp ý Hội đồng).
+        /// Hỗ trợ cả 2 định dạng route:
+        /// GET /api/v1/tax-settlement/deadline-countdown
+        /// GET /api/v1/tax-settlements/deadline-countdown
+        /// </summary>
+        // GET /api/v1/tax-settlement/deadline-countdown
+        [HttpGet("/api/v1/tax-settlement/deadline-countdown", Name = "GetTaxSettlementDeadlineCountdownSingular")]
+        [HttpGet("deadline-countdown", Name = "GetTaxSettlementDeadlineCountdownPlural")]
+        [AllowAnonymous]
+        [EndpointSummary("Đếm ngược hạn chót nộp hồ sơ quyết toán thuế TNCN cho Dashboard khách hàng (Mục 4 Góp ý Cô)")]
+        [ProducesResponseType(typeof(ApiResponse<TaxSettlementDeadlineCountdownDto>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetDeadlineCountdown([FromQuery] int? taxYear = null)
+        {
+            // 1. Đọc lịch trình từ bảng chuyên biệt tax_settlement_schedules
+            var scheduleRepo = _unitOfWork.Repository<TaxSettlementSchedule>();
+            var schedules = await scheduleRepo.FindAsync(s => s.IsActive && (taxYear == null || s.TaxYear == null || s.TaxYear == taxYear));
+            var schedule = schedules.OrderByDescending(s => s.TaxYear ?? 0).FirstOrDefault();
+
+            int deadlineMonth = schedule?.DeadlineMonth ?? 4;
+            int deadlineDay = schedule?.DeadlineDay ?? 30;
+            var reminderMilestones = (schedule?.ReminderDays ?? "60,30,15,7,3,1")
+                .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                .Select(s => int.TryParse(s.Trim(), out var val) ? val : 0)
+                .Where(v => v > 0)
+                .OrderByDescending(v => v)
+                .ToList();
+
+            // 2. Xác định ngày hiện tại theo giờ Việt Nam (UTC+7)
+            var vietnamNow = DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(7)).Date;
+            int currentYear = vietnamNow.Year;
+
+            // Xác định năm quyết toán và năm hạn nộp
+            int resolvedTaxYear;
+            int deadlineYear;
+
+            if (taxYear.HasValue)
+            {
+                resolvedTaxYear = taxYear.Value;
+                deadlineYear = resolvedTaxYear + 1;
+            }
+            else
+            {
+                // Mặc định quyết toán cho năm trước
+                resolvedTaxYear = currentYear - 1;
+                deadlineYear = currentYear;
+            }
+
+            var deadlineDate = new DateTime(deadlineYear, deadlineMonth, deadlineDay);
+            int daysRemaining = (deadlineDate - vietnamNow).Days;
+
+            // 3. Đánh giá mức độ cấp bách và thông điệp nhắc nhở
+            string urgencyLevel;
+            string reminderMessage;
+            bool isOverdue = false;
+
+            if (daysRemaining < 0)
+            {
+                urgencyLevel = "OVERDUE";
+                isOverdue = true;
+                int overdueDays = Math.Abs(daysRemaining);
+                reminderMessage = $"Hạn chót nộp hồ sơ quyết toán thuế TNCN năm {resolvedTaxYear} là ngày {deadlineDate:dd/MM/yyyy}. Bạn đã quá hạn {overdueDays} ngày. Vui lòng nộp ngay để tránh phát sinh tiền phạt chậm nộp!";
+            }
+            else if (daysRemaining == 0)
+            {
+                urgencyLevel = "CRITICAL";
+                reminderMessage = $"HÔM NAY là hạn chót nộp hồ sơ quyết toán thuế TNCN năm {resolvedTaxYear} (ngày {deadlineDate:dd/MM/yyyy}). Vui lòng hoàn thiện và nộp hồ sơ ngay!";
+            }
+            else if (daysRemaining <= 7)
+            {
+                urgencyLevel = "CRITICAL";
+                reminderMessage = $"Hạn chót nộp hồ sơ quyết toán thuế TNCN là ngày {deadlineDate:dd/MM/yyyy}. Bạn còn {daysRemaining} ngày để hoàn thiện hồ sơ.";
+            }
+            else if (daysRemaining <= 30)
+            {
+                urgencyLevel = "WARNING";
+                reminderMessage = $"Hạn chót nộp hồ sơ quyết toán thuế TNCN là ngày {deadlineDate:dd/MM/yyyy}. Bạn còn {daysRemaining} ngày để hoàn thiện hồ sơ.";
+            }
+            else
+            {
+                urgencyLevel = "NORMAL";
+                reminderMessage = $"Hạn chót nộp hồ sơ quyết toán thuế TNCN là ngày {deadlineDate:dd/MM/yyyy}. Bạn còn {daysRemaining} ngày để hoàn thiện hồ sơ.";
+            }
+
+            var result = new TaxSettlementDeadlineCountdownDto
+            {
+                TaxYear = resolvedTaxYear,
+                DeadlineDate = deadlineDate.ToString("yyyy-MM-dd"),
+                DeadlineFormatted = deadlineDate.ToString("dd/MM/yyyy"),
+                DaysRemaining = daysRemaining,
+                ReminderMessage = reminderMessage,
+                UrgencyLevel = urgencyLevel,
+                IsOverdue = isOverdue,
+                ReminderMilestones = reminderMilestones
+            };
+
+            return Ok(ApiResponse<TaxSettlementDeadlineCountdownDto>.Ok(result, "Lấy thông tin đếm ngược hạn nộp quyết toán thuế thành công."));
+        }
 
         /// <summary>
         /// Xem trước kết quả quyết toán thuế TNCN theo năm và ngày chốt (không lưu DB).
@@ -172,11 +277,62 @@ namespace TaxKeepVNManagementSystem.Controllers
         }
 
         // ══════════════════════════════════════════════════════════════════════════
-        //  ADMIN Endpoints — Quản lý cấu hình biểu thuế
+        //  ADMIN Endpoints — Quản lý cấu hình biểu thuế (Bảng riêng chuyên biệt)
         // ══════════════════════════════════════════════════════════════════════════
 
         /// <summary>
-        /// [Admin] Cập nhật biểu thuế lũy tiến từng phần theo năm (số bậc, ngưỡng, thuế suất, khấu trừ nhanh).
+        /// [Admin] Lấy danh sách các bậc thuế lũy tiến từng phần theo năm từ bảng chuyên biệt tax_brackets.
+        /// </summary>
+        // GET /api/v1/tax-settlements/admin/brackets
+        [HttpGet("admin/brackets", Name = "GetPitBrackets")]
+        [EndpointSummary("[Admin] Lấy danh sách các bậc thuế lũy tiến từng phần theo năm")]
+        [Authorize(Roles = "admin")]
+        public async Task<IActionResult> GetBrackets([FromQuery] int? taxYear = null)
+        {
+            int year = taxYear ?? DateTime.UtcNow.Year;
+            var allBrackets = await _unitOfWork.Repository<TaxBracket>().FindAsync(b => b.IsActive && b.AppliesFromYear <= year);
+            int effectiveYear = allBrackets.Any() ? allBrackets.Max(b => b.AppliesFromYear) : year;
+            var list = allBrackets
+                .Where(b => b.AppliesFromYear == effectiveYear)
+                .OrderBy(b => b.BracketNo)
+                .ToList();
+
+            if (!list.Any())
+            {
+                list = (await _unitOfWork.Repository<TaxBracket>().FindAsync(b => b.IsActive))
+                    .OrderBy(b => b.AppliesFromYear)
+                    .ThenBy(b => b.BracketNo)
+                    .ToList();
+            }
+
+            return Ok(ApiResponse<object>.Ok(list, $"Lấy danh sách biểu thuế cho năm {effectiveYear} thành công."));
+        }
+
+        /// <summary>
+        /// [Admin] Lấy chính sách mức giảm trừ gia cảnh và tỷ lệ bảo hiểm theo năm từ bảng chuyên biệt tax_deduction_policies.
+        /// </summary>
+        // GET /api/v1/tax-settlements/admin/deductions
+        [HttpGet("admin/deductions", Name = "GetDeductionRates")]
+        [EndpointSummary("[Admin] Lấy chính sách mức giảm trừ gia cảnh và tỷ lệ bảo hiểm theo năm")]
+        [Authorize(Roles = "admin")]
+        public async Task<IActionResult> GetDeductions([FromQuery] int? taxYear = null)
+        {
+            int year = taxYear ?? DateTime.UtcNow.Year;
+            var policies = await _unitOfWork.Repository<TaxDeductionPolicy>().FindAsync(p => p.IsActive && p.AppliesFromYear <= year);
+            var policy = policies.OrderByDescending(p => p.AppliesFromYear).FirstOrDefault();
+
+            if (policy == null)
+            {
+                policy = (await _unitOfWork.Repository<TaxDeductionPolicy>().FindAsync(p => p.IsActive))
+                    .OrderBy(p => p.AppliesFromYear)
+                    .FirstOrDefault();
+            }
+
+            return Ok(ApiResponse<object>.Ok(policy, $"Lấy chính sách giảm trừ cho năm {policy?.AppliesFromYear ?? year} thành công."));
+        }
+
+        /// <summary>
+        /// [Admin] Cập nhật biểu thuế lũy tiến từng phần theo năm (Lưu trực tiếp vào bảng tax_brackets).
         /// </summary>
         // PUT /api/v1/tax-settlements/admin/brackets
         [HttpPut("admin/brackets", Name = "UpdatePitBrackets")]
@@ -198,9 +354,51 @@ namespace TaxKeepVNManagementSystem.Controllers
                         $"Bậc {b.BracketNo}: FromMonthly phải nhỏ hơn ToMonthly."));
             }
 
+            // 1. Cập nhật vào bảng chuyên biệt tax_brackets
+            var existingBrackets = (await _unitOfWork.Repository<TaxBracket>()
+                .FindAsync(b => b.AppliesFromYear == request.TaxYear))
+                .ToList();
+
+            var bracketRepo = _unitOfWork.Repository<TaxBracket>();
+
+            foreach (var item in request.Brackets)
+            {
+                var existing = existingBrackets.FirstOrDefault(b => b.BracketNo == item.BracketNo);
+                if (existing != null)
+                {
+                    existing.FromMonthly = item.FromMonthly;
+                    existing.ToMonthly = item.ToMonthly;
+                    existing.Rate = item.Rate;
+                    existing.QuickDeduct = item.QuickDeduct;
+                    existing.Description = item.Description ?? $"Bậc {item.BracketNo}";
+                    existing.IsActive = true;
+                    existing.UpdatedAt = DateTimeOffset.UtcNow;
+                    bracketRepo.Update(existing);
+                }
+                else
+                {
+                    await bracketRepo.AddAsync(new TaxBracket
+                    {
+                        Id = Guid.NewGuid(),
+                        BracketNo = item.BracketNo,
+                        FromMonthly = item.FromMonthly,
+                        ToMonthly = item.ToMonthly,
+                        Rate = item.Rate,
+                        QuickDeduct = item.QuickDeduct,
+                        AppliesFromYear = request.TaxYear,
+                        Description = item.Description ?? $"Bậc {item.BracketNo}",
+                        IsActive = true,
+                        CreatedAt = DateTimeOffset.UtcNow,
+                        UpdatedAt = DateTimeOffset.UtcNow
+                    });
+                }
+            }
+
+            await _unitOfWork.SaveChangesAsync();
+
+            // 2. Đồng bộ sang system_configs để tương thích ngược
             var configKey = "PIT_BRACKETS_JSON";
             var jsonValue = System.Text.Json.JsonSerializer.Serialize(request.Brackets);
-
             await _configService.UpdateAsync(configKey, new SystemConfigUpdateDto
             {
                 ConfigValue = jsonValue,
@@ -210,11 +408,11 @@ namespace TaxKeepVNManagementSystem.Controllers
 
             return Ok(ApiResponse<object>.Ok(
                 new { configKey, bracketCount = request.Brackets.Count, appliesFromYear = request.TaxYear },
-                $"Cập nhật biểu thuế {request.Brackets.Count} bậc cho năm {request.TaxYear} thành công."));
+                $"Cập nhật biểu thuế {request.Brackets.Count} bậc cho năm {request.TaxYear} thành công vào bảng tax_brackets."));
         }
 
         /// <summary>
-        /// [Admin] Cập nhật mức giảm trừ bản thân, người phụ thuộc và tỷ lệ bảo hiểm bắt buộc theo năm.
+        /// [Admin] Cập nhật mức giảm trừ bản thân, người phụ thuộc và tỷ lệ bảo hiểm bắt buộc theo năm (Lưu vào tax_deduction_policies).
         /// </summary>
         // PUT /api/v1/tax-settlements/admin/deductions
         [HttpPut("admin/deductions", Name = "UpdateDeductionRates")]
@@ -225,6 +423,46 @@ namespace TaxKeepVNManagementSystem.Controllers
             if (!ModelState.IsValid)
                 return BadRequest(ApiResponse<object>.ValidationFail(ModelState));
 
+            // 1. Cập nhật vào bảng chuyên biệt tax_deduction_policies
+            var policyRepo = _unitOfWork.Repository<TaxDeductionPolicy>();
+            var existingPolicies = await policyRepo.FindAsync(p => p.AppliesFromYear == request.TaxYear);
+            var existingPolicy = existingPolicies.FirstOrDefault();
+
+            if (existingPolicy != null)
+            {
+                existingPolicy.PersonalMonthly = request.PersonalMonthly;
+                existingPolicy.DependentMonthly = request.DependentMonthly;
+                existingPolicy.BhxhRate = request.BhxhRate;
+                existingPolicy.BhytRate = request.BhytRate;
+                existingPolicy.BhtnRate = request.BhtnRate;
+                existingPolicy.SmallAmountExemption = request.SmallAmountExemption;
+                existingPolicy.UpdatedAt = DateTimeOffset.UtcNow;
+                policyRepo.Update(existingPolicy);
+            }
+            else
+            {
+                await policyRepo.AddAsync(new TaxDeductionPolicy
+                {
+                    Id = Guid.NewGuid(),
+                    AppliesFromYear = request.TaxYear,
+                    LawName = $"Chính sách giảm trừ thuế TNCN năm {request.TaxYear}",
+                    PersonalMonthly = request.PersonalMonthly,
+                    DependentMonthly = request.DependentMonthly,
+                    BhxhRate = request.BhxhRate,
+                    BhytRate = request.BhytRate,
+                    BhtnRate = request.BhtnRate,
+                    SmallAmountExemption = request.SmallAmountExemption,
+                    MedicalMaxYearly = request.TaxYear >= 2026 ? 23000000m : 0m,
+                    EducationMaxYearly = request.TaxYear >= 2026 ? 24000000m : 0m,
+                    IsActive = true,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    UpdatedAt = DateTimeOffset.UtcNow
+                });
+            }
+
+            await _unitOfWork.SaveChangesAsync();
+
+            // 2. Đồng bộ sang system_configs để tương thích ngược
             await _configService.UpdateAsync("PIT_DEDUCTION_PERSONAL_MONTHLY",
                 new SystemConfigUpdateDto
                 {
@@ -270,7 +508,7 @@ namespace TaxKeepVNManagementSystem.Controllers
                 });
 
             return Ok(ApiResponse<object>.Ok(null,
-                $"Cập nhật mức giảm trừ và tỷ lệ bảo hiểm cho năm {request.TaxYear} thành công."));
+                $"Cập nhật mức giảm trừ và tỷ lệ bảo hiểm cho năm {request.TaxYear} thành công vào bảng tax_deduction_policies."));
         }
 
         // ── Helper ───────────────────────────────────────────────────────────────

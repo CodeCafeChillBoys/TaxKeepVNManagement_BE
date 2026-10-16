@@ -150,49 +150,96 @@ namespace TaxKeepVN.Application.Service.Implementations
 
         private async Task<TaxCalcConfig> LoadConfigAsync(int taxYear)
         {
-            // GetRequiredConfigValueAsync(key, taxYear) tự động chọn config đúng:
-            // - Ưu tiên row có AppliesFromYear lớn nhất mà vẫn <= taxYear
-            // - Fallback về row AppliesFromYear = NULL (config chung)
-            // Ví dụ: taxYear=2024 → lấy config NULL (7 bậc cũ)
-            //        taxYear=2026 → lấy config AppliesFromYear=2026 (5 bậc mới)
+            // ── 1. ĐỌC CHÍNH SÁCH GIẢM TRỪ TỪ BẢNG CHUYÊN BIỆT tax_deduction_policies ──
+            var deductionPolicies = await _unitOfWork.Repository<TaxDeductionPolicy>().FindAsync(p => p.IsActive && p.AppliesFromYear <= taxYear);
+            var policy = deductionPolicies.OrderByDescending(p => p.AppliesFromYear).FirstOrDefault();
 
-            var personalMonthlyStr  = await _configService.GetRequiredConfigValueAsync(KeyPersonalMonthly, taxYear);
-            var dependentMonthlyStr = await _configService.GetRequiredConfigValueAsync(KeyDependentMonthly, taxYear);
-            var bracketsJson        = await _configService.GetRequiredConfigValueAsync(KeyBracketsJson, taxYear);
-
-            // Tỉ lệ bảo hiểm không thay đổi theo năm → dùng overload không có taxYear
-            var bhxhRateStr        = await _configService.GetRequiredConfigValueAsync(KeyBhxhRate);
-            var bhytRateStr        = await _configService.GetRequiredConfigValueAsync(KeyBhytRate);
-            var bhtnRateStr        = await _configService.GetRequiredConfigValueAsync(KeyBhtnRate);
-            var smallExemptionStr  = await _configService.GetRequiredConfigValueAsync(KeySmallExemption);
-
-            // Giới hạn chi phí y tế & giáo dục (chỉ load nếu năm >= 2026)
-            decimal medicalMaxYearly = 0, educationMaxYearly = 0;
-            if (taxYear >= 2026)
+            if (policy == null)
             {
-                var medicalMaxStr   = await _configService.GetRequiredConfigValueAsync(KeyMedicalMaxYearly, taxYear);
-                var educationMaxStr = await _configService.GetRequiredConfigValueAsync(KeyEducationMaxYearly, taxYear);
-                medicalMaxYearly    = decimal.Parse(medicalMaxStr);
-                educationMaxYearly  = decimal.Parse(educationMaxStr);
+                policy = (await _unitOfWork.Repository<TaxDeductionPolicy>().FindAsync(p => p.IsActive))
+                    .OrderBy(p => p.AppliesFromYear)
+                    .FirstOrDefault();
             }
 
-            // Parse biểu thuế JSON — số bậc do Admin cấu hình (5 hay 7 tùy năm)
-            var brackets = JsonSerializer.Deserialize<List<PitBracketConfigDto>>(bracketsJson)
-                ?? throw new InvalidOperationException($"Cấu hình '{KeyBracketsJson}' không hợp lệ.");
+            // ── 2. ĐỌC BIỂU THUẾ LŨY TIẾN TỪ BẢNG CHUYÊN BIỆT tax_brackets ──
+            var availableBrackets = await _unitOfWork.Repository<TaxBracket>().FindAsync(b => b.IsActive && b.AppliesFromYear <= taxYear);
+            int effectiveYear = availableBrackets.Any() ? availableBrackets.Max(b => b.AppliesFromYear) : 2025;
+            var bracketEntities = availableBrackets
+                .Where(b => b.AppliesFromYear == effectiveYear)
+                .OrderBy(b => b.BracketNo)
+                .ToList();
+
+            if (!bracketEntities.Any())
+            {
+                bracketEntities = (await _unitOfWork.Repository<TaxBracket>().FindAsync(b => b.IsActive))
+                    .OrderBy(b => b.AppliesFromYear)
+                    .ThenBy(b => b.BracketNo)
+                    .ToList();
+            }
+
+            var brackets = bracketEntities.Select(b => new PitBracketConfigDto
+            {
+                BracketNo = b.BracketNo,
+                FromMonthly = b.FromMonthly,
+                ToMonthly = b.ToMonthly,
+                Rate = b.Rate,
+                QuickDeduct = b.QuickDeduct,
+                Description = b.Description
+            }).ToList();
+
+            // Fallback sang _configService nếu bảng mới chưa có dữ liệu
+            if (policy == null || !brackets.Any())
+            {
+                var personalMonthlyStr  = await _configService.GetRequiredConfigValueAsync(KeyPersonalMonthly, taxYear);
+                var dependentMonthlyStr = await _configService.GetRequiredConfigValueAsync(KeyDependentMonthly, taxYear);
+                var bracketsJson        = await _configService.GetRequiredConfigValueAsync(KeyBracketsJson, taxYear);
+
+                var bhxhRateStr        = await _configService.GetRequiredConfigValueAsync(KeyBhxhRate);
+                var bhytRateStr        = await _configService.GetRequiredConfigValueAsync(KeyBhytRate);
+                var bhtnRateStr        = await _configService.GetRequiredConfigValueAsync(KeyBhtnRate);
+                var smallExemptionStr  = await _configService.GetRequiredConfigValueAsync(KeySmallExemption);
+
+                decimal medMax = 0, eduMax = 0;
+                if (taxYear >= 2026)
+                {
+                    var medicalMaxStr   = await _configService.GetRequiredConfigValueAsync(KeyMedicalMaxYearly, taxYear);
+                    var educationMaxStr = await _configService.GetRequiredConfigValueAsync(KeyEducationMaxYearly, taxYear);
+                    medMax = decimal.Parse(medicalMaxStr);
+                    eduMax = decimal.Parse(educationMaxStr);
+                }
+
+                brackets = JsonSerializer.Deserialize<List<PitBracketConfigDto>>(bracketsJson)
+                    ?? throw new InvalidOperationException($"Cấu hình '{KeyBracketsJson}' không hợp lệ.");
+
+                return new TaxCalcConfig
+                {
+                    LawSuffix = taxYear >= 2026 ? "2026" : "2025",
+                    TaxYear = taxYear,
+                    PersonalMonthly = decimal.Parse(personalMonthlyStr),
+                    DependentMonthly = decimal.Parse(dependentMonthlyStr),
+                    Brackets = brackets.OrderBy(b => b.BracketNo).ToList(),
+                    BhxhRate = decimal.Parse(bhxhRateStr),
+                    BhytRate = decimal.Parse(bhytRateStr),
+                    BhtnRate = decimal.Parse(bhtnRateStr),
+                    SmallAmountExemption = decimal.Parse(smallExemptionStr),
+                    MedicalMaxYearly = medMax,
+                    EducationMaxYearly = eduMax
+                };
+            }
 
             return new TaxCalcConfig
             {
                 LawSuffix = taxYear >= 2026 ? "2026" : "2025",
                 TaxYear = taxYear,
-                PersonalMonthly = decimal.Parse(personalMonthlyStr),
-                DependentMonthly = decimal.Parse(dependentMonthlyStr),
-                Brackets = brackets.OrderBy(b => b.BracketNo).ToList(),
-                BhxhRate = decimal.Parse(bhxhRateStr),
-                BhytRate = decimal.Parse(bhytRateStr),
-                BhtnRate = decimal.Parse(bhtnRateStr),
-                SmallAmountExemption = decimal.Parse(smallExemptionStr),
-                MedicalMaxYearly = medicalMaxYearly,
-                EducationMaxYearly = educationMaxYearly
+                PersonalMonthly = policy.PersonalMonthly,
+                DependentMonthly = policy.DependentMonthly,
+                Brackets = brackets,
+                BhxhRate = policy.BhxhRate,
+                BhytRate = policy.BhytRate,
+                BhtnRate = policy.BhtnRate,
+                SmallAmountExemption = policy.SmallAmountExemption,
+                MedicalMaxYearly = taxYear >= 2026 ? policy.MedicalMaxYearly : 0m,
+                EducationMaxYearly = taxYear >= 2026 ? policy.EducationMaxYearly : 0m
             };
         }
 

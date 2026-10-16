@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using TaxKeepVN.Domain.Entities;
 using TaxKeepVN.Domain.Enums;
 using TaxKeepVN.Infrastructure.Contexts;
+using TaxKeepVN.Application.Helpers;
 
 namespace TaxKeepVNManagementSystem.BackgroundJobs
 {
@@ -56,17 +57,13 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
 
         private async Task ProcessNoShowBookingsAsync(TaxKeepDbContext dbContext, DateTimeOffset nowUtc)
         {
-            // 1. Đọc ngưỡng No-Show từ bảng system_configs (mặc định 15 phút)
-            var config = await dbContext.SystemConfigs
-                .Where(c => c.ConfigKey == "SESSION_NO_SHOW_MINUTES" && c.IsActive)
-                .OrderByDescending(c => c.AppliesFromYear ?? int.MinValue)
+            // 1. Đọc ngưỡng No-Show từ bảng consultation_platform_policies (mặc định 15 phút)
+            var policy = await dbContext.ConsultationPlatformPolicies
+                .Where(p => p.IsActive)
+                .OrderByDescending(p => p.Id)
                 .FirstOrDefaultAsync();
 
-            var noShowMinutes = 15;
-            if (config != null && int.TryParse(config.ConfigValue.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed) && parsed > 0)
-            {
-                noShowMinutes = parsed;
-            }
+            var noShowMinutes = policy?.SessionNoShowMinutes ?? 15;
 
             // 2. Tìm các ca CONFIRMED có khung giờ đã bắt đầu quá noShowMinutes
             var confirmedBookings = await dbContext.Bookings
@@ -87,7 +84,7 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
                 var slot = booking.ExpertSlot;
                 if (slot == null) continue;
 
-                var slotStartUtc = new DateTimeOffset(slot.SlotDate.ToDateTime(slot.StartTime), TimeSpan.Zero);
+                var slotStartUtc = BookingHelper.ConvertSlotToUtc(slot.SlotDate, slot.StartTime);
                 var noShowThresholdUtc = slotStartUtc.AddMinutes(noShowMinutes);
 
                 // Chưa quá thời hạn No-Show

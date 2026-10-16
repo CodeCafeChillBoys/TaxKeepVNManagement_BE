@@ -60,25 +60,42 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
 
         private async Task ProcessTaxRemindersAsync(IUnitOfWork unitOfWork, ISystemConfigService configService)
         {
-            // ── 1. ĐỌC CẤU HÌNH ĐỘNG TỪ DB (TUYỆT ĐỐI KHÔNG HARDCODE) ───────────────
+            // ── 1. ĐỌC CẤU HÌNH ĐỘNG TỪ BẢNG CHUYÊN BIỆT tax_settlement_schedules ───────────────
             List<int> reminderDays;
             int deadlineMonth;
             int deadlineDay;
 
             try
             {
-                string rawReminderDays = await configService.GetRequiredConfigValueAsync("TAX_SETTLEMENT_REMINDER_DAYS");
-                string rawMonth = await configService.GetRequiredConfigValueAsync("TAX_SETTLEMENT_DEADLINE_MONTH");
-                string rawDay = await configService.GetRequiredConfigValueAsync("TAX_SETTLEMENT_DEADLINE_DAY");
+                var schedule = (await unitOfWork.Repository<TaxSettlementSchedule>().FindAsync(s => s.IsActive))
+                    .OrderByDescending(s => s.TaxYear ?? 0)
+                    .FirstOrDefault();
 
-                reminderDays = rawReminderDays
-                    .Split(',', StringSplitOptions.RemoveEmptyEntries)
-                    .Select(s => int.Parse(s.Trim()))
-                    .OrderByDescending(d => d)
-                    .ToList();
+                if (schedule != null)
+                {
+                    deadlineMonth = schedule.DeadlineMonth;
+                    deadlineDay = schedule.DeadlineDay;
+                    reminderDays = schedule.ReminderDays
+                        .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                        .Select(s => int.Parse(s.Trim()))
+                        .OrderByDescending(d => d)
+                        .ToList();
+                }
+                else
+                {
+                    string rawReminderDays = await configService.GetRequiredConfigValueAsync("TAX_SETTLEMENT_REMINDER_DAYS");
+                    string rawMonth = await configService.GetRequiredConfigValueAsync("TAX_SETTLEMENT_DEADLINE_MONTH");
+                    string rawDay = await configService.GetRequiredConfigValueAsync("TAX_SETTLEMENT_DEADLINE_DAY");
 
-                deadlineMonth = int.Parse(rawMonth.Trim());
-                deadlineDay = int.Parse(rawDay.Trim());
+                    reminderDays = rawReminderDays
+                        .Split(',', StringSplitOptions.RemoveEmptyEntries)
+                        .Select(s => int.Parse(s.Trim()))
+                        .OrderByDescending(d => d)
+                        .ToList();
+
+                    deadlineMonth = int.Parse(rawMonth.Trim());
+                    deadlineDay = int.Parse(rawDay.Trim());
+                }
             }
             catch (Exception ex)
             {
