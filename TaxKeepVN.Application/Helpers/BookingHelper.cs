@@ -60,11 +60,66 @@ namespace TaxKeepVN.Application.Helpers
         public const int DefaultApprovalHours = 2;
 
         /// <summary>
-        /// Đọc bắt buộc giá trị số nguyên từ bảng system_configs (Zero-Hardcode).
-        /// Nếu chưa thiết lập hoặc giá trị không hợp lệ -> Ném lỗi cấu hình hệ thống rõ ràng.
+        /// Lấy chính sách sàn tư vấn hiện hành từ bảng chuyên biệt consultation_platform_policies.
+        /// </summary>
+        public static async Task<ConsultationPlatformPolicy> GetPlatformPolicyAsync(IUnitOfWork unitOfWork)
+        {
+            var policy = (await unitOfWork.Repository<ConsultationPlatformPolicy>().FindAsync(p => p.IsActive))
+                .OrderByDescending(p => p.Id)
+                .FirstOrDefault();
+
+            if (policy != null) return policy;
+
+            policy = (await unitOfWork.Repository<ConsultationPlatformPolicy>().FindAsync(p => p.Id == 1)).FirstOrDefault();
+            if (policy != null) return policy;
+
+            throw new InvalidOperationException(
+                "Lỗi cấu hình hệ thống: Không tìm thấy chính sách sàn tư vấn trong bảng consultation_platform_policies. Vui lòng kiểm tra dữ liệu cấu hình.");
+        }
+
+        /// <summary>
+        /// Đọc giá trị số nguyên cấu hình sàn tư vấn từ bảng consultation_platform_policies (Zero-Hardcode).
+        /// Fallback sang system_configs nếu là cấu hình tùy biến ngoài sàn.
         /// </summary>
         public static async Task<int> GetRequiredConfigIntAsync(IUnitOfWork unitOfWork, string configKey)
         {
+            var policy = (await unitOfWork.Repository<ConsultationPlatformPolicy>().FindAsync(p => p.IsActive))
+                .OrderByDescending(p => p.Id)
+                .FirstOrDefault();
+
+            if (policy != null)
+            {
+                switch (configKey)
+                {
+                    case ConfigKeySlotHoldMinutes:
+                        return policy.BookingSlotHoldMinutes;
+                    case ConfigKeyMinLeadTimeHours:
+                        return policy.BookingMinLeadTimeHours;
+                    case ConfigKeyExpertConfirmTimeoutHours:
+                        return policy.ExpertConfirmTimeoutHours;
+                    case ConfigKeySessionOpenBeforeMinutes:
+                        return policy.SessionOpenBeforeMinutes;
+                    case ConfigKeySessionNoShowMinutes:
+                        return policy.SessionNoShowMinutes;
+                    case ConfigKeyRatingWindowDays:
+                        return policy.RatingWindowDays;
+                    case ConfigKeyEscrowCooldownHours:
+                        return policy.EscrowCooldownHours;
+                    case ConfigKeyCancelFullRefundHours:
+                        return policy.CancelFullRefundHours;
+                    case ConfigKeyCancelPartialRefundHours:
+                        return policy.CancelPartialRefundHours;
+                    case ConfigKeyExpertMaxDailySlots:
+                        return policy.ExpertMaxDailySlots;
+                    case "EXPERT_LATE_CANCEL_HOURS":
+                        return policy.ExpertLateCancelHours;
+                    case "DISPUTE_WINDOW_HOURS":
+                        return policy.DisputeWindowHours;
+                    case "DISPUTE_EXPERT_REPLY_HOURS":
+                        return policy.DisputeExpertReplyHours;
+                }
+            }
+
             var configs = await unitOfWork.Repository<SystemConfig>().FindAsync(c => c.ConfigKey == configKey && c.IsActive);
             var activeConfig = configs
                 .OrderByDescending(c => c.AppliesFromYear ?? int.MinValue)
@@ -73,7 +128,7 @@ namespace TaxKeepVN.Application.Helpers
             if (activeConfig == null || string.IsNullOrWhiteSpace(activeConfig.ConfigValue))
             {
                 throw new InvalidOperationException(
-                    $"Lỗi cấu hình hệ thống: Không tìm thấy tham số '{configKey}' trong bảng system_configs. Vui lòng thiết lập cấu hình trong Admin.");
+                    $"Lỗi cấu hình hệ thống: Không tìm thấy tham số '{configKey}' trong bảng consultation_platform_policies hoặc system_configs.");
             }
 
             if (!int.TryParse(activeConfig.ConfigValue.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedValue) || parsedValue < 0)
@@ -86,11 +141,34 @@ namespace TaxKeepVN.Application.Helpers
         }
 
         /// <summary>
-        /// Đọc bắt buộc giá trị số thập phân (decimal) từ bảng system_configs (Zero-Hardcode).
-        /// Nếu chưa thiết lập hoặc giá trị không hợp lệ -> Ném lỗi cấu hình hệ thống rõ ràng.
+        /// Đọc giá trị số thập phân (decimal) cấu hình sàn tư vấn từ bảng consultation_platform_policies (Zero-Hardcode).
+        /// Fallback sang system_configs nếu là cấu hình tùy biến ngoài sàn.
         /// </summary>
         public static async Task<decimal> GetRequiredConfigDecimalAsync(IUnitOfWork unitOfWork, string configKey)
         {
+            var policy = (await unitOfWork.Repository<ConsultationPlatformPolicy>().FindAsync(p => p.IsActive))
+                .OrderByDescending(p => p.Id)
+                .FirstOrDefault();
+
+            if (policy != null)
+            {
+                switch (configKey)
+                {
+                    case ConfigKeyExpertMinFeeVnd:
+                        return policy.ExpertMinFeeVnd;
+                    case ConfigKeyExpertMaxFeeVnd:
+                        return policy.ExpertMaxFeeVnd;
+                    case ConfigKeyPlatformCommissionRatePercent:
+                        return policy.PlatformCommissionRatePercent;
+                    case ConfigKeyCancelPartialRefundPercent:
+                        return policy.CancelPartialRefundPercent;
+                    case ConfigKeyExpertMinWithdrawalVnd:
+                        return policy.ExpertMinWithdrawalVnd;
+                    case "EXPERT_LATE_CANCEL_PENALTY_VND":
+                        return policy.ExpertLateCancelPenaltyVnd;
+                }
+            }
+
             var configs = await unitOfWork.Repository<SystemConfig>().FindAsync(c => c.ConfigKey == configKey && c.IsActive);
             var activeConfig = configs
                 .OrderByDescending(c => c.AppliesFromYear ?? int.MinValue)
@@ -99,7 +177,7 @@ namespace TaxKeepVN.Application.Helpers
             if (activeConfig == null || string.IsNullOrWhiteSpace(activeConfig.ConfigValue))
             {
                 throw new InvalidOperationException(
-                    $"Lỗi cấu hình hệ thống: Không tìm thấy tham số '{configKey}' trong bảng system_configs. Vui lòng thiết lập cấu hình trong Admin.");
+                    $"Lỗi cấu hình hệ thống: Không tìm thấy tham số '{configKey}' trong bảng consultation_platform_policies hoặc system_configs.");
             }
 
             if (!decimal.TryParse(activeConfig.ConfigValue.Trim(), NumberStyles.Any, CultureInfo.InvariantCulture, out var parsedValue) || parsedValue < 0m)

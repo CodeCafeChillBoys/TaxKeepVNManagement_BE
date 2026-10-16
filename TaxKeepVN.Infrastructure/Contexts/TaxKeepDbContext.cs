@@ -23,8 +23,12 @@ namespace TaxKeepVN.Infrastructure.Contexts
         public DbSet<DocumentItem> DocumentItems { get; set; }
         public DbSet<Income> Incomes { get; set; }
 
-        // Tax Settlement
+        // Tax Settlement & Domain-Specific Configurations
         public DbSet<SystemConfig> SystemConfigs { get; set; }
+        public DbSet<TaxBracket> TaxBrackets { get; set; }
+        public DbSet<TaxDeductionPolicy> TaxDeductionPolicies { get; set; }
+        public DbSet<ConsultationPlatformPolicy> ConsultationPlatformPolicies { get; set; }
+        public DbSet<TaxSettlementSchedule> TaxSettlementSchedules { get; set; }
         public DbSet<TaxSettlementDossier> TaxSettlementDossiers { get; set; }
         public DbSet<TaxSettlementIncomeItem> TaxSettlementIncomeItems { get; set; }
 
@@ -355,6 +359,99 @@ namespace TaxKeepVN.Infrastructure.Contexts
                     new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000014"), ConfigKey = "EXPERT_MAX_DAILY_SLOTS", ConfigValue = "6", Description = "Số lượng ca tư vấn tối đa Chuyên gia được mở trong 1 ngày (Ca/ngày)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
                     new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000015"), ConfigKey = "EXPERT_MIN_WITHDRAWAL_VND", ConfigValue = "500000", Description = "Số tiền tối thiểu cho mỗi lệnh rút tiền từ Ví thu nhập chuyên gia (VNĐ)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime }
                 );
+            });
+
+            // ── TaxBracket ────────────────────────────────────────────────────────
+            modelBuilder.Entity<TaxBracket>(entity =>
+            {
+                entity.ToTable("tax_brackets");
+                entity.HasKey(b => b.Id);
+                entity.Property(b => b.Id).HasColumnName("id");
+                entity.Property(b => b.BracketNo).HasColumnName("bracket_no").IsRequired();
+                entity.Property(b => b.FromMonthly).HasColumnName("from_monthly").HasPrecision(15, 2).IsRequired();
+                entity.Property(b => b.ToMonthly).HasColumnName("to_monthly").HasPrecision(15, 2).IsRequired(false);
+                entity.Property(b => b.Rate).HasColumnName("rate").HasPrecision(5, 4).IsRequired();
+                entity.Property(b => b.QuickDeduct).HasColumnName("quick_deduct").HasPrecision(15, 2).IsRequired();
+                entity.Property(b => b.AppliesFromYear).HasColumnName("applies_from_year").IsRequired();
+                entity.Property(b => b.Description).HasColumnName("description");
+                entity.Property(b => b.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+                entity.Property(b => b.CreatedAt).HasColumnName("created_at");
+                entity.Property(b => b.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasIndex(b => new { b.BracketNo, b.AppliesFromYear })
+                      .IsUnique()
+                      .HasDatabaseName("uq_tax_brackets_no_year");
+            });
+
+            // ── TaxDeductionPolicy ────────────────────────────────────────────────
+            modelBuilder.Entity<TaxDeductionPolicy>(entity =>
+            {
+                entity.ToTable("tax_deduction_policies");
+                entity.HasKey(p => p.Id);
+                entity.Property(p => p.Id).HasColumnName("id");
+                entity.Property(p => p.AppliesFromYear).HasColumnName("applies_from_year").IsRequired();
+                entity.Property(p => p.LawName).HasColumnName("law_name").HasMaxLength(150).IsRequired();
+                entity.Property(p => p.PersonalMonthly).HasColumnName("personal_monthly").HasPrecision(15, 2).IsRequired();
+                entity.Property(p => p.DependentMonthly).HasColumnName("dependent_monthly").HasPrecision(15, 2).IsRequired();
+                entity.Property(p => p.BhxhRate).HasColumnName("bhxh_rate").HasPrecision(5, 4).IsRequired();
+                entity.Property(p => p.BhytRate).HasColumnName("bhyt_rate").HasPrecision(5, 4).IsRequired();
+                entity.Property(p => p.BhtnRate).HasColumnName("bhtn_rate").HasPrecision(5, 4).IsRequired();
+                entity.Property(p => p.SmallAmountExemption).HasColumnName("small_amount_exemption").HasPrecision(15, 2).IsRequired();
+                entity.Property(p => p.MedicalMaxYearly).HasColumnName("medical_max_yearly").HasPrecision(15, 2).IsRequired();
+                entity.Property(p => p.EducationMaxYearly).HasColumnName("education_max_yearly").HasPrecision(15, 2).IsRequired();
+                entity.Property(p => p.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+                entity.Property(p => p.CreatedAt).HasColumnName("created_at");
+                entity.Property(p => p.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasIndex(p => p.AppliesFromYear)
+                      .IsUnique()
+                      .HasDatabaseName("uq_tax_deduction_policies_year");
+            });
+
+            // ── ConsultationPlatformPolicy ────────────────────────────────────────
+            modelBuilder.Entity<ConsultationPlatformPolicy>(entity =>
+            {
+                entity.ToTable("consultation_platform_policies");
+                entity.HasKey(p => p.Id);
+                entity.Property(p => p.Id).HasColumnName("id");
+                entity.Property(p => p.ExpertMinFeeVnd).HasColumnName("expert_min_fee_vnd").HasPrecision(18, 2).IsRequired();
+                entity.Property(p => p.ExpertMaxFeeVnd).HasColumnName("expert_max_fee_vnd").HasPrecision(18, 2).IsRequired();
+                entity.Property(p => p.BookingSlotHoldMinutes).HasColumnName("booking_slot_hold_minutes").IsRequired();
+                entity.Property(p => p.BookingMinLeadTimeHours).HasColumnName("booking_min_lead_time_hours").IsRequired();
+                entity.Property(p => p.ExpertConfirmTimeoutHours).HasColumnName("expert_confirm_timeout_hours").IsRequired();
+                entity.Property(p => p.PlatformCommissionRatePercent).HasColumnName("platform_commission_rate_percent").HasPrecision(5, 2).IsRequired();
+                entity.Property(p => p.SessionOpenBeforeMinutes).HasColumnName("session_open_before_minutes").IsRequired();
+                entity.Property(p => p.SessionNoShowMinutes).HasColumnName("session_no_show_minutes").IsRequired();
+                entity.Property(p => p.RatingWindowDays).HasColumnName("rating_window_days").IsRequired();
+                entity.Property(p => p.EscrowCooldownHours).HasColumnName("escrow_cooldown_hours").IsRequired();
+                entity.Property(p => p.CancelFullRefundHours).HasColumnName("cancel_full_refund_hours").IsRequired();
+                entity.Property(p => p.CancelPartialRefundHours).HasColumnName("cancel_partial_refund_hours").IsRequired();
+                entity.Property(p => p.CancelPartialRefundPercent).HasColumnName("cancel_partial_refund_percent").HasPrecision(5, 2).IsRequired();
+                entity.Property(p => p.ExpertMaxDailySlots).HasColumnName("expert_max_daily_slots").IsRequired();
+                entity.Property(p => p.ExpertMinWithdrawalVnd).HasColumnName("expert_min_withdrawal_vnd").HasPrecision(18, 2).IsRequired();
+                entity.Property(p => p.ExpertLateCancelHours).HasColumnName("expert_late_cancel_hours").IsRequired();
+                entity.Property(p => p.ExpertLateCancelPenaltyVnd).HasColumnName("expert_late_cancel_penalty_vnd").HasPrecision(18, 2).IsRequired();
+                entity.Property(p => p.DisputeWindowHours).HasColumnName("dispute_window_hours").IsRequired();
+                entity.Property(p => p.DisputeExpertReplyHours).HasColumnName("dispute_expert_reply_hours").IsRequired();
+                entity.Property(p => p.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+                entity.Property(p => p.CreatedAt).HasColumnName("created_at");
+                entity.Property(p => p.UpdatedAt).HasColumnName("updated_at");
+            });
+
+            // ── TaxSettlementSchedule ─────────────────────────────────────────────
+            modelBuilder.Entity<TaxSettlementSchedule>(entity =>
+            {
+                entity.ToTable("tax_settlement_schedules");
+                entity.HasKey(s => s.Id);
+                entity.Property(s => s.Id).HasColumnName("id");
+                entity.Property(s => s.TaxYear).HasColumnName("tax_year").IsRequired(false);
+                entity.Property(s => s.DeadlineMonth).HasColumnName("deadline_month").IsRequired();
+                entity.Property(s => s.DeadlineDay).HasColumnName("deadline_day").IsRequired();
+                entity.Property(s => s.ReminderDays).HasColumnName("reminder_days").HasMaxLength(100).IsRequired();
+                entity.Property(s => s.Description).HasColumnName("description");
+                entity.Property(s => s.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+                entity.Property(s => s.CreatedAt).HasColumnName("created_at");
+                entity.Property(s => s.UpdatedAt).HasColumnName("updated_at");
             });
 
             // ── TaxSettlementDossier ─────────────────────────────────────────────

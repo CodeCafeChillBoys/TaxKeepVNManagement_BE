@@ -38,5 +38,10 @@ namespace TaxKeepVN.Application.Service.Interfaces
         /// Báo cáo đối phương vắng mặt không phép (No-Show quá 15 phút)
         /// </summary>
         Task<ConsultationSessionResponse> ReportNoShowAsync(Guid currentUserId, string currentUserRole, Guid bookingId, ReportNoShowRequest request);
+
+        /// <summary>
+        /// Lấy thông tin nhắc nhở lịch hẹn meeting trực tuyến sắp tới dành cho User hoặc Expert (Dashboard & Banner)
+        /// </summary>
+        Task<UpcomingMeetingReminderDto> GetUpcomingMeetingReminderAsync(Guid currentUserId);
     }
 }
