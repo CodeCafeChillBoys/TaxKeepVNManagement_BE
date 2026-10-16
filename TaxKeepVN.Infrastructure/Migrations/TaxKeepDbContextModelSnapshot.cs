@@ -269,6 +269,197 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("TaxKeepVN.Domain.Entities.ConsultationPlatformPolicy", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BookingMinLeadTimeHours")
+                        .HasColumnType("integer")
+                        .HasColumnName("booking_min_lead_time_hours");
+
+                    b.Property<int>("BookingSlotHoldMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("booking_slot_hold_minutes");
+
+                    b.Property<int>("CancelFullRefundHours")
+                        .HasColumnType("integer")
+                        .HasColumnName("cancel_full_refund_hours");
+
+                    b.Property<int>("CancelPartialRefundHours")
+                        .HasColumnType("integer")
+                        .HasColumnName("cancel_partial_refund_hours");
+
+                    b.Property<decimal>("CancelPartialRefundPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
+                        .HasColumnName("cancel_partial_refund_percent");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int>("DisputeExpertReplyHours")
+                        .HasColumnType("integer")
+                        .HasColumnName("dispute_expert_reply_hours");
+
+                    b.Property<int>("DisputeWindowHours")
+                        .HasColumnType("integer")
+                        .HasColumnName("dispute_window_hours");
+
+                    b.Property<int>("EscrowCooldownHours")
+                        .HasColumnType("integer")
+                        .HasColumnName("escrow_cooldown_hours");
+
+                    b.Property<int>("ExpertConfirmTimeoutHours")
+                        .HasColumnType("integer")
+                        .HasColumnName("expert_confirm_timeout_hours");
+
+                    b.Property<int>("ExpertLateCancelHours")
+                        .HasColumnType("integer")
+                        .HasColumnName("expert_late_cancel_hours");
+
+                    b.Property<decimal>("ExpertLateCancelPenaltyVnd")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("expert_late_cancel_penalty_vnd");
+
+                    b.Property<int>("ExpertMaxDailySlots")
+                        .HasColumnType("integer")
+                        .HasColumnName("expert_max_daily_slots");
+
+                    b.Property<decimal>("ExpertMaxFeeVnd")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("expert_max_fee_vnd");
+
+                    b.Property<decimal>("ExpertMinFeeVnd")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("expert_min_fee_vnd");
+
+                    b.Property<decimal>("ExpertMinWithdrawalVnd")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("expert_min_withdrawal_vnd");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<decimal>("PlatformCommissionRatePercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("numeric(5,2)")
+                        .HasColumnName("platform_commission_rate_percent");
+
+                    b.Property<int>("RatingWindowDays")
+                        .HasColumnType("integer")
+                        .HasColumnName("rating_window_days");
+
+                    b.Property<int>("SessionNoShowMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("session_no_show_minutes");
+
+                    b.Property<int>("SessionOpenBeforeMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("session_open_before_minutes");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("consultation_platform_policies", (string)null);
+                });
+
+            modelBuilder.Entity("TaxKeepVN.Domain.Entities.ConsultationSession", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int?>("ActualDurationMinutes")
+                        .HasColumnType("integer")
+                        .HasColumnName("actual_duration_minutes");
+
+                    b.Property<Guid>("BookingId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("booking_id");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("EndedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("ended_at");
+
+                    b.Property<DateTimeOffset?>("ExpertCheckInAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expert_check_in_at");
+
+                    b.Property<DateTimeOffset?>("NoShowReportedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("no_show_reported_at");
+
+                    b.Property<string>("NoShowReportedBy")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("no_show_reported_by");
+
+                    b.Property<string>("NoShowType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasDefaultValue("NONE")
+                        .HasColumnName("no_show_type");
+
+                    b.Property<string>("RoomName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("room_name");
+
+                    b.Property<string>("RoomUrl")
+                        .IsRequired()
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)")
+                        .HasColumnName("room_url");
+
+                    b.Property<string>("SharedNotes")
+                        .HasColumnType("text")
+                        .HasColumnName("shared_notes");
+
+                    b.Property<DateTimeOffset?>("StartedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("started_at");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<DateTimeOffset?>("UserCheckInAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("user_check_in_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BookingId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_consultation_sessions_booking_id");
+
+                    b.ToTable("consultation_sessions", (string)null);
+                });
+
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.Dependent", b =>
                 {
                     b.Property<Guid>("Id")
@@ -669,6 +860,117 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         .HasDatabaseName("idx_document_items_document_id");
 
                     b.ToTable("document_items", (string)null);
+                });
+
+            modelBuilder.Entity("TaxKeepVN.Domain.Entities.EscrowTransaction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("Amount")
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("amount");
+
+                    b.Property<Guid>("BookingId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("booking_id");
+
+                    b.Property<string>("CheckoutUrl")
+                        .HasColumnType("text")
+                        .HasColumnName("checkout_url");
+
+                    b.Property<decimal>("CommissionAmount")
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("commission_amount");
+
+                    b.Property<decimal>("CommissionRate")
+                        .HasColumnType("numeric(5,2)")
+                        .HasColumnName("commission_rate");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("EscrowStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasDefaultValue("PendingPayment")
+                        .HasColumnName("escrow_status");
+
+                    b.Property<decimal>("ExpertReceivable")
+                        .HasColumnType("numeric(18,2)")
+                        .HasColumnName("expert_receivable");
+
+                    b.Property<long>("OrderCode")
+                        .HasColumnType("bigint")
+                        .HasColumnName("order_code");
+
+                    b.Property<DateTimeOffset?>("PaidAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("paid_at");
+
+                    b.Property<string>("PaymentGateway")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasDefaultValue("VNPAY")
+                        .HasColumnName("payment_gateway");
+
+                    b.Property<string>("PaymentLinkId")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("payment_link_id");
+
+                    b.Property<string>("PaymentReference")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("payment_reference");
+
+                    b.Property<string>("QrCode")
+                        .HasColumnType("text")
+                        .HasColumnName("qr_code");
+
+                    b.Property<decimal>("RefundAmount")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("numeric(18,2)")
+                        .HasDefaultValue(0m)
+                        .HasColumnName("refund_amount");
+
+                    b.Property<string>("RefundReason")
+                        .HasColumnType("text")
+                        .HasColumnName("refund_reason");
+
+                    b.Property<DateTimeOffset?>("RefundedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("refunded_at");
+
+                    b.Property<DateTimeOffset?>("SettledAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("settled_at");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BookingId")
+                        .IsUnique()
+                        .HasDatabaseName("uq_escrow_transactions_booking_id");
+
+                    b.HasIndex("EscrowStatus")
+                        .HasDatabaseName("idx_escrow_transactions_status");
+
+                    b.HasIndex("OrderCode")
+                        .IsUnique()
+                        .HasDatabaseName("uq_escrow_transactions_order_code");
+
+                    b.ToTable("escrow_transactions", (string)null);
                 });
 
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.ExpertApplication", b =>
@@ -1466,58 +1768,42 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         new
                         {
                             Id = 1,
-                            Code = "PIT",
+                            Code = "MULTI_SOURCE_SALARY_PIT",
+                            Description = "Tư vấn quyết toán thuế TNCN từ tiền lương, tiền công tại nhiều nơi chi trả trong năm",
                             IsActive = true,
-                            Name = "Thuế thu nhập cá nhân (TNCN)"
+                            Name = "Quyết toán thuế TNCN đa nguồn thu nhập"
                         },
                         new
                         {
                             Id = 2,
-                            Code = "CIT",
+                            Code = "DEPENDENT_DEDUCTION_TT87",
+                            Description = "Rà soát điều kiện và bộ chứng từ chứng minh người phụ thuộc hợp lệ",
                             IsActive = true,
-                            Name = "Thuế thu nhập doanh nghiệp (TNDN)"
+                            Name = "Tối ưu giảm trừ gia cảnh & Hồ sơ Người phụ thuộc (Thông tư 87/2026/TT-BTC)"
                         },
                         new
                         {
                             Id = 3,
-                            Code = "FINALIZATION",
+                            Code = "MEDICAL_EDUCATION_DEDUCTION",
+                            Description = "Kiểm tra tính hợp pháp của hóa đơn viện phí, bảng kê Bộ Y tế và học phí",
                             IsActive = true,
-                            Name = "Quyết toán thuế"
+                            Name = "Thẩm định chứng từ giảm trừ Y tế & Giáo dục (Luật 109/2025/QH15 & NĐ 253/2026)"
                         },
                         new
                         {
                             Id = 4,
-                            Code = "TAX_REFUND",
+                            Code = "TAX_EXEMPT_OVERTIME_ALLOWANCE",
+                            Description = "Bóc tách phần chênh lệch lương làm thêm giờ, làm đêm được miễn thuế TNCN",
                             IsActive = true,
-                            Name = "Hoàn thuế"
+                            Name = "Tư vấn bóc tách thu nhập miễn thuế (Lương làm thêm giờ OT, làm đêm, phụ cấp)"
                         },
                         new
                         {
                             Id = 5,
-                            Code = "INTERNAL_ACCOUNTING",
+                            Code = "PIT_REFUND_EXPLANATION",
+                            Description = "Hướng dẫn lập hồ sơ hoàn thuế Mẫu 02/QTT-TNCN và giải trình số liệu với cơ quan thuế",
                             IsActive = true,
-                            Name = "Kế toán nội bộ"
-                        },
-                        new
-                        {
-                            Id = 6,
-                            Code = "TRANSFER_PRICING",
-                            IsActive = true,
-                            Name = "Chuyển giá"
-                        },
-                        new
-                        {
-                            Id = 7,
-                            Code = "TAX_AGENT",
-                            IsActive = true,
-                            Name = "Đại lý thuế"
-                        },
-                        new
-                        {
-                            Id = 8,
-                            Code = "CORPORATE_TAX_LEGAL",
-                            IsActive = true,
-                            Name = "Pháp lý thuế doanh nghiệp"
+                            Name = "Thủ tục Hoàn thuế TNCN nộp thừa & Giải trình cơ quan thuế"
                         });
                 });
 
@@ -1568,6 +1854,158 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         .HasDatabaseName("uq_system_configs_key_year");
 
                     b.ToTable("system_configs", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            ConfigId = new Guid("44444444-0000-0000-0000-000000000001"),
+                            ConfigKey = "EXPERT_MIN_FEE_VND",
+                            ConfigValue = "100000",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Description = "Mức phí tư vấn sàn tối thiểu cho 1 phiên (VNĐ)",
+                            IsActive = true,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            ConfigId = new Guid("44444444-0000-0000-0000-000000000002"),
+                            ConfigKey = "EXPERT_MAX_FEE_VND",
+                            ConfigValue = "2000000",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Description = "Mức phí tư vấn trần tối đa cho 1 phiên (VNĐ)",
+                            IsActive = true,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            ConfigId = new Guid("44444444-0000-0000-0000-000000000003"),
+                            ConfigKey = "BOOKING_SLOT_HOLD_MINUTES",
+                            ConfigValue = "10",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Description = "Thời gian tạm khóa slot chờ người nộp thuế hoàn tất thanh toán (Phút)",
+                            IsActive = true,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            ConfigId = new Guid("44444444-0000-0000-0000-000000000004"),
+                            ConfigKey = "BOOKING_MIN_LEAD_TIME_HOURS",
+                            ConfigValue = "4",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Description = "Thời gian tối thiểu phải đặt lịch trước giờ hẹn (Giờ)",
+                            IsActive = true,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            ConfigId = new Guid("44444444-0000-0000-0000-000000000005"),
+                            ConfigKey = "EXPERT_CONFIRM_TIMEOUT_HOURS",
+                            ConfigValue = "2",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Description = "Thời hạn tối đa để Chuyên gia Chấp nhận/Từ chối yêu cầu đặt lịch (Giờ)",
+                            IsActive = true,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            ConfigId = new Guid("44444444-0000-0000-0000-000000000006"),
+                            ConfigKey = "PLATFORM_COMMISSION_RATE_PERCENT",
+                            ConfigValue = "20",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Description = "Tỷ lệ phí hoa hồng nền tảng (A%) trích từ giá trị ca tư vấn (%)",
+                            IsActive = true,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            ConfigId = new Guid("44444444-0000-0000-0000-000000000007"),
+                            ConfigKey = "SESSION_OPEN_BEFORE_MINUTES",
+                            ConfigValue = "10",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Description = "Thời gian mở phòng tư vấn trước giờ hẹn chính thức (Phút)",
+                            IsActive = true,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            ConfigId = new Guid("44444444-0000-0000-0000-000000000008"),
+                            ConfigKey = "SESSION_NO_SHOW_MINUTES",
+                            ConfigValue = "15",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Description = "Ngưỡng thời gian xác định vắng mặt không phép No-Show (Phút)",
+                            IsActive = true,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            ConfigId = new Guid("44444444-0000-0000-0000-000000000009"),
+                            ConfigKey = "RATING_WINDOW_DAYS",
+                            ConfigValue = "7",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Description = "Thời hạn cho phép người nộp thuế gửi đánh giá sau khi kết thúc phiên (Ngày)",
+                            IsActive = true,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            ConfigId = new Guid("44444444-0000-0000-0000-000000000010"),
+                            ConfigKey = "ESCROW_COOLDOWN_HOURS",
+                            ConfigValue = "24",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Description = "Thời gian tạm giữ tiền chờ khiếu nại trước khi tự động giải ngân (Giờ)",
+                            IsActive = true,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            ConfigId = new Guid("44444444-0000-0000-0000-000000000011"),
+                            ConfigKey = "CANCEL_FULL_REFUND_HOURS",
+                            ConfigValue = "24",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Description = "Mốc hủy lịch sớm được hoàn tiền 100% trước giờ hẹn (Giờ)",
+                            IsActive = true,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            ConfigId = new Guid("44444444-0000-0000-0000-000000000012"),
+                            ConfigKey = "CANCEL_PARTIAL_REFUND_HOURS",
+                            ConfigValue = "4",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Description = "Mốc hủy lịch cận giờ được hoàn một phần trước giờ hẹn (Giờ)",
+                            IsActive = true,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            ConfigId = new Guid("44444444-0000-0000-0000-000000000013"),
+                            ConfigKey = "CANCEL_PARTIAL_REFUND_PERCENT",
+                            ConfigValue = "50",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Description = "Tỷ lệ phần trăm tiền hoàn lại khi hủy lịch cận giờ (%)",
+                            IsActive = true,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            ConfigId = new Guid("44444444-0000-0000-0000-000000000014"),
+                            ConfigKey = "EXPERT_MAX_DAILY_SLOTS",
+                            ConfigValue = "6",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Description = "Số lượng ca tư vấn tối đa Chuyên gia được mở trong 1 ngày (Ca/ngày)",
+                            IsActive = true,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            ConfigId = new Guid("44444444-0000-0000-0000-000000000015"),
+                            ConfigKey = "EXPERT_MIN_WITHDRAWAL_VND",
+                            ConfigValue = "500000",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Description = "Số tiền tối thiểu cho mỗi lệnh rút tiền từ Ví thu nhập chuyên gia (VNĐ)",
+                            IsActive = true,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        });
                 });
 
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.SystemNotification", b =>
@@ -1613,6 +2051,148 @@ namespace TaxKeepVN.Infrastructure.Migrations
                     b.HasKey("NotificationId");
 
                     b.ToTable("system_notifications");
+                });
+
+            modelBuilder.Entity("TaxKeepVN.Domain.Entities.TaxBracket", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("AppliesFromYear")
+                        .HasColumnType("integer")
+                        .HasColumnName("applies_from_year");
+
+                    b.Property<int>("BracketNo")
+                        .HasColumnType("integer")
+                        .HasColumnName("bracket_no");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<decimal>("FromMonthly")
+                        .HasPrecision(15, 2)
+                        .HasColumnType("numeric(15,2)")
+                        .HasColumnName("from_monthly");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<decimal>("QuickDeduct")
+                        .HasPrecision(15, 2)
+                        .HasColumnType("numeric(15,2)")
+                        .HasColumnName("quick_deduct");
+
+                    b.Property<decimal>("Rate")
+                        .HasPrecision(5, 4)
+                        .HasColumnType("numeric(5,4)")
+                        .HasColumnName("rate");
+
+                    b.Property<decimal?>("ToMonthly")
+                        .HasPrecision(15, 2)
+                        .HasColumnType("numeric(15,2)")
+                        .HasColumnName("to_monthly");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("BracketNo", "AppliesFromYear")
+                        .IsUnique()
+                        .HasDatabaseName("uq_tax_brackets_no_year");
+
+                    b.ToTable("tax_brackets", (string)null);
+                });
+
+            modelBuilder.Entity("TaxKeepVN.Domain.Entities.TaxDeductionPolicy", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("AppliesFromYear")
+                        .HasColumnType("integer")
+                        .HasColumnName("applies_from_year");
+
+                    b.Property<decimal>("BhtnRate")
+                        .HasPrecision(5, 4)
+                        .HasColumnType("numeric(5,4)")
+                        .HasColumnName("bhtn_rate");
+
+                    b.Property<decimal>("BhxhRate")
+                        .HasPrecision(5, 4)
+                        .HasColumnType("numeric(5,4)")
+                        .HasColumnName("bhxh_rate");
+
+                    b.Property<decimal>("BhytRate")
+                        .HasPrecision(5, 4)
+                        .HasColumnType("numeric(5,4)")
+                        .HasColumnName("bhyt_rate");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<decimal>("DependentMonthly")
+                        .HasPrecision(15, 2)
+                        .HasColumnType("numeric(15,2)")
+                        .HasColumnName("dependent_monthly");
+
+                    b.Property<decimal>("EducationMaxYearly")
+                        .HasPrecision(15, 2)
+                        .HasColumnType("numeric(15,2)")
+                        .HasColumnName("education_max_yearly");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("LawName")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("law_name");
+
+                    b.Property<decimal>("MedicalMaxYearly")
+                        .HasPrecision(15, 2)
+                        .HasColumnType("numeric(15,2)")
+                        .HasColumnName("medical_max_yearly");
+
+                    b.Property<decimal>("PersonalMonthly")
+                        .HasPrecision(15, 2)
+                        .HasColumnType("numeric(15,2)")
+                        .HasColumnName("personal_monthly");
+
+                    b.Property<decimal>("SmallAmountExemption")
+                        .HasPrecision(15, 2)
+                        .HasColumnType("numeric(15,2)")
+                        .HasColumnName("small_amount_exemption");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AppliesFromYear")
+                        .IsUnique()
+                        .HasDatabaseName("uq_tax_deduction_policies_year");
+
+                    b.ToTable("tax_deduction_policies", (string)null);
                 });
 
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.TaxDocumentType", b =>
@@ -1863,6 +2443,56 @@ namespace TaxKeepVN.Infrastructure.Migrations
                     b.ToTable("tax_settlement_income_items", (string)null);
                 });
 
+            modelBuilder.Entity("TaxKeepVN.Domain.Entities.TaxSettlementSchedule", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int>("DeadlineDay")
+                        .HasColumnType("integer")
+                        .HasColumnName("deadline_day");
+
+                    b.Property<int>("DeadlineMonth")
+                        .HasColumnType("integer")
+                        .HasColumnName("deadline_month");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("ReminderDays")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("reminder_days");
+
+                    b.Property<int?>("TaxYear")
+                        .HasColumnType("integer")
+                        .HasColumnName("tax_year");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("tax_settlement_schedules", (string)null);
+                });
+
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.User", b =>
                 {
                     b.Property<Guid>("UserId")
@@ -2032,6 +2662,17 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Document");
+                });
+
+            modelBuilder.Entity("TaxKeepVN.Domain.Entities.EscrowTransaction", b =>
+                {
+                    b.HasOne("TaxKeepVN.Domain.Entities.Booking", "Booking")
+                        .WithOne("EscrowTransaction")
+                        .HasForeignKey("TaxKeepVN.Domain.Entities.EscrowTransaction", "BookingId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Booking");
                 });
 
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.ExpertApplication", b =>
@@ -2215,6 +2856,8 @@ namespace TaxKeepVN.Infrastructure.Migrations
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.Booking", b =>
                 {
                     b.Navigation("Attachments");
+
+                    b.Navigation("EscrowTransaction");
                 });
 
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.Dependent", b =>

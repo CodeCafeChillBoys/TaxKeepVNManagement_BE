@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
 namespace TaxKeepVN.Application.DTOs.TaxSettlement
@@ -22,6 +23,9 @@ namespace TaxKeepVN.Application.DTOs.TaxSettlement
         /// <summary>Khấu trừ nhanh (triệu VNĐ) — Thuế = TNTT * Rate - QuickDeduct.</summary>
         [JsonPropertyName("quickDeduct")]
         public decimal QuickDeduct { get; set; }
+
+        [JsonPropertyName("description")]
+        public string? Description { get; set; }
     }
 
     /// <summary>Snapshot mức giảm trừ đã dùng khi tính — lưu audit trail.</summary>
@@ -226,5 +230,80 @@ namespace TaxKeepVN.Application.DTOs.TaxSettlement
         public decimal BhytRate { get; set; }
         public decimal BhtnRate { get; set; }
         public decimal SmallAmountExemption { get; set; }
+    }
+
+    /// <summary>DTO hiển thị cấu hình lịch trình quyết toán thuế TNCN.</summary>
+    public class TaxSettlementScheduleResponseDto
+    {
+        public int Id { get; set; }
+        public int? TaxYear { get; set; }
+        public int DeadlineMonth { get; set; }
+        public int DeadlineDay { get; set; }
+        public string DeadlineFormatted => $"Ngày {DeadlineDay:D2}/{DeadlineMonth:D2} hàng năm";
+        public List<int> ReminderDays { get; set; } = new();
+        public string RawReminderDays { get; set; } = string.Empty;
+        public string? Description { get; set; }
+        public bool IsActive { get; set; }
+        public DateTimeOffset UpdatedAt { get; set; }
+    }
+
+    /// <summary>Request cập nhật lịch trình quyết toán thuế TNCN.</summary>
+    public class UpdateTaxSettlementScheduleRequest
+    {
+        public int? TaxYear { get; set; }
+
+        [Range(1, 12, ErrorMessage = "Tháng hạn chót phải từ 1 đến 12.")]
+        public int DeadlineMonth { get; set; } = 4;
+
+        [Range(1, 31, ErrorMessage = "Ngày hạn chót phải từ 1 đến 31.")]
+        public int DeadlineDay { get; set; } = 30;
+
+        /// <summary>
+        /// Danh sách số ngày gửi thông báo nhắc nhở trước hạn (VD: [60, 30, 15, 7, 3, 1]).
+        /// </summary>
+        public List<int>? ReminderDays { get; set; }
+
+        /// <summary>
+        /// Chuỗi các mốc ngày nhắc nhở phân tách bởi dấu phẩy (VD: "60,30,15,7,3,1").
+        /// </summary>
+        public string? RawReminderDays { get; set; }
+
+        public string? Description { get; set; }
+    }
+
+    /// <summary>
+    /// DTO đếm ngược hạn chót nộp quyết toán thuế TNCN cho Dashboard khách hàng (Mục 4 Góp ý Hội đồng).
+    /// </summary>
+    public class TaxSettlementDeadlineCountdownDto
+    {
+        /// <summary>Năm quyết toán thuế (Ví dụ: 2025 quyết toán vào năm 2026).</summary>
+        public int TaxYear { get; set; }
+
+        /// <summary>Ngày hạn chót định dạng ISO (YYYY-MM-DD), ví dụ: 2026-04-30.</summary>
+        public string DeadlineDate { get; set; } = string.Empty;
+
+        /// <summary>Ngày hạn chót định dạng hiển thị tiếng Việt, ví dụ: 30/04/2026.</summary>
+        public string DeadlineFormatted { get; set; } = string.Empty;
+
+        /// <summary>Số ngày còn lại đến hạn chót (âm nếu đã quá hạn).</summary>
+        public int DaysRemaining { get; set; }
+
+        /// <summary>Thông điệp nhắc nhở tạo cảm giác cấp bách cho người nộp thuế.</summary>
+        public string ReminderMessage { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Mức độ cấp bách:
+        /// - NORMAL: > 30 ngày
+        /// - WARNING: 8 – 30 ngày
+        /// - CRITICAL: <= 7 ngày
+        /// - OVERDUE: Quá hạn (< 0 ngày)
+        /// </summary>
+        public string UrgencyLevel { get; set; } = "NORMAL";
+
+        /// <summary>Đã quá hạn chót chưa.</summary>
+        public bool IsOverdue { get; set; }
+
+        /// <summary>Các mốc ngày nhắc nhở được cấu hình trong hệ thống.</summary>
+        public List<int> ReminderMilestones { get; set; } = new();
     }
 }

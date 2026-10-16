@@ -76,7 +76,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 _unitOfWork,
                 BookingHelper.ConfigKeySessionOpenBeforeMinutes);
 
-            var slotStartUtc = new DateTimeOffset(slot.SlotDate.ToDateTime(slot.StartTime), TimeSpan.Zero);
+            var slotStartUtc = BookingHelper.ConvertSlotToUtc(slot.SlotDate, slot.StartTime);
             var earliestOpenUtc = slotStartUtc.AddMinutes(-openBeforeMinutes);
 
             if (nowUtc < earliestOpenUtc)
@@ -203,7 +203,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 _unitOfWork,
                 BookingHelper.ConfigKeySessionOpenBeforeMinutes);
 
-            var slotStartUtc = new DateTimeOffset(slot.SlotDate.ToDateTime(slot.StartTime), TimeSpan.Zero);
+            var slotStartUtc = BookingHelper.ConvertSlotToUtc(slot.SlotDate, slot.StartTime);
             var isRoomOpen = nowUtc >= slotStartUtc.AddMinutes(-openBeforeMinutes);
 
             var scheduledDuration = (int)(slot.EndTime - slot.StartTime).TotalMinutes;
@@ -586,7 +586,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 _unitOfWork,
                 BookingHelper.ConfigKeySessionNoShowMinutes);
 
-            var slotStartUtc = new DateTimeOffset(slot.SlotDate.ToDateTime(slot.StartTime), TimeSpan.Zero);
+            var slotStartUtc = BookingHelper.ConvertSlotToUtc(slot.SlotDate, slot.StartTime);
             var nowUtc = DateTimeOffset.UtcNow;
             var noShowThresholdUtc = slotStartUtc.AddMinutes(noShowMinutes);
 
