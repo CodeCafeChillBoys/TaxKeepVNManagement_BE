@@ -178,5 +178,19 @@ namespace TaxKeepVNManagementSystem.Controllers
             var result = await _consultationService.ReportNoShowAsync(userId, role, bookingId, request ?? new ReportNoShowRequest());
             return Ok(ApiResponse<ConsultationSessionResponse>.Ok(result, "Xử lý báo cáo vắng mặt thành công."));
         }
+
+        /// <summary>
+        /// Xem thông tin nhắc nhở lịch hẹn meeting trực tuyến sắp tới (Dành cho Dashboard/Banner của User và Expert)
+        /// GET /api/v1/consultations/upcoming-reminder
+        /// </summary>
+        [HttpGet("upcoming-reminder", Name = "GetUpcomingMeetingReminder")]
+        [EndpointSummary("Xem thông tin nhắc nhở lịch hẹn meeting sắp tới (User & Expert)")]
+        [ProducesResponseType(typeof(ApiResponse<UpcomingMeetingReminderDto>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetUpcomingMeetingReminder()
+        {
+            var userId = GetCurrentUserId();
+            var result = await _consultationService.GetUpcomingMeetingReminderAsync(userId);
+            return Ok(ApiResponse<UpcomingMeetingReminderDto>.Ok(result, "Lấy thông tin nhắc nhở lịch hẹn meeting sắp tới thành công."));
+        }
     }
 }
