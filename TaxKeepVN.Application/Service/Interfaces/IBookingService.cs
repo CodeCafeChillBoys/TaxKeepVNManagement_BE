@@ -61,6 +61,11 @@ namespace TaxKeepVN.Application.Service.Interfaces
         Task<BookingDetailResponse> CancelBookingAsync(Guid userId, Guid bookingId, string reason, string? cancelledBy = null);
 
         /// <summary>
+        /// Chuyên gia chủ động hủy lịch hẹn đã xác nhận (hoàn 100% cho khách, phạt vi phạm nếu hủy sát giờ dưới 12h)
+        /// </summary>
+        Task<BookingDetailResponse> ExpertCancelBookingAsync(Guid expertUserId, Guid bookingId, string reason, string? cancelledBy = null);
+
+        /// <summary>
         /// Lấy URL tải an toàn cho tệp chứng từ đính kèm (kiểm tra quyền sở hữu)
         /// </summary>
         Task<string> GetAttachmentDownloadUrlAsync(Guid bookingId, Guid attachmentId, Guid currentUserId, string currentUserRole);

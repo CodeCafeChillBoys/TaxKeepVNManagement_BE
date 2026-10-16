@@ -66,6 +66,12 @@ namespace TaxKeepVN.Domain.Entities
         /// <summary>Thời điểm hoàn tiền thành công</summary>
         public DateTimeOffset? RefundedAt { get; set; }
 
+        /// <summary>Thời điểm chuyên gia đánh dấu phiên tư vấn đã hoàn thành</summary>
+        public DateTimeOffset? CompletedAt { get; set; }
+
+        /// <summary>Hạn cuối khách hàng có thể gửi đánh giá (= CompletedAt + ReviewWindowDays, do system tính sau khi COMPLETED)</summary>
+        public DateTimeOffset? ReviewDeadline { get; set; }
+
         /// <summary>Thời điểm hủy lịch (nếu có)</summary>
         public DateTimeOffset? CancelledAt { get; set; }
 

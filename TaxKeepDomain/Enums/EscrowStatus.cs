@@ -38,6 +38,11 @@ namespace TaxKeepVN.Domain.Enums
         /// <summary>
         /// Giao dịch thanh toán bị hủy hoặc hết hạn giữ slot 10 phút trước khi khách hàng thanh toán
         /// </summary>
-        Cancelled
+        Cancelled,
+
+        /// <summary>
+        /// Khoản tiền tạm giữ bị đóng băng (Freeze Escrow) do khách hàng gửi khiếu nại chất lượng dịch vụ (Đặc tả 7)
+        /// </summary>
+        Disputed
     }
 }
