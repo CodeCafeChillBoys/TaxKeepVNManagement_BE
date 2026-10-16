@@ -188,6 +188,9 @@ namespace TaxKeepVN.Application.Service.Implementations
                 throw new NotFoundException("Chủ đề tư vấn không tồn tại hoặc đã ngừng hỗ trợ.");
             }
 
+            
+
+
             await _unitOfWork.BeginTransactionAsync();
             try
             {
@@ -216,6 +219,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 var holdMinutes = policy.BookingSlotHoldMinutes;
                 // Chuyển đổi giờ slot (lưu theo giờ VN) sang UTC để so sánh chuẩn xác với nowUtc
                 var slotStartUtc = BookingHelper.ConvertSlotToUtc(slot.SlotDate, slot.StartTime);
+
 
                 // 2. Kiểm tra Minimum Lead-time (Đặc tả 6 & 8)
                 // đặt mà thời gian nó sát vs tk gian chuyên gia chuẩn bị làm

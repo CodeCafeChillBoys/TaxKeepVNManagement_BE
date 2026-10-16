@@ -50,6 +50,8 @@ namespace TaxKeepVN.Infrastructure.Contexts
         public DbSet<BookingAttachment> BookingAttachments { get; set; }
         public DbSet<EscrowTransaction> EscrowTransactions { get; set; }
         public DbSet<ConsultationSession> ConsultationSessions { get; set; }
+        public DbSet<ExpertBankAccount> ExpertBankAccounts { get; set; }
+        public DbSet<WithdrawalRequest> WithdrawalRequests { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -954,6 +956,78 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(s => s.UpdatedAt).HasColumnName("updated_at");
 
                 entity.HasIndex(s => s.BookingId).IsUnique().HasDatabaseName("uq_consultation_sessions_booking_id");
+            });
+
+            // ── ExpertBankAccount (Đặc tả 8) ────────────────────────────────────
+            modelBuilder.Entity<ExpertBankAccount>(entity =>
+            {
+                entity.ToTable("expert_bank_accounts");
+                entity.HasKey(b => b.Id);
+
+                entity.Property(b => b.Id).HasColumnName("id");
+                entity.Property(b => b.ExpertProfileId).HasColumnName("expert_profile_id").IsRequired();
+                entity.Property(b => b.BankCode).HasColumnName("bank_code").HasMaxLength(20).IsRequired();
+                entity.Property(b => b.BankName).HasColumnName("bank_name").HasMaxLength(150).IsRequired();
+                entity.Property(b => b.AccountNumber).HasColumnName("account_number").HasMaxLength(50).IsRequired();
+                entity.Property(b => b.AccountHolderName).HasColumnName("account_holder_name").HasMaxLength(150).IsRequired();
+                entity.Property(b => b.IsDefault).HasColumnName("is_default").HasDefaultValue(true);
+                entity.Property(b => b.IsVerified).HasColumnName("is_verified").HasDefaultValue(false);
+                entity.Property(b => b.CreatedAt).HasColumnName("created_at");
+                entity.Property(b => b.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasOne(b => b.ExpertProfile)
+                    .WithMany(p => p.BankAccounts)
+                    .HasForeignKey(b => b.ExpertProfileId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(b => b.ExpertProfileId).HasDatabaseName("idx_expert_bank_accounts_profile_id");
+            });
+
+            // ── WithdrawalRequest (Đặc tả 8) ────────────────────────────────────
+            modelBuilder.Entity<WithdrawalRequest>(entity =>
+            {
+                entity.ToTable("withdrawal_requests");
+                entity.HasKey(w => w.Id);
+
+                entity.Property(w => w.Id).HasColumnName("id");
+                entity.Property(w => w.RequestCode).HasColumnName("request_code").HasMaxLength(50).IsRequired();
+                entity.Property(w => w.ExpertProfileId).HasColumnName("expert_profile_id").IsRequired();
+                entity.Property(w => w.Amount).HasColumnName("amount").HasColumnType("numeric(18,2)").IsRequired();
+                entity.Property(w => w.TaxWithheld).HasColumnName("tax_withheld").HasColumnType("numeric(18,2)").HasDefaultValue(0m);
+                entity.Property(w => w.NetAmount).HasColumnName("net_amount").HasColumnType("numeric(18,2)").IsRequired();
+                entity.Property(w => w.BankCode).HasColumnName("bank_code").HasMaxLength(20).IsRequired();
+                entity.Property(w => w.BankName).HasColumnName("bank_name").HasMaxLength(150).IsRequired();
+                entity.Property(w => w.AccountNumber).HasColumnName("account_number").HasMaxLength(50).IsRequired();
+                entity.Property(w => w.AccountHolderName).HasColumnName("account_holder_name").HasMaxLength(150).IsRequired();
+                entity.Property(w => w.Status)
+                    .HasColumnName("status")
+                    .HasMaxLength(50)
+                    .HasConversion<string>()
+                    .HasDefaultValue(WithdrawalStatus.Pending)
+                    .IsRequired();
+                entity.Property(w => w.TransferProofUrl).HasColumnName("transfer_proof_url").HasMaxLength(500);
+                entity.Property(w => w.BankTransactionReference).HasColumnName("bank_transaction_reference").HasMaxLength(100);
+                entity.Property(w => w.AdminNote).HasColumnName("admin_note");
+                entity.Property(w => w.RejectionReason).HasColumnName("rejection_reason");
+                entity.Property(w => w.ReviewedBy).HasColumnName("reviewed_by");
+                entity.Property(w => w.ReviewedAt).HasColumnName("reviewed_at");
+                entity.Property(w => w.TransferredAt).HasColumnName("transferred_at");
+                entity.Property(w => w.CreatedAt).HasColumnName("created_at");
+                entity.Property(w => w.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasOne(w => w.ExpertProfile)
+                    .WithMany(p => p.WithdrawalRequests)
+                    .HasForeignKey(w => w.ExpertProfileId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(w => w.Reviewer)
+                    .WithMany()
+                    .HasForeignKey(w => w.ReviewedBy)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasIndex(w => w.RequestCode).IsUnique().HasDatabaseName("uq_withdrawal_requests_code");
+                entity.HasIndex(w => w.ExpertProfileId).HasDatabaseName("idx_withdrawal_requests_profile_id");
+                entity.HasIndex(w => w.Status).HasDatabaseName("idx_withdrawal_requests_status");
             });
         }
     }

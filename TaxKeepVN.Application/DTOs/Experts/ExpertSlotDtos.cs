@@ -84,4 +84,82 @@ namespace TaxKeepVN.Application.DTOs.Experts
         public DateTimeOffset CreatedAt { get; set; }
         public DateTimeOffset UpdatedAt { get; set; }
     }
+
+    /// <summary>
+    /// Khung giờ mẫu theo thứ trong tuần
+    /// </summary>
+    public class WeeklySlotItemDto
+    {
+        /// <summary>Thứ trong tuần (Sunday = 0, Monday = 1, Tuesday = 2, ..., Saturday = 6)</summary>
+        public DayOfWeek DayOfWeek { get; set; }
+
+        /// <summary>Thời gian bắt đầu (VD: 19:00)</summary>
+        public TimeOnly StartTime { get; set; }
+
+        /// <summary>Thời gian kết thúc (VD: 20:00)</summary>
+        public TimeOnly EndTime { get; set; }
+
+        /// <summary>Hình thức tư vấn</summary>
+        public SessionType SessionType { get; set; } = SessionType.ONLINE_MEETING;
+    }
+
+    /// <summary>
+    /// Request tạo hàng loạt khung giờ làm việc theo tuần cho nhiều tuần liên tiếp
+    /// </summary>
+    public class CreateRecurringSlotRequest
+    {
+        /// <summary>Ngày bắt đầu áp dụng (VD: 2026-10-20)</summary>
+        public DateOnly StartDate { get; set; }
+
+        /// <summary>Số tuần muốn áp dụng liên tiếp (từ 1 đến 12 tuần, mặc định 4 tuần)</summary>
+        public int NumberOfWeeks { get; set; } = 4;
+
+        /// <summary>Danh sách các khung giờ lặp cố định theo thứ trong tuần</summary>
+        public List<WeeklySlotItemDto> WeeklySlots { get; set; } = new();
+    }
+
+    /// <summary>
+    /// Kết quả trả về sau khi tạo hàng loạt khung giờ làm việc
+    /// </summary>
+    public class RecurringSlotBatchResultResponse
+    {
+        public int TotalCreated { get; set; }
+        public int TotalSkipped { get; set; }
+        public DateOnly FromDate { get; set; }
+        public DateOnly ToDate { get; set; }
+        public List<ExpertSlotDetailResponse> CreatedSlots { get; set; } = new();
+    }
+
+    /// <summary>
+    /// Request hủy slot khẩn cấp
+    /// </summary>
+    public class EmergencyCancelSlotRequest
+    {
+        /// <summary>Lý do hủy khẩn cấp (bắt buộc, tối thiểu 10 ký tự)</summary>
+        public string Reason { get; set; } = string.Empty;
+    }
+    /// <summary>
+    /// Kết quả trả về sau khi hủy khẩn cấp
+    /// </summary>
+    public class EmergencyCancelSlotResponse
+    {
+        public Guid SlotId { get; set; }
+        public DateOnly SlotDate { get; set; }
+        public TimeOnly StartTime { get; set; }
+        public TimeOnly EndTime { get; set; }
+
+        /// <summary>Khung giờ này đã có khách đặt trước đó hay chưa</summary>
+        public bool HadBooking { get; set; }
+        public Guid? BookingId { get; set; }
+        public string? BookingCode { get; set; }
+
+        /// <summary>Có bị tính là hủy sát giờ (dưới 12 tiếng) không</summary>
+        public bool IsLateCancel { get; set; }
+
+        /// <summary>Số tiền phạt nếu hủy sát giờ (VNĐ)</summary>
+        public decimal PenaltyAmount { get; set; }
+
+        /// <summary>Thông báo tóm tắt</summary>
+        public string Message { get; set; } = string.Empty;
+    }
 }

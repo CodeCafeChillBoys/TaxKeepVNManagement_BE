@@ -40,5 +40,13 @@ namespace TaxKeepVN.Application.Service.Interfaces
         /// Xóa khung giờ (chỉ cho phép khi chưa có người đặt và không bị giữ chỗ)
         /// </summary>
         Task DeleteSlotAsync(Guid expertUserId, Guid slotId);
+
+        /// <summary>
+        /// Tạo hàng loạt khung giờ làm việc định kỳ theo tuần cho nhiều tuần liên tiếp
+        /// </summary>
+        Task<RecurringSlotBatchResultResponse> CreateRecurringSlotsAsync(Guid expertUserId, CreateRecurringSlotRequest request);
+
+
+        Task<EmergencyCancelSlotResponse> EmergencyCancelSlotAsync(Guid expertUserId, Guid slotId, EmergencyCancelSlotRequest request,string? cancelledBy = null);
     }
 }
