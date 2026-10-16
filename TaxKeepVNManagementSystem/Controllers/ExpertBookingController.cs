@@ -128,5 +128,25 @@ namespace TaxKeepVNManagementSystem.Controllers
             await _reviewService.CompleteSessionAsync(expertUserId, id);
             return Ok(ApiResponse<string>.Ok("Phiên tư vấn đã được đánh dấu hoàn thành thành công.", "Hoàn thành phiên tư vấn thành công."));
         }
+
+        /// <summary>
+        /// Chuyên gia chủ động hủy ca tư vấn đã xác nhận (do sự cố đột xuất) (Đặc tả 7)
+        /// Hệ thống hoàn tiền 100% cho khách hàng và áp dụng phạt vi phạm nếu hủy sát giờ hẹn dưới 12h.
+        /// POST /api/v1/expert/bookings/{id}/cancel
+        /// </summary>
+        [HttpPost("{id:guid}/cancel")]
+        [ProducesResponseType(typeof(ApiResponse<BookingDetailResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> CancelBooking([FromRoute] Guid id, [FromBody] string? reason = null)
+        {
+            var expertUserId = GetCurrentUserId();
+            var role = User.FindFirst(ClaimTypes.Role)?.Value ?? "EXPERT";
+            var fullName = User.FindFirst("fullName")?.Value;
+            var cancelledBy = !string.IsNullOrEmpty(fullName) ? $"{role.ToUpperInvariant()}: {fullName}" : role.ToUpperInvariant();
+            var result = await _bookingService.ExpertCancelBookingAsync(expertUserId, id, reason ?? "Chuyên gia hủy lịch do sự cố đột xuất.", cancelledBy);
+            return Ok(ApiResponse<BookingDetailResponse>.Ok(result, "Hủy lịch hẹn thành công. Tiền đã được hoàn 100% cho khách hàng."));
+        }
     }
 }

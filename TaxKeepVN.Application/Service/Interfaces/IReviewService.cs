@@ -51,6 +51,11 @@ namespace TaxKeepVN.Application.Service.Interfaces
         /// </summary>
         Task<ReviewDetailResponse> SubmitReviewAsync(Guid userId, Guid bookingId, CreateReviewRequest request);
 
+        /// <summary>
+        /// Lấy thông tin đánh giá của một ca tư vấn (nếu có).
+        /// </summary>
+        Task<ReviewDetailResponse?> GetBookingReviewAsync(Guid currentUserId, Guid bookingId);
+
         // ── ADMIN ────────────────────────────────────────────────────────────────
 
         /// <summary>

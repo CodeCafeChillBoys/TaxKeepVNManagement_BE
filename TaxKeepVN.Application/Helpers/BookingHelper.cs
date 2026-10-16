@@ -53,6 +53,10 @@ namespace TaxKeepVN.Application.Helpers
         public const string ConfigKeyCancelPartialRefundPercent = "CANCEL_PARTIAL_REFUND_PERCENT";
         public const string ConfigKeyExpertMaxDailySlots = "EXPERT_MAX_DAILY_SLOTS";
         public const string ConfigKeyExpertMinWithdrawalVnd = "EXPERT_MIN_WITHDRAWAL_VND";
+        public const string ConfigKeyDisputeWindowHours = "DISPUTE_WINDOW_HOURS";
+        public const string ConfigKeyDisputeExpertReplyHours = "DISPUTE_EXPERT_REPLY_HOURS";
+        public const string ConfigKeyExpertLateCancelHours = "EXPERT_LATE_CANCEL_HOURS";
+        public const string ConfigKeyExpertLateCancelPenaltyVnd = "EXPERT_LATE_CANCEL_PENALTY_VND";
 
         /// <summary>Thời gian đặt trước tối thiểu fallback theo quy định nghiệp vụ (Minimum Lead-time: 4 giờ)</summary>
         public const int MinimumLeadTimeHours = 4;
@@ -83,6 +87,24 @@ namespace TaxKeepVN.Application.Helpers
             }
 
             return parsedValue;
+        }
+
+        /// <summary>
+        /// Đọc giá trị số nguyên từ bảng system_configs, nếu không tìm thấy hoặc không hợp lệ thì trả về giá trị mặc định.
+        /// </summary>
+        public static async Task<int> GetConfigIntOrDefaultAsync(IUnitOfWork unitOfWork, string configKey, int defaultValue)
+        {
+            var configs = await unitOfWork.Repository<SystemConfig>().FindAsync(c => c.ConfigKey == configKey && c.IsActive);
+            var activeConfig = configs
+                .OrderByDescending(c => c.AppliesFromYear ?? int.MinValue)
+                .FirstOrDefault();
+
+            if (activeConfig != null && int.TryParse(activeConfig.ConfigValue.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedValue) && parsedValue >= 0)
+            {
+                return parsedValue;
+            }
+
+            return defaultValue;
         }
 
         /// <summary>

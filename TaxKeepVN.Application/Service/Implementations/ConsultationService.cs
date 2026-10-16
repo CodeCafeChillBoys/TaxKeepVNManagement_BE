@@ -65,7 +65,8 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             if (booking.Status != BookingStatus.CONFIRMED && 
                 booking.Status != BookingStatus.IN_PROGRESS && 
-                booking.Status != BookingStatus.COMPLETED)
+                booking.Status != BookingStatus.COMPLETED &&
+                booking.Status != BookingStatus.SETTLED)
             {
                 throw new BadRequestException("INVALID_STATUS", 
                     $"Lịch hẹn hiện tại ở trạng thái '{booking.Status}'. Phòng tư vấn chỉ mở khi lịch hẹn đã được xác nhận (CONFIRMED) hoặc đang diễn ra (IN_PROGRESS).");
@@ -278,10 +279,11 @@ namespace TaxKeepVN.Application.Service.Implementations
                 throw new ForbiddenException("FORBIDDEN", "Bạn không có quyền truy cập bộ hồ sơ thuế của ca tư vấn này.");
             }
 
-            // Quyền xem chỉ mở khi lịch hẹn ở trạng thái CONFIRMED, IN_PROGRESS hoặc COMPLETED (BR-3.4 & BR-5.2)
+            // Quyền xem chỉ mở khi lịch hẹn ở trạng thái CONFIRMED, IN_PROGRESS, COMPLETED hoặc SETTLED (BR-3.4 & BR-5.2)
             if (booking.Status != BookingStatus.CONFIRMED && 
                 booking.Status != BookingStatus.IN_PROGRESS && 
-                booking.Status != BookingStatus.COMPLETED)
+                booking.Status != BookingStatus.COMPLETED &&
+                booking.Status != BookingStatus.SETTLED)
             {
                 throw new ForbiddenException("FORBIDDEN", 
                     "Quyền xem trước hồ sơ thuế nội bộ chỉ được kích hoạt khi lịch hẹn đã được xác nhận (CONFIRMED) hoặc đang diễn ra.");
@@ -512,6 +514,9 @@ namespace TaxKeepVN.Application.Service.Implementations
             session.UpdatedAt = nowUtc;
 
             booking.Status = BookingStatus.COMPLETED;
+            booking.CompletedAt = nowUtc;
+            var ratingWindowDays = await BookingHelper.GetConfigIntOrDefaultAsync(_unitOfWork, BookingHelper.ConfigKeyRatingWindowDays, 7);
+            booking.ReviewDeadline = nowUtc.AddDays(ratingWindowDays);
             booking.UpdatedAt = nowUtc;
 
             // Chuyển khoản tiền Escrow sang trạng thái CoolingDown (Bắt đầu 24 giờ chờ khiếu nại - BR-5)
@@ -522,6 +527,13 @@ namespace TaxKeepVN.Application.Service.Implementations
                 escrow.EscrowStatus = EscrowStatus.CoolingDown;
                 escrow.UpdatedAt = nowUtc;
                 _unitOfWork.Repository<EscrowTransaction>().Update(escrow);
+            }
+
+            if (profile != null)
+            {
+                profile.CompletedConsultationsCount += 1;
+                profile.UpdatedAt = nowUtc;
+                _unitOfWork.Repository<ExpertProfile>().Update(profile);
             }
 
             _unitOfWork.Repository<ConsultationSession>().Update(session);
@@ -649,6 +661,41 @@ namespace TaxKeepVN.Application.Service.Implementations
                     escrow.RefundedAt = nowUtc;
                     escrow.UpdatedAt = nowUtc;
                     _unitOfWork.Repository<EscrowTransaction>().Update(escrow);
+
+                    // Cộng tiền hoàn vào ví User
+                    var userWallets = await _unitOfWork.Repository<UserWallet>().FindAsync(w => w.UserId == booking.UserId && w.WalletType == "USER");
+                    var userWallet = userWallets.FirstOrDefault();
+                    if (userWallet == null)
+                    {
+                        userWallet = new UserWallet
+                        {
+                            Id = Guid.NewGuid(),
+                            UserId = booking.UserId,
+                            WalletType = "USER",
+                            AvailableBalance = 0m,
+                            CreatedAt = nowUtc,
+                            UpdatedAt = nowUtc
+                        };
+                        await _unitOfWork.Repository<UserWallet>().AddAsync(userWallet);
+                    }
+                    var beforeBal = userWallet.AvailableBalance;
+                    userWallet.AvailableBalance += escrow.Amount;
+                    userWallet.UpdatedAt = nowUtc;
+                    _unitOfWork.Repository<UserWallet>().Update(userWallet);
+
+                    await _unitOfWork.Repository<WalletTransaction>().AddAsync(new WalletTransaction
+                    {
+                        Id = Guid.NewGuid(),
+                        WalletId = userWallet.Id,
+                        UserId = booking.UserId,
+                        Amount = escrow.Amount,
+                        BalanceBefore = beforeBal,
+                        BalanceAfter = userWallet.AvailableBalance,
+                        TransactionType = "REFUND",
+                        ReferenceId = booking.Id,
+                        Description = $"Hoàn tiền ca tư vấn #{booking.BookingCode} (Chuyên gia vắng mặt)",
+                        CreatedAt = nowUtc
+                    });
                 }
 
                 // Giải phóng slot
@@ -688,6 +735,9 @@ namespace TaxKeepVN.Application.Service.Implementations
                 session.UpdatedAt = nowUtc;
 
                 booking.Status = BookingStatus.COMPLETED;
+                booking.CompletedAt = nowUtc;
+                var ratingDaysNoShow = await BookingHelper.GetConfigIntOrDefaultAsync(_unitOfWork, BookingHelper.ConfigKeyRatingWindowDays, 7);
+                booking.ReviewDeadline = nowUtc.AddDays(ratingDaysNoShow);
                 booking.UpdatedAt = nowUtc;
 
                 // Vẫn giữ tiền Escrow để giải ngân cho chuyên gia

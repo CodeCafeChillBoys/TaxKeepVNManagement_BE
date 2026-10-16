@@ -141,6 +141,39 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
                         booking.EscrowTransaction.RefundReason = "Hệ thống tự động hoàn tiền do Chuyên gia vắng mặt (No-Show).";
                         booking.EscrowTransaction.RefundedAt = nowUtc;
                         booking.EscrowTransaction.UpdatedAt = nowUtc;
+
+                        // Tự động hoàn tiền vào ví người dùng
+                        var userWallet = await dbContext.UserWallets.FirstOrDefaultAsync(w => w.UserId == booking.UserId && w.WalletType == "USER");
+                        if (userWallet == null)
+                        {
+                            userWallet = new UserWallet
+                            {
+                                Id = Guid.NewGuid(),
+                                UserId = booking.UserId,
+                                WalletType = "USER",
+                                AvailableBalance = 0m,
+                                CreatedAt = nowUtc,
+                                UpdatedAt = nowUtc
+                            };
+                            await dbContext.UserWallets.AddAsync(userWallet);
+                        }
+                        var beforeBal = userWallet.AvailableBalance;
+                        userWallet.AvailableBalance += booking.EscrowTransaction.Amount;
+                        userWallet.UpdatedAt = nowUtc;
+
+                        await dbContext.WalletTransactions.AddAsync(new WalletTransaction
+                        {
+                            Id = Guid.NewGuid(),
+                            WalletId = userWallet.Id,
+                            UserId = booking.UserId,
+                            Amount = booking.EscrowTransaction.Amount,
+                            BalanceBefore = beforeBal,
+                            BalanceAfter = userWallet.AvailableBalance,
+                            TransactionType = "REFUND",
+                            ReferenceId = booking.Id,
+                            Description = $"Hoàn tiền ca tư vấn #{booking.BookingCode} (Chuyên gia vắng mặt)",
+                            CreatedAt = nowUtc
+                        });
                     }
 
                     slot.IsBooked = false;
@@ -158,6 +191,8 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
                     session.SharedNotes = $"Hệ thống tự động đóng ca do Khách hàng không có mặt sau {noShowMinutes} phút. Bảo vệ quyền lợi thù lao của Chuyên gia.";
 
                     booking.Status = BookingStatus.COMPLETED;
+                    booking.CompletedAt = nowUtc;
+                    booking.ReviewDeadline = nowUtc.AddDays(7);
                     booking.UpdatedAt = nowUtc;
 
                     if (booking.EscrowTransaction != null && booking.EscrowTransaction.EscrowStatus == EscrowStatus.HeldInEscrow)

@@ -75,6 +75,22 @@ namespace TaxKeepVNManagementSystem.Controllers
             return Ok(ApiResponse<ReviewDetailResponse>.Ok(result, "Gửi đánh giá và nhận xét thành công. Cảm ơn bạn đã phản hồi!"));
         }
 
+        /// <summary>
+        /// Lấy thông tin đánh giá của ca tư vấn (nếu đã gửi đánh giá)
+        /// GET /api/v1/bookings/{bookingId}/review
+        /// </summary>
+        [Authorize]
+        [HttpGet("api/v1/bookings/{bookingId:guid}/review")]
+        [ProducesResponseType(typeof(ApiResponse<ReviewDetailResponse?>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> GetBookingReview([FromRoute] Guid bookingId)
+        {
+            var userId = GetCurrentUserId();
+            var result = await _reviewService.GetBookingReviewAsync(userId, bookingId);
+            return Ok(ApiResponse<ReviewDetailResponse?>.Ok(result, result != null ? "Lấy thông tin đánh giá thành công." : "Chưa có đánh giá cho phiên tư vấn này."));
+        }
+
         // ════════════════════════════════════════════════════════════════════════
         //  CHUYÊN GIA (EXPERT)
         // ════════════════════════════════════════════════════════════════════════

@@ -87,15 +87,37 @@ namespace TaxKeepVN.Application.Service.Implementations
             if (profile.UserId != expertUserId)
                 throw new ForbiddenException("Bạn không phải chuyên gia được phân công cho ca tư vấn này.");
 
-            if (booking.Status != BookingStatus.CONFIRMED)
+            if (booking.Status != BookingStatus.CONFIRMED && booking.Status != BookingStatus.IN_PROGRESS)
                 throw new BadRequestException("INVALID_STATUS",
-                    $"Lịch hẹn đang ở trạng thái '{booking.Status}', không thể kết thúc. Chỉ ca đã được xác nhận (CONFIRMED) mới có thể đánh dấu hoàn thành.");
+                    $"Lịch hẹn đang ở trạng thái '{booking.Status}', không thể kết thúc. Chỉ ca đã được xác nhận (CONFIRMED) hoặc đang diễn ra (IN_PROGRESS) mới có thể đánh dấu hoàn thành.");
 
             var nowUtc = DateTimeOffset.UtcNow;
             booking.Status = BookingStatus.COMPLETED;
             booking.CompletedAt = nowUtc;
             booking.ReviewDeadline = nowUtc.AddDays(ReviewWindowDays);
             booking.UpdatedAt = nowUtc;
+
+            // Chuyển khoản tiền Escrow sang trạng thái CoolingDown (Bắt đầu 24 giờ chờ khiếu nại - BR-5)
+            var escrows = await _unitOfWork.Repository<EscrowTransaction>().FindAsync(e => e.BookingId == bookingId);
+            var escrow = escrows.FirstOrDefault();
+            if (escrow != null && escrow.EscrowStatus == EscrowStatus.HeldInEscrow)
+            {
+                escrow.EscrowStatus = EscrowStatus.CoolingDown;
+                escrow.UpdatedAt = nowUtc;
+                _unitOfWork.Repository<EscrowTransaction>().Update(escrow);
+            }
+
+            // Đóng ConsultationSession nếu có
+            var sessions = await _unitOfWork.Repository<ConsultationSession>().FindAsync(s => s.BookingId == bookingId);
+            var session = sessions.FirstOrDefault();
+            if (session != null)
+            {
+                session.EndedAt = nowUtc;
+                var startedAt = session.StartedAt ?? session.UserCheckInAt ?? nowUtc.AddMinutes(-30);
+                session.ActualDurationMinutes = (int)Math.Max(1, Math.Round((nowUtc - startedAt).TotalMinutes));
+                session.UpdatedAt = nowUtc;
+                _unitOfWork.Repository<ConsultationSession>().Update(session);
+            }
 
             // Tăng số ca hoàn thành của chuyên gia
             profile.CompletedConsultationsCount += 1;
@@ -145,7 +167,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 };
             }
 
-            if (booking.Status != BookingStatus.COMPLETED)
+            if (booking.Status != BookingStatus.COMPLETED && booking.Status != BookingStatus.SETTLED)
             {
                 return new ReviewEligibilityResponse
                 {
@@ -357,6 +379,29 @@ namespace TaxKeepVN.Application.Service.Implementations
             var user = await _unitOfWork.Repository<User>().GetByIdAsync(userId);
 
             return MapToDetailResponse(review, user, request.IsAnonymous);
+        }
+
+        public async Task<ReviewDetailResponse?> GetBookingReviewAsync(Guid currentUserId, Guid bookingId)
+        {
+            var booking = await _unitOfWork.Repository<Booking>().GetByIdAsync(bookingId)
+                ?? throw new NotFoundException($"Không tìm thấy lịch hẹn với Id = {bookingId}.");
+
+            var slot = await _unitOfWork.Repository<ExpertSlot>().GetByIdAsync(booking.ExpertSlotId);
+            var profile = slot != null ? await _unitOfWork.Repository<ExpertProfile>().GetByIdAsync(slot.ExpertProfileId) : null;
+
+            var isClient = booking.UserId == currentUserId;
+            var isExpert = profile != null && profile.UserId == currentUserId;
+
+            var reviews = await _unitOfWork.Repository<ExpertReview>().FindAsync(r => r.BookingId == bookingId);
+            var review = reviews.FirstOrDefault();
+            if (review == null)
+            {
+                return null;
+            }
+
+            var reviewerUser = await _unitOfWork.Repository<User>().GetByIdAsync(review.UserId);
+            var hideIdentity = review.IsAnonymous && !isClient;
+            return MapToDetailResponse(review, reviewerUser, hideIdentity);
         }
 
         // ════════════════════════════════════════════════════════════════════════
