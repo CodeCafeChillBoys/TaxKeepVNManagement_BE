@@ -36,10 +36,9 @@ namespace TaxKeepVN.Application.Service.Implementations
             {
                 throw new NotFoundException($"Không tìm thấy chuyên gia với Id = {expertProfileId}.");
             }
-            // Đọc động thời gian đặt trước tối thiểu từ bảng system_configs (Zero-Hardcode)
-            var leadTimeHours = await BookingHelper.GetRequiredConfigIntAsync(
-                _unitOfWork,
-                BookingHelper.ConfigKeyMinLeadTimeHours);
+            // Đọc thời gian đặt trước tối thiểu từ chính sách sàn tư vấn (ConsultationPlatformPolicy)
+            var policy = await BookingHelper.GetPlatformPolicyAsync(_unitOfWork);
+            var leadTimeHours = policy.BookingMinLeadTimeHours;
             // lấy lên tg hiện tại 
             var nowUtc = DateTimeOffset.UtcNow;
             // add thêm thời gian đặt trước tối thiểu vào trước khi đặt lịch
@@ -125,9 +124,8 @@ namespace TaxKeepVN.Application.Service.Implementations
             var durationMinutes = (int)(slot.EndTime - slot.StartTime).TotalMinutes;
             var fee = await BookingHelper.CalculateConsultationFeeAsync(_unitOfWork, profile, slot.SessionType, durationMinutes);
 
-            var leadTimeHours = await BookingHelper.GetRequiredConfigIntAsync(
-                _unitOfWork,
-                BookingHelper.ConfigKeyMinLeadTimeHours);
+            var policy = await BookingHelper.GetPlatformPolicyAsync(_unitOfWork);
+            var leadTimeHours = policy.BookingMinLeadTimeHours;
             var nowUtc = DateTimeOffset.UtcNow;
             var slotStartUtc = BookingHelper.ConvertSlotToUtc(slot.SlotDate, slot.StartTime);
 
@@ -213,12 +211,9 @@ namespace TaxKeepVN.Application.Service.Implementations
                 }
                 // lấy ngày giờ thời gian hiện tại
                 var nowUtc = DateTimeOffset.UtcNow;
-                var leadTimeHours = await BookingHelper.GetRequiredConfigIntAsync(
-                    _unitOfWork,
-                    BookingHelper.ConfigKeyMinLeadTimeHours);
-                var holdMinutes = await BookingHelper.GetRequiredConfigIntAsync(
-                    _unitOfWork,
-                    BookingHelper.ConfigKeySlotHoldMinutes);
+                var policy = await BookingHelper.GetPlatformPolicyAsync(_unitOfWork);
+                var leadTimeHours = policy.BookingMinLeadTimeHours;
+                var holdMinutes = policy.BookingSlotHoldMinutes;
                 // Chuyển đổi giờ slot (lưu theo giờ VN) sang UTC để so sánh chuẩn xác với nowUtc
                 var slotStartUtc = BookingHelper.ConvertSlotToUtc(slot.SlotDate, slot.StartTime);
 
@@ -666,18 +661,13 @@ namespace TaxKeepVN.Application.Service.Implementations
             var escrows = await _unitOfWork.Repository<EscrowTransaction>().FindAsync(e => e.BookingId == booking.Id);
             var escrow = escrows.FirstOrDefault();
 
-            // Nếu đã thanh toán vào Escrow -> Tính toán tỷ lệ hoàn tiền theo cấu hình động trong system_configs (Zero-Hardcode)
+            // Nếu đã thanh toán vào Escrow -> Tính toán tỷ lệ hoàn tiền theo chính sách sàn tư vấn (ConsultationPlatformPolicy)
             if (booking.PaidAt.HasValue)
             {
-                var fullRefundHours = await BookingHelper.GetRequiredConfigIntAsync(
-                    _unitOfWork,
-                    BookingHelper.ConfigKeyCancelFullRefundHours);
-                var partialRefundHours = await BookingHelper.GetRequiredConfigIntAsync(
-                    _unitOfWork,
-                    BookingHelper.ConfigKeyCancelPartialRefundHours);
-                var partialRefundPercent = await BookingHelper.GetRequiredConfigDecimalAsync(
-                    _unitOfWork,
-                    BookingHelper.ConfigKeyCancelPartialRefundPercent);
+                var policy = await BookingHelper.GetPlatformPolicyAsync(_unitOfWork);
+                var fullRefundHours = policy.CancelFullRefundHours;
+                var partialRefundHours = policy.CancelPartialRefundHours;
+                var partialRefundPercent = policy.CancelPartialRefundPercent;
 
                 var slotStartUtc = slot != null
                     ? BookingHelper.ConvertSlotToUtc(slot.SlotDate, slot.StartTime)

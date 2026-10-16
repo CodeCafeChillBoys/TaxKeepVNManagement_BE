@@ -14,7 +14,7 @@ namespace TaxKeepVN.Application.Helpers
     /// <summary>
     /// Helper xử lý các quy tắc nghiệp vụ cốt lõi của Đặt lịch tư vấn & Escrow (Đặc tả 3 & 4).
     /// ZERO-HARDCODE: Toàn bộ ngưỡng thời gian, hạn mức phí và tỷ lệ phần trăm hoa hồng
-    /// đều đọc động từ bảng system_configs trong CSDL. Không chứa bất kỳ hằng số số học hardcode nào.
+    /// đều đọc động từ bảng consultation_platform_policies trong CSDL qua GetPlatformPolicyAsync.
     /// </summary>
     public static class BookingHelper
     {
@@ -87,12 +87,9 @@ namespace TaxKeepVN.Application.Helpers
         /// </summary>
         public static async Task<int> GetRequiredConfigIntAsync(IUnitOfWork unitOfWork, string configKey)
         {
-            var policy = (await unitOfWork.Repository<ConsultationPlatformPolicy>().FindAsync(p => p.IsActive))
-                .OrderByDescending(p => p.Id)
-                .FirstOrDefault();
-
-            if (policy != null)
+            try
             {
+                var policy = await GetPlatformPolicyAsync(unitOfWork);
                 switch (configKey)
                 {
                     case ConfigKeySlotHoldMinutes:
@@ -116,12 +113,19 @@ namespace TaxKeepVN.Application.Helpers
                     case ConfigKeyExpertMaxDailySlots:
                         return policy.ExpertMaxDailySlots;
                     case "EXPERT_LATE_CANCEL_HOURS":
+                    case ConfigKeyExpertLateCancelHours:
                         return policy.ExpertLateCancelHours;
                     case "DISPUTE_WINDOW_HOURS":
+                    case ConfigKeyDisputeWindowHours:
                         return policy.DisputeWindowHours;
                     case "DISPUTE_EXPERT_REPLY_HOURS":
+                    case ConfigKeyDisputeExpertReplyHours:
                         return policy.DisputeExpertReplyHours;
                 }
+            }
+            catch
+            {
+                // Fallback nếu không đọc được từ policy
             }
 
             var configs = await unitOfWork.Repository<SystemConfig>().FindAsync(c => c.ConfigKey == configKey && c.IsActive);
@@ -165,12 +169,9 @@ namespace TaxKeepVN.Application.Helpers
         /// </summary>
         public static async Task<decimal> GetRequiredConfigDecimalAsync(IUnitOfWork unitOfWork, string configKey)
         {
-            var policy = (await unitOfWork.Repository<ConsultationPlatformPolicy>().FindAsync(p => p.IsActive))
-                .OrderByDescending(p => p.Id)
-                .FirstOrDefault();
-
-            if (policy != null)
+            try
             {
+                var policy = await GetPlatformPolicyAsync(unitOfWork);
                 switch (configKey)
                 {
                     case ConfigKeyExpertMinFeeVnd:
@@ -184,8 +185,13 @@ namespace TaxKeepVN.Application.Helpers
                     case ConfigKeyExpertMinWithdrawalVnd:
                         return policy.ExpertMinWithdrawalVnd;
                     case "EXPERT_LATE_CANCEL_PENALTY_VND":
+                    case ConfigKeyExpertLateCancelPenaltyVnd:
                         return policy.ExpertLateCancelPenaltyVnd;
                 }
+            }
+            catch
+            {
+                // Fallback nếu không đọc được từ policy
             }
 
             var configs = await unitOfWork.Repository<SystemConfig>().FindAsync(c => c.ConfigKey == configKey && c.IsActive);
@@ -288,8 +294,9 @@ namespace TaxKeepVN.Application.Helpers
                 return feeConfig.MinFee;
             }
 
-            // Đọc mức phí sàn từ bảng system_configs (EXPERT_MIN_FEE_VND) — tuyệt đối không hardcode số tiền
-            return await GetRequiredConfigDecimalAsync(unitOfWork, ConfigKeyExpertMinFeeVnd);
+            // Đọc mức phí sàn từ bảng consultation_platform_policies (ExpertMinFeeVnd) — tuyệt đối không hardcode số tiền
+            var policy = await GetPlatformPolicyAsync(unitOfWork);
+            return policy.ExpertMinFeeVnd;
         }
 
         /// <summary>
