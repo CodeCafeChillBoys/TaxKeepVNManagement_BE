@@ -15,6 +15,7 @@ namespace TaxKeepVNManagementSystem.Controllers
     /// Controller Đánh giá và Phản hồi sau phiên tư vấn (Đặc tả: Đánh giá chất lượng và gửi phản hồi)
     /// </summary>
     [ApiController]
+    [Produces("application/json")]
     public class ReviewController : ControllerBase
     {
         private readonly IReviewService _reviewService;

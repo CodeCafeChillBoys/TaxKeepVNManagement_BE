@@ -57,7 +57,19 @@ namespace TaxKeepVN.Application.Service.Implementations
             user.PhoneNumber = request.PhoneNumber;
             user.DateOfBirth = request.DateOfBirth;
             user.Address = request.Address;
-            user.TaxIdNumber = request.TaxIdNumber;
+
+            // Khi gọi PUT /api/profile có taxIdNumber thì tự động gán IsVerified = true
+            if (!string.IsNullOrWhiteSpace(request.TaxIdNumber))
+            {
+                user.TaxIdNumber = request.TaxIdNumber;
+                user.IsVerified = true;
+            }
+            else if (!string.IsNullOrWhiteSpace(user.TaxIdNumber))
+            {
+                // Nếu tài khoản đã có sẵn mã số thuế từ trước thì đảm bảo đã được xác thực
+                user.IsVerified = true;
+            }
+
             user.UpdatedAt = DateTimeOffset.UtcNow;
 
             userRepo.Update(user);

@@ -16,6 +16,7 @@ namespace TaxKeepVNManagementSystem.Controllers
     [ApiController]
     [Route("api/v1/admin/reviews")]
     [Authorize]
+    [Produces("application/json")]
     public class AdminReviewController : ControllerBase
     {
         private readonly IReviewService _reviewService;

@@ -343,10 +343,15 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             await _unitOfWork.SaveChangesAsync();
 
+            // ── Lấy thông tin reviewer để trả về ─────────────────────────────
+            var user = await _unitOfWork.Repository<User>().GetByIdAsync(userId);
+            var reviewerName = request.IsAnonymous
+                ? "Khách hàng ẩn danh"
+                : (!string.IsNullOrWhiteSpace(user?.FullName) ? user.FullName : "Khách hàng");
+
             // ── Gửi thông báo ─────────────────────────────────────────────────
 
             // 3a. Thông báo cho chuyên gia về đánh giá mới
-            var reviewerName = request.IsAnonymous ? "Khách hàng ẩn danh" : "Khách hàng";
             await SendNotificationAsync(
                 userId: profile.UserId,
                 title: "Bạn nhận được đánh giá mới!",
@@ -374,9 +379,6 @@ namespace TaxKeepVN.Application.Service.Implementations
             }
 
             await _unitOfWork.SaveChangesAsync();
-
-            // ── Lấy thông tin reviewer để trả về ─────────────────────────────
-            var user = await _unitOfWork.Repository<User>().GetByIdAsync(userId);
 
             return MapToDetailResponse(review, user, request.IsAnonymous);
         }
@@ -569,13 +571,21 @@ namespace TaxKeepVN.Application.Service.Implementations
                 catch { /* JSON lỗi không break response */ }
             }
 
+            string reviewerName = "Khách hàng ẩn danh";
+            if (!isAnonymous)
+            {
+                reviewerName = !string.IsNullOrWhiteSpace(user?.FullName) 
+                    ? user.FullName 
+                    : (!string.IsNullOrWhiteSpace(user?.Email) ? user.Email : "Khách hàng");
+            }
+
             return new ReviewDetailResponse
             {
                 Id = review.Id,
                 BookingId = review.BookingId ?? Guid.Empty,
                 ExpertProfileId = review.ExpertProfileId,
                 UserId = review.UserId,
-                ReviewerName = isAnonymous ? "Khách hàng ẩn danh" : (user?.FullName ?? "Khách hàng"),
+                ReviewerName = reviewerName,
                 Rating = review.Rating,
                 Comment = review.Comment,
                 DetailScores = detailScores,
