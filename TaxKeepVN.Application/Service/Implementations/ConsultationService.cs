@@ -72,9 +72,8 @@ namespace TaxKeepVN.Application.Service.Implementations
             }
 
             var nowUtc = DateTimeOffset.UtcNow;
-            var openBeforeMinutes = await BookingHelper.GetRequiredConfigIntAsync(
-                _unitOfWork,
-                BookingHelper.ConfigKeySessionOpenBeforeMinutes);
+            var policy = await BookingHelper.GetPlatformPolicyAsync(_unitOfWork);
+            var openBeforeMinutes = policy.SessionOpenBeforeMinutes;
 
             var slotStartUtc = BookingHelper.ConvertSlotToUtc(slot.SlotDate, slot.StartTime);
             var earliestOpenUtc = slotStartUtc.AddMinutes(-openBeforeMinutes);
@@ -199,9 +198,8 @@ namespace TaxKeepVN.Application.Service.Implementations
             var session = sessions.FirstOrDefault();
 
             var nowUtc = DateTimeOffset.UtcNow;
-            var openBeforeMinutes = await BookingHelper.GetRequiredConfigIntAsync(
-                _unitOfWork,
-                BookingHelper.ConfigKeySessionOpenBeforeMinutes);
+            var policy = await BookingHelper.GetPlatformPolicyAsync(_unitOfWork);
+            var openBeforeMinutes = policy.SessionOpenBeforeMinutes;
 
             var slotStartUtc = BookingHelper.ConvertSlotToUtc(slot.SlotDate, slot.StartTime);
             var isRoomOpen = nowUtc >= slotStartUtc.AddMinutes(-openBeforeMinutes);
@@ -582,9 +580,8 @@ namespace TaxKeepVN.Application.Service.Implementations
                 throw new ForbiddenException("FORBIDDEN", "Bạn không có quyền báo cáo vắng mặt cho ca tư vấn này.");
             }
 
-            var noShowMinutes = await BookingHelper.GetRequiredConfigIntAsync(
-                _unitOfWork,
-                BookingHelper.ConfigKeySessionNoShowMinutes);
+            var policy = await BookingHelper.GetPlatformPolicyAsync(_unitOfWork);
+            var noShowMinutes = policy.SessionNoShowMinutes;
 
             var slotStartUtc = BookingHelper.ConvertSlotToUtc(slot.SlotDate, slot.StartTime);
             var nowUtc = DateTimeOffset.UtcNow;
@@ -727,9 +724,8 @@ namespace TaxKeepVN.Application.Service.Implementations
             int sessionOpenBeforeMinutes = 10;
             try
             {
-                sessionOpenBeforeMinutes = await BookingHelper.GetRequiredConfigIntAsync(
-                    _unitOfWork,
-                    BookingHelper.ConfigKeySessionOpenBeforeMinutes);
+                var policy = await BookingHelper.GetPlatformPolicyAsync(_unitOfWork);
+                sessionOpenBeforeMinutes = policy.SessionOpenBeforeMinutes;
             }
             catch
             {

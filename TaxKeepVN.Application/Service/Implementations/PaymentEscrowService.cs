@@ -76,10 +76,9 @@ namespace TaxKeepVN.Application.Service.Implementations
                 return MapToPaymentLinkResponse(booking, escrow, nowUtc);
             }
 
-            // Đọc động tỷ lệ hoa hồng nền tảng A% từ bảng system_configs (Zero-Hardcode)
-            var commissionRate = await BookingHelper.GetRequiredConfigDecimalAsync(
-                _unitOfWork,
-                BookingHelper.ConfigKeyPlatformCommissionRatePercent);
+            // Đọc tỷ lệ hoa hồng nền tảng A% từ chính sách sàn tư vấn (Zero-Hardcode)
+            var policy = await BookingHelper.GetPlatformPolicyAsync(_unitOfWork);
+            var commissionRate = policy.PlatformCommissionRatePercent;
 
             var amount = booking.Fee;
             var commissionAmount = Math.Round(amount * (commissionRate / 100m), 2);
@@ -288,9 +287,8 @@ namespace TaxKeepVN.Application.Service.Implementations
         /// </summary>
         private async Task ApplyPaymentSuccessAsync(EscrowTransaction escrow, Booking booking, string transactionNo)
         {
-            var confirmTimeoutHours = await BookingHelper.GetRequiredConfigIntAsync(
-                _unitOfWork,
-                BookingHelper.ConfigKeyExpertConfirmTimeoutHours);
+            var policy = await BookingHelper.GetPlatformPolicyAsync(_unitOfWork);
+            var confirmTimeoutHours = policy.ExpertConfirmTimeoutHours;
 
             var nowUtc = DateTimeOffset.UtcNow;
             var approvalDeadline = nowUtc.AddHours(confirmTimeoutHours);

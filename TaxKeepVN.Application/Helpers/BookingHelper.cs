@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using TaxKeepVN.Application.DTOs.Bookings;
@@ -14,7 +13,7 @@ namespace TaxKeepVN.Application.Helpers
     /// <summary>
     /// Helper xử lý các quy tắc nghiệp vụ cốt lõi của Đặt lịch tư vấn & Escrow (Đặc tả 3 & 4).
     /// ZERO-HARDCODE: Toàn bộ ngưỡng thời gian, hạn mức phí và tỷ lệ phần trăm hoa hồng
-    /// đều đọc động từ bảng system_configs trong CSDL. Không chứa bất kỳ hằng số số học hardcode nào.
+    /// đều đọc động từ bảng consultation_platform_policies trong CSDL qua GetPlatformPolicyAsync.
     /// </summary>
     public static class BookingHelper
     {
@@ -37,28 +36,6 @@ namespace TaxKeepVN.Application.Helpers
             return DateTimeOffset.UtcNow.ToOffset(VietnamTimeZoneOffset);
         }
 
-        // ── CÁC KHÓA CẤU HÌNH ĐỘNG TRONG BẢNG SYSTEM_CONFIGS (Mục 1.4 Đặc tả Flow 4) ──
-        public const string ConfigKeyExpertMinFeeVnd = "EXPERT_MIN_FEE_VND";
-        public const string ConfigKeyExpertMaxFeeVnd = "EXPERT_MAX_FEE_VND";
-        public const string ConfigKeySlotHoldMinutes = "BOOKING_SLOT_HOLD_MINUTES";
-        public const string ConfigKeyMinLeadTimeHours = "BOOKING_MIN_LEAD_TIME_HOURS";
-        public const string ConfigKeyExpertConfirmTimeoutHours = "EXPERT_CONFIRM_TIMEOUT_HOURS";
-        public const string ConfigKeyPlatformCommissionRatePercent = "PLATFORM_COMMISSION_RATE_PERCENT";
-        public const string ConfigKeySessionOpenBeforeMinutes = "SESSION_OPEN_BEFORE_MINUTES";
-        public const string ConfigKeySessionNoShowMinutes = "SESSION_NO_SHOW_MINUTES";
-        public const string ConfigKeyRatingWindowDays = "RATING_WINDOW_DAYS";
-        public const string ConfigKeyEscrowCooldownHours = "ESCROW_COOLDOWN_HOURS";
-        public const string ConfigKeyCancelFullRefundHours = "CANCEL_FULL_REFUND_HOURS";
-        public const string ConfigKeyCancelPartialRefundHours = "CANCEL_PARTIAL_REFUND_HOURS";
-        public const string ConfigKeyCancelPartialRefundPercent = "CANCEL_PARTIAL_REFUND_PERCENT";
-        public const string ConfigKeyExpertMaxDailySlots = "EXPERT_MAX_DAILY_SLOTS";
-        public const string ConfigKeyExpertMinWithdrawalVnd = "EXPERT_MIN_WITHDRAWAL_VND";
-
-        /// <summary>Thời gian đặt trước tối thiểu fallback theo quy định nghiệp vụ (Minimum Lead-time: 4 giờ)</summary>
-        public const int MinimumLeadTimeHours = 4;
-        public const int DefaultHoldMinutes = 10;
-        public const int DefaultApprovalHours = 2;
-
         /// <summary>
         /// Lấy chính sách sàn tư vấn hiện hành từ bảng chuyên biệt consultation_platform_policies.
         /// </summary>
@@ -77,117 +54,7 @@ namespace TaxKeepVN.Application.Helpers
                 "Lỗi cấu hình hệ thống: Không tìm thấy chính sách sàn tư vấn trong bảng consultation_platform_policies. Vui lòng kiểm tra dữ liệu cấu hình.");
         }
 
-        /// <summary>
-        /// Đọc giá trị số nguyên cấu hình sàn tư vấn từ bảng consultation_platform_policies (Zero-Hardcode).
-        /// Fallback sang system_configs nếu là cấu hình tùy biến ngoài sàn.
-        /// </summary>
-        public static async Task<int> GetRequiredConfigIntAsync(IUnitOfWork unitOfWork, string configKey)
-        {
-            var policy = (await unitOfWork.Repository<ConsultationPlatformPolicy>().FindAsync(p => p.IsActive))
-                .OrderByDescending(p => p.Id)
-                .FirstOrDefault();
 
-            if (policy != null)
-            {
-                switch (configKey)
-                {
-                    case ConfigKeySlotHoldMinutes:
-                        return policy.BookingSlotHoldMinutes;
-                    case ConfigKeyMinLeadTimeHours:
-                        return policy.BookingMinLeadTimeHours;
-                    case ConfigKeyExpertConfirmTimeoutHours:
-                        return policy.ExpertConfirmTimeoutHours;
-                    case ConfigKeySessionOpenBeforeMinutes:
-                        return policy.SessionOpenBeforeMinutes;
-                    case ConfigKeySessionNoShowMinutes:
-                        return policy.SessionNoShowMinutes;
-                    case ConfigKeyRatingWindowDays:
-                        return policy.RatingWindowDays;
-                    case ConfigKeyEscrowCooldownHours:
-                        return policy.EscrowCooldownHours;
-                    case ConfigKeyCancelFullRefundHours:
-                        return policy.CancelFullRefundHours;
-                    case ConfigKeyCancelPartialRefundHours:
-                        return policy.CancelPartialRefundHours;
-                    case ConfigKeyExpertMaxDailySlots:
-                        return policy.ExpertMaxDailySlots;
-                    case "EXPERT_LATE_CANCEL_HOURS":
-                        return policy.ExpertLateCancelHours;
-                    case "DISPUTE_WINDOW_HOURS":
-                        return policy.DisputeWindowHours;
-                    case "DISPUTE_EXPERT_REPLY_HOURS":
-                        return policy.DisputeExpertReplyHours;
-                }
-            }
-
-            var configs = await unitOfWork.Repository<SystemConfig>().FindAsync(c => c.ConfigKey == configKey && c.IsActive);
-            var activeConfig = configs
-                .OrderByDescending(c => c.AppliesFromYear ?? int.MinValue)
-                .FirstOrDefault();
-
-            if (activeConfig == null || string.IsNullOrWhiteSpace(activeConfig.ConfigValue))
-            {
-                throw new InvalidOperationException(
-                    $"Lỗi cấu hình hệ thống: Không tìm thấy tham số '{configKey}' trong bảng consultation_platform_policies hoặc system_configs.");
-            }
-
-            if (!int.TryParse(activeConfig.ConfigValue.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedValue) || parsedValue < 0)
-            {
-                throw new InvalidOperationException(
-                    $"Lỗi cấu hình hệ thống: Giá trị của tham số '{configKey}' ('{activeConfig.ConfigValue}') không phải là số nguyên hợp lệ.");
-            }
-
-            return parsedValue;
-        }
-
-        /// <summary>
-        /// Đọc giá trị số thập phân (decimal) cấu hình sàn tư vấn từ bảng consultation_platform_policies (Zero-Hardcode).
-        /// Fallback sang system_configs nếu là cấu hình tùy biến ngoài sàn.
-        /// </summary>
-        public static async Task<decimal> GetRequiredConfigDecimalAsync(IUnitOfWork unitOfWork, string configKey)
-        {
-            var policy = (await unitOfWork.Repository<ConsultationPlatformPolicy>().FindAsync(p => p.IsActive))
-                .OrderByDescending(p => p.Id)
-                .FirstOrDefault();
-
-            if (policy != null)
-            {
-                switch (configKey)
-                {
-                    case ConfigKeyExpertMinFeeVnd:
-                        return policy.ExpertMinFeeVnd;
-                    case ConfigKeyExpertMaxFeeVnd:
-                        return policy.ExpertMaxFeeVnd;
-                    case ConfigKeyPlatformCommissionRatePercent:
-                        return policy.PlatformCommissionRatePercent;
-                    case ConfigKeyCancelPartialRefundPercent:
-                        return policy.CancelPartialRefundPercent;
-                    case ConfigKeyExpertMinWithdrawalVnd:
-                        return policy.ExpertMinWithdrawalVnd;
-                    case "EXPERT_LATE_CANCEL_PENALTY_VND":
-                        return policy.ExpertLateCancelPenaltyVnd;
-                }
-            }
-
-            var configs = await unitOfWork.Repository<SystemConfig>().FindAsync(c => c.ConfigKey == configKey && c.IsActive);
-            var activeConfig = configs
-                .OrderByDescending(c => c.AppliesFromYear ?? int.MinValue)
-                .FirstOrDefault();
-
-            if (activeConfig == null || string.IsNullOrWhiteSpace(activeConfig.ConfigValue))
-            {
-                throw new InvalidOperationException(
-                    $"Lỗi cấu hình hệ thống: Không tìm thấy tham số '{configKey}' trong bảng consultation_platform_policies hoặc system_configs.");
-            }
-
-            if (!decimal.TryParse(activeConfig.ConfigValue.Trim(), NumberStyles.Any, CultureInfo.InvariantCulture, out var parsedValue) || parsedValue < 0m)
-            {
-                throw new InvalidOperationException(
-                    $"Lỗi cấu hình hệ thống: Giá trị của tham số '{configKey}' ('{activeConfig.ConfigValue}') không phải là số thập phân hợp lệ.");
-            }
-
-            return parsedValue;
-        }
 
         /// <summary>
         /// Sinh mã định danh đặt lịch thân thiện với người dùng theo định dạng: BK-YYYYMMDD-XXXXXX
@@ -269,8 +136,9 @@ namespace TaxKeepVN.Application.Helpers
                 return feeConfig.MinFee;
             }
 
-            // Đọc mức phí sàn từ bảng system_configs (EXPERT_MIN_FEE_VND) — tuyệt đối không hardcode số tiền
-            return await GetRequiredConfigDecimalAsync(unitOfWork, ConfigKeyExpertMinFeeVnd);
+            // Đọc mức phí sàn từ bảng consultation_platform_policies (ExpertMinFeeVnd) — tuyệt đối không hardcode số tiền
+            var policy = await GetPlatformPolicyAsync(unitOfWork);
+            return policy.ExpertMinFeeVnd;
         }
 
         /// <summary>
