@@ -6,9 +6,6 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using TaxKeepVN.Application.DTOs.PlatformPolicy;
 using TaxKeepVN.Application.DTOs.Responses;
-using TaxKeepVN.Application.DTOs.SystemConfigs;
-using TaxKeepVN.Application.Helpers;
-using TaxKeepVN.Application.Service.Interfaces;
 using TaxKeepVN.Domain.Entities;
 using TaxKeepVN.Domain.IRepositories;
 
@@ -21,14 +18,10 @@ namespace TaxKeepVNManagementSystem.Controllers
     public class PlatformPolicyController : ControllerBase
     {
         private readonly IUnitOfWork _unitOfWork;
-        private readonly ISystemConfigService _configService;
 
-        public PlatformPolicyController(
-            IUnitOfWork unitOfWork,
-            ISystemConfigService configService)
+        public PlatformPolicyController(IUnitOfWork unitOfWork)
         {
             _unitOfWork = unitOfWork;
-            _configService = configService;
         }
 
         /// <summary>
@@ -171,8 +164,7 @@ namespace TaxKeepVNManagementSystem.Controllers
 
             await _unitOfWork.SaveChangesAsync();
 
-            // Đồng bộ sang bảng system_configs để tương thích ngược cho các query cũ (nếu có)
-            await SyncToSystemConfigSafelyAsync(policy);
+
 
             var response = MapToResponse(policy);
             return Ok(ApiResponse<PlatformPolicyResponseDto>.Ok(response, "Cập nhật chính sách sàn tư vấn và Escrow thành công."));
@@ -209,42 +201,5 @@ namespace TaxKeepVNManagementSystem.Controllers
             };
         }
 
-        private async Task SyncToSystemConfigSafelyAsync(ConsultationPlatformPolicy p)
-        {
-            var syncMap = new (string Key, string Value, string Description)[]
-            {
-                (BookingHelper.ConfigKeyExpertMinFeeVnd, p.ExpertMinFeeVnd.ToString("0.##"), "Phí tư vấn sàn tối thiểu chung của hệ thống (VNĐ)"),
-                (BookingHelper.ConfigKeyExpertMaxFeeVnd, p.ExpertMaxFeeVnd.ToString("0.##"), "Phí tư vấn trần tối đa chung của hệ thống (VNĐ)"),
-                (BookingHelper.ConfigKeySlotHoldMinutes, p.BookingSlotHoldMinutes.ToString(), "Thời gian tạm giữ slot chờ thanh toán (Phút)"),
-                (BookingHelper.ConfigKeyMinLeadTimeHours, p.BookingMinLeadTimeHours.ToString(), "Thời gian tối thiểu phải đặt trước giờ hẹn (Giờ)"),
-                (BookingHelper.ConfigKeyExpertConfirmTimeoutHours, p.ExpertConfirmTimeoutHours.ToString(), "Hạn chót chuyên gia xác nhận ca đặt lịch (Giờ)"),
-                (BookingHelper.ConfigKeyPlatformCommissionRatePercent, p.PlatformCommissionRatePercent.ToString("0.##"), "Tỷ lệ phí hoa hồng nền tảng trích từ ca tư vấn (%)"),
-                (BookingHelper.ConfigKeySessionOpenBeforeMinutes, p.SessionOpenBeforeMinutes.ToString(), "Thời gian mở phòng trước giờ hẹn (Phút)"),
-                (BookingHelper.ConfigKeySessionNoShowMinutes, p.SessionNoShowMinutes.ToString(), "Ngưỡng thời gian xác định vắng mặt No-Show (Phút)"),
-                (BookingHelper.ConfigKeyRatingWindowDays, p.RatingWindowDays.ToString(), "Thời hạn cho phép gửi đánh giá sau ca tư vấn (Ngày)"),
-                (BookingHelper.ConfigKeyEscrowCooldownHours, p.EscrowCooldownHours.ToString(), "Thời gian tạm giữ tiền Escrow chờ khiếu nại trước khi tự giải ngân (Giờ)"),
-                (BookingHelper.ConfigKeyCancelFullRefundHours, p.CancelFullRefundHours.ToString(), "Mốc hủy lịch sớm được hoàn tiền 100% (Giờ)"),
-                (BookingHelper.ConfigKeyCancelPartialRefundHours, p.CancelPartialRefundHours.ToString(), "Mốc hủy lịch cận giờ được hoàn một phần (Giờ)"),
-                (BookingHelper.ConfigKeyCancelPartialRefundPercent, p.CancelPartialRefundPercent.ToString("0.##"), "Tỷ lệ hoàn tiền khi hủy cận giờ (%)"),
-                (BookingHelper.ConfigKeyExpertMaxDailySlots, p.ExpertMaxDailySlots.ToString(), "Số ca tư vấn tối đa chuyên gia được mở trong ngày"),
-                (BookingHelper.ConfigKeyExpertMinWithdrawalVnd, p.ExpertMinWithdrawalVnd.ToString("0.##"), "Hạn mức rút tiền tối thiểu từ ví chuyên gia (VNĐ)")
-            };
-
-            foreach (var item in syncMap)
-            {
-                try
-                {
-                    await _configService.UpdateAsync(item.Key, new SystemConfigUpdateDto
-                    {
-                        ConfigValue = item.Value,
-                        Description = item.Description
-                    });
-                }
-                catch
-                {
-                    // Nuốt lỗi sync-back để không làm gián đoạn cập nhật chính vào consultation_platform_policies
-                }
-            }
-        }
     }
 }
