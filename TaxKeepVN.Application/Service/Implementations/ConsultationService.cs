@@ -78,12 +78,13 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             var slotStartUtc = BookingHelper.ConvertSlotToUtc(slot.SlotDate, slot.StartTime);
             var earliestOpenUtc = slotStartUtc.AddMinutes(-openBeforeMinutes);
+            var earliestOpenVn = earliestOpenUtc.ToOffset(BookingHelper.VietnamTimeZoneOffset);
 
             if (nowUtc < earliestOpenUtc)
             {
                 var waitMinutes = (int)Math.Ceiling((earliestOpenUtc - nowUtc).TotalMinutes);
                 throw new BadRequestException("ROOM_NOT_OPEN_YET", 
-                    $"Phòng tư vấn chỉ mở trước giờ hẹn tối đa {openBeforeMinutes} phút (từ {earliestOpenUtc:HH:mm dd/MM/yyyy}). Vui lòng quay lại sau {waitMinutes} phút nữa.");
+                    $"Phòng tư vấn chỉ mở trước giờ hẹn tối đa {openBeforeMinutes} phút (từ {earliestOpenVn:HH:mm dd/MM/yyyy}). Vui lòng quay lại sau {waitMinutes} phút nữa.");
             }
 
             // Tìm hoặc khởi tạo bản ghi ConsultationSession
