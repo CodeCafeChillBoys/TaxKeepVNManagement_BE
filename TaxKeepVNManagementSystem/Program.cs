@@ -31,8 +31,8 @@ builder.Services.AddMemoryCache();
 // ── Controllers, Content Negotiation & FluentValidation ─────────────────────
 builder.Services.AddControllers(options =>
 {
-    // Return 406 Not Acceptable if client requests unsupported format
-    options.ReturnHttpNotAcceptable = true;
+    // Fallback to JSON when client sends accept text/plain or wildcard (prevents 406 Not Acceptable in Swagger/Clients)
+    options.ReturnHttpNotAcceptable = false;
 })
 .AddJsonOptions(options =>
 {
