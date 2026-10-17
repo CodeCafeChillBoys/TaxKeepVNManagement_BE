@@ -50,8 +50,10 @@ namespace TaxKeepVN.Infrastructure.Contexts
         public DbSet<BookingAttachment> BookingAttachments { get; set; }
         public DbSet<EscrowTransaction> EscrowTransactions { get; set; }
         public DbSet<ConsultationSession> ConsultationSessions { get; set; }
-        public DbSet<ExpertBankAccount> ExpertBankAccounts { get; set; }
+        public DbSet<UserWallet> UserWallets { get; set; }
+        public DbSet<WalletTransaction> WalletTransactions { get; set; }
         public DbSet<WithdrawalRequest> WithdrawalRequests { get; set; }
+        public DbSet<BookingDispute> BookingDisputes { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -359,7 +361,11 @@ namespace TaxKeepVN.Infrastructure.Contexts
                     new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000012"), ConfigKey = "CANCEL_PARTIAL_REFUND_HOURS", ConfigValue = "4", Description = "Mốc hủy lịch cận giờ được hoàn một phần trước giờ hẹn (Giờ)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
                     new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000013"), ConfigKey = "CANCEL_PARTIAL_REFUND_PERCENT", ConfigValue = "50", Description = "Tỷ lệ phần trăm tiền hoàn lại khi hủy lịch cận giờ (%)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
                     new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000014"), ConfigKey = "EXPERT_MAX_DAILY_SLOTS", ConfigValue = "6", Description = "Số lượng ca tư vấn tối đa Chuyên gia được mở trong 1 ngày (Ca/ngày)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
-                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000015"), ConfigKey = "EXPERT_MIN_WITHDRAWAL_VND", ConfigValue = "500000", Description = "Số tiền tối thiểu cho mỗi lệnh rút tiền từ Ví thu nhập chuyên gia (VNĐ)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime }
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000015"), ConfigKey = "EXPERT_MIN_WITHDRAWAL_VND", ConfigValue = "500000", Description = "Số tiền tối thiểu cho mỗi lệnh rút tiền từ Ví thu nhập chuyên gia (VNĐ)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000016"), ConfigKey = "DISPUTE_WINDOW_HOURS", ConfigValue = "24", Description = "Thời hạn cho phép người nộp thuế gửi khiếu nại sau khi kết thúc ca (Giờ)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000017"), ConfigKey = "DISPUTE_EXPERT_REPLY_HOURS", ConfigValue = "24", Description = "Thời hạn Chuyên gia phải gửi phản biện khiếu nại (Giờ)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000018"), ConfigKey = "EXPERT_LATE_CANCEL_HOURS", ConfigValue = "12", Description = "Mốc thời gian hủy sát giờ của Chuyên gia bị ghi nhận vi phạm/phạt (Giờ)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000019"), ConfigKey = "EXPERT_LATE_CANCEL_PENALTY_VND", ConfigValue = "100000", Description = "Mức tiền phạt Chuyên gia khi hủy lịch sát giờ hẹn (VNĐ)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime }
                 );
             });
 
@@ -779,8 +785,12 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(r => r.BookingId).HasColumnName("booking_id");
                 entity.Property(r => r.Rating).HasColumnName("rating").IsRequired();
                 entity.Property(r => r.Comment).HasColumnName("comment");
+                entity.Property(r => r.DetailScoresJson).HasColumnName("detail_scores_json");
                 entity.Property(r => r.IsAnonymous).HasColumnName("is_anonymous").HasDefaultValue(false);
                 entity.Property(r => r.IsPublished).HasColumnName("is_published").HasDefaultValue(true);
+                entity.Property(r => r.IsFlaggedForReview).HasColumnName("is_flagged_for_review").HasDefaultValue(false);
+                entity.Property(r => r.ExpertReply).HasColumnName("expert_reply");
+                entity.Property(r => r.ExpertRepliedAt).HasColumnName("expert_replied_at");
                 entity.Property(r => r.CreatedAt).HasColumnName("created_at");
                 entity.Property(r => r.UpdatedAt).HasColumnName("updated_at");
 
@@ -796,6 +806,9 @@ namespace TaxKeepVN.Infrastructure.Contexts
 
                 entity.HasIndex(r => r.ExpertProfileId).HasDatabaseName("idx_expert_reviews_profile_id");
                 entity.HasIndex(r => r.UserId).HasDatabaseName("idx_expert_reviews_user_id");
+                // Ràng buộc: mỗi Booking chỉ có đúng 1 review của User (Business Rule - chỉ review 1 lần)
+                entity.HasIndex(r => r.BookingId).IsUnique().HasDatabaseName("uq_expert_reviews_booking_id")
+                    .HasFilter("booking_id IS NOT NULL");
             });
 
             // ── Booking ─────────────────────────────────────────────────────────
@@ -838,6 +851,9 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(b => b.PaymentReference).HasColumnName("payment_reference").HasMaxLength(100);
                 entity.Property(b => b.RefundStatus).HasColumnName("refund_status").HasMaxLength(50).HasDefaultValue("NONE");
                 entity.Property(b => b.RefundedAt).HasColumnName("refunded_at");
+
+                entity.Property(b => b.CompletedAt).HasColumnName("completed_at");
+                entity.Property(b => b.ReviewDeadline).HasColumnName("review_deadline");
 
                 entity.Property(b => b.CancelledAt).HasColumnName("cancelled_at");
                 entity.Property(b => b.CancellationReason).HasColumnName("cancellation_reason");
@@ -958,76 +974,123 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.HasIndex(s => s.BookingId).IsUnique().HasDatabaseName("uq_consultation_sessions_booking_id");
             });
 
-            // ── ExpertBankAccount (Đặc tả 8) ────────────────────────────────────
-            modelBuilder.Entity<ExpertBankAccount>(entity =>
+            // ── UserWallet (Đặc tả 7) ───────────────────────────────────────────
+            modelBuilder.Entity<UserWallet>(entity =>
             {
-                entity.ToTable("expert_bank_accounts");
-                entity.HasKey(b => b.Id);
-
-                entity.Property(b => b.Id).HasColumnName("id");
-                entity.Property(b => b.ExpertProfileId).HasColumnName("expert_profile_id").IsRequired();
-                entity.Property(b => b.BankCode).HasColumnName("bank_code").HasMaxLength(20).IsRequired();
-                entity.Property(b => b.BankName).HasColumnName("bank_name").HasMaxLength(150).IsRequired();
-                entity.Property(b => b.AccountNumber).HasColumnName("account_number").HasMaxLength(50).IsRequired();
-                entity.Property(b => b.AccountHolderName).HasColumnName("account_holder_name").HasMaxLength(150).IsRequired();
-                entity.Property(b => b.IsDefault).HasColumnName("is_default").HasDefaultValue(true);
-                entity.Property(b => b.IsVerified).HasColumnName("is_verified").HasDefaultValue(false);
-                entity.Property(b => b.CreatedAt).HasColumnName("created_at");
-                entity.Property(b => b.UpdatedAt).HasColumnName("updated_at");
-
-                entity.HasOne(b => b.ExpertProfile)
-                    .WithMany(p => p.BankAccounts)
-                    .HasForeignKey(b => b.ExpertProfileId)
-                    .OnDelete(DeleteBehavior.Cascade);
-
-                entity.HasIndex(b => b.ExpertProfileId).HasDatabaseName("idx_expert_bank_accounts_profile_id");
-            });
-
-            // ── WithdrawalRequest (Đặc tả 8) ────────────────────────────────────
-            modelBuilder.Entity<WithdrawalRequest>(entity =>
-            {
-                entity.ToTable("withdrawal_requests");
+                entity.ToTable("user_wallets");
                 entity.HasKey(w => w.Id);
 
                 entity.Property(w => w.Id).HasColumnName("id");
-                entity.Property(w => w.RequestCode).HasColumnName("request_code").HasMaxLength(50).IsRequired();
-                entity.Property(w => w.ExpertProfileId).HasColumnName("expert_profile_id").IsRequired();
-                entity.Property(w => w.Amount).HasColumnName("amount").HasColumnType("numeric(18,2)").IsRequired();
-                entity.Property(w => w.TaxWithheld).HasColumnName("tax_withheld").HasColumnType("numeric(18,2)").HasDefaultValue(0m);
-                entity.Property(w => w.NetAmount).HasColumnName("net_amount").HasColumnType("numeric(18,2)").IsRequired();
-                entity.Property(w => w.BankCode).HasColumnName("bank_code").HasMaxLength(20).IsRequired();
-                entity.Property(w => w.BankName).HasColumnName("bank_name").HasMaxLength(150).IsRequired();
-                entity.Property(w => w.AccountNumber).HasColumnName("account_number").HasMaxLength(50).IsRequired();
-                entity.Property(w => w.AccountHolderName).HasColumnName("account_holder_name").HasMaxLength(150).IsRequired();
-                entity.Property(w => w.Status)
-                    .HasColumnName("status")
-                    .HasMaxLength(50)
-                    .HasConversion<string>()
-                    .HasDefaultValue(WithdrawalStatus.Pending)
-                    .IsRequired();
-                entity.Property(w => w.TransferProofUrl).HasColumnName("transfer_proof_url").HasMaxLength(500);
-                entity.Property(w => w.BankTransactionReference).HasColumnName("bank_transaction_reference").HasMaxLength(100);
-                entity.Property(w => w.AdminNote).HasColumnName("admin_note");
-                entity.Property(w => w.RejectionReason).HasColumnName("rejection_reason");
-                entity.Property(w => w.ReviewedBy).HasColumnName("reviewed_by");
-                entity.Property(w => w.ReviewedAt).HasColumnName("reviewed_at");
-                entity.Property(w => w.TransferredAt).HasColumnName("transferred_at");
+                entity.Property(w => w.UserId).HasColumnName("user_id").IsRequired();
+                entity.Property(w => w.WalletType).HasColumnName("wallet_type").HasMaxLength(20).HasDefaultValue("USER").IsRequired();
+                entity.Property(w => w.AvailableBalance).HasColumnName("available_balance").HasPrecision(18, 2).HasDefaultValue(0m);
+                entity.Property(w => w.FrozenBalance).HasColumnName("frozen_balance").HasPrecision(18, 2).HasDefaultValue(0m);
+                entity.Property(w => w.TotalEarned).HasColumnName("total_earned").HasPrecision(18, 2).HasDefaultValue(0m);
+                entity.Property(w => w.TotalWithdrawn).HasColumnName("total_withdrawn").HasPrecision(18, 2).HasDefaultValue(0m);
                 entity.Property(w => w.CreatedAt).HasColumnName("created_at");
                 entity.Property(w => w.UpdatedAt).HasColumnName("updated_at");
 
-                entity.HasOne(w => w.ExpertProfile)
-                    .WithMany(p => p.WithdrawalRequests)
-                    .HasForeignKey(w => w.ExpertProfileId)
+                entity.HasOne(w => w.User)
+                    .WithMany()
+                    .HasForeignKey(w => w.UserId)
                     .OnDelete(DeleteBehavior.Restrict);
 
-                entity.HasOne(w => w.Reviewer)
-                    .WithMany()
-                    .HasForeignKey(w => w.ReviewedBy)
-                    .OnDelete(DeleteBehavior.SetNull);
+                entity.HasIndex(w => new { w.UserId, w.WalletType }).IsUnique().HasDatabaseName("uq_user_wallets_user_type");
+            });
 
-                entity.HasIndex(w => w.RequestCode).IsUnique().HasDatabaseName("uq_withdrawal_requests_code");
-                entity.HasIndex(w => w.ExpertProfileId).HasDatabaseName("idx_withdrawal_requests_profile_id");
-                entity.HasIndex(w => w.Status).HasDatabaseName("idx_withdrawal_requests_status");
+            // ── WalletTransaction (Đặc tả 7) ────────────────────────────────────
+            modelBuilder.Entity<WalletTransaction>(entity =>
+            {
+                entity.ToTable("wallet_transactions");
+                entity.HasKey(t => t.Id);
+
+                entity.Property(t => t.Id).HasColumnName("id");
+                entity.Property(t => t.WalletId).HasColumnName("wallet_id").IsRequired();
+                entity.Property(t => t.UserId).HasColumnName("user_id").IsRequired();
+                entity.Property(t => t.Amount).HasColumnName("amount").HasPrecision(18, 2).IsRequired();
+                entity.Property(t => t.BalanceBefore).HasColumnName("balance_before").HasPrecision(18, 2).IsRequired();
+                entity.Property(t => t.BalanceAfter).HasColumnName("balance_after").HasPrecision(18, 2).IsRequired();
+                entity.Property(t => t.TransactionType).HasColumnName("transaction_type").HasMaxLength(50).IsRequired();
+                entity.Property(t => t.ReferenceId).HasColumnName("reference_id");
+                entity.Property(t => t.Description).HasColumnName("description").HasMaxLength(500);
+                entity.Property(t => t.CreatedAt).HasColumnName("created_at");
+
+                entity.HasOne(t => t.Wallet)
+                    .WithMany(w => w.Transactions)
+                    .HasForeignKey(t => t.WalletId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(t => t.UserId).HasDatabaseName("idx_wallet_transactions_user_id");
+                entity.HasIndex(t => t.WalletId).HasDatabaseName("idx_wallet_transactions_wallet_id");
+            });
+
+            // ── WithdrawalRequest (Đặc tả 7) ────────────────────────────────────
+            modelBuilder.Entity<WithdrawalRequest>(entity =>
+            {
+                entity.ToTable("withdrawal_requests");
+                entity.HasKey(r => r.Id);
+
+                entity.Property(r => r.Id).HasColumnName("id");
+                entity.Property(r => r.UserId).HasColumnName("user_id").IsRequired();
+                entity.Property(r => r.Amount).HasColumnName("amount").HasPrecision(18, 2).IsRequired();
+                entity.Property(r => r.BankName).HasColumnName("bank_name").HasMaxLength(100).IsRequired();
+                entity.Property(r => r.AccountNumber).HasColumnName("account_number").HasMaxLength(50).IsRequired();
+                entity.Property(r => r.AccountName).HasColumnName("account_name").HasMaxLength(150).IsRequired();
+                entity.Property(r => r.Status).HasColumnName("status").HasMaxLength(50).HasDefaultValue("PENDING").IsRequired();
+                entity.Property(r => r.RejectionReason).HasColumnName("rejection_reason").HasMaxLength(500);
+                entity.Property(r => r.TransactionReference).HasColumnName("transaction_reference").HasMaxLength(100);
+                entity.Property(r => r.AdminNotes).HasColumnName("admin_notes").HasMaxLength(500);
+                entity.Property(r => r.ProcessedBy).HasColumnName("processed_by");
+                entity.Property(r => r.ProcessedAt).HasColumnName("processed_at");
+                entity.Property(r => r.CreatedAt).HasColumnName("created_at");
+                entity.Property(r => r.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasOne(r => r.User)
+                    .WithMany()
+                    .HasForeignKey(r => r.UserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasIndex(r => r.UserId).HasDatabaseName("idx_withdrawal_requests_user_id");
+                entity.HasIndex(r => r.Status).HasDatabaseName("idx_withdrawal_requests_status");
+            });
+
+            // ── BookingDispute (Đặc tả 7) ───────────────────────────────────────
+            modelBuilder.Entity<BookingDispute>(entity =>
+            {
+                entity.ToTable("booking_disputes");
+                entity.HasKey(d => d.Id);
+
+                entity.Property(d => d.Id).HasColumnName("id");
+                entity.Property(d => d.BookingId).HasColumnName("booking_id").IsRequired();
+                entity.Property(d => d.UserId).HasColumnName("user_id").IsRequired();
+                entity.Property(d => d.ExpertUserId).HasColumnName("expert_user_id").IsRequired();
+                entity.Property(d => d.Reason).HasColumnName("reason").HasMaxLength(100).IsRequired();
+                entity.Property(d => d.Description).HasColumnName("description").IsRequired();
+                entity.Property(d => d.EvidenceUrlsJson).HasColumnName("evidence_urls_json");
+                entity.Property(d => d.Status).HasColumnName("status").HasMaxLength(50).HasDefaultValue("PENDING_EXPERT_RESPONSE").IsRequired();
+                entity.Property(d => d.ExpertResponse).HasColumnName("expert_response");
+                entity.Property(d => d.ExpertEvidenceUrlsJson).HasColumnName("expert_evidence_urls_json");
+                entity.Property(d => d.ExpertRespondedAt).HasColumnName("expert_responded_at");
+                entity.Property(d => d.ExpertResponseDeadline).HasColumnName("expert_response_deadline");
+                entity.Property(d => d.AdminDecisionType).HasColumnName("admin_decision_type").HasMaxLength(50);
+                entity.Property(d => d.AdminResolution).HasColumnName("admin_resolution");
+                entity.Property(d => d.RefundRatePercent).HasColumnName("refund_rate_percent").HasPrecision(5, 2);
+                entity.Property(d => d.UserRefundAmount).HasColumnName("user_refund_amount").HasPrecision(18, 2).HasDefaultValue(0m);
+                entity.Property(d => d.ExpertSettlementAmount).HasColumnName("expert_settlement_amount").HasPrecision(18, 2).HasDefaultValue(0m);
+                entity.Property(d => d.PlatformFeeAmount).HasColumnName("platform_fee_amount").HasPrecision(18, 2).HasDefaultValue(0m);
+                entity.Property(d => d.AdminNotes).HasColumnName("admin_notes");
+                entity.Property(d => d.ResolvedBy).HasColumnName("resolved_by");
+                entity.Property(d => d.ResolvedAt).HasColumnName("resolved_at");
+                entity.Property(d => d.CreatedAt).HasColumnName("created_at");
+                entity.Property(d => d.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasOne(d => d.Booking)
+                    .WithMany()
+                    .HasForeignKey(d => d.BookingId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(d => d.BookingId).IsUnique().HasDatabaseName("uq_booking_disputes_booking_id");
+                entity.HasIndex(d => d.Status).HasDatabaseName("idx_booking_disputes_status");
             });
         }
     }

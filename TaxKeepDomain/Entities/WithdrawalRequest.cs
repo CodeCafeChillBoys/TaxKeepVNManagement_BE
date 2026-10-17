@@ -1,63 +1,50 @@
 using System;
-using TaxKeepVN.Domain.Enums;
 
 namespace TaxKeepVN.Domain.Entities
 {
     /// <summary>
-    /// Lệnh yêu cầu rút tiền về tài khoản ngân hàng của Chuyên gia (Đặc tả 8)
+    /// Yêu cầu rút tiền từ Ví thu nhập về tài khoản ngân hàng cá nhân của Chuyên gia (Đặc tả 7 - Mục 5.3)
     /// </summary>
     public class WithdrawalRequest
     {
         public Guid Id { get; set; } = Guid.NewGuid();
 
-        /// <summary>Mã yêu cầu rút tiền thân thiện với người dùng (VD: WDR-20261016-A1B2C3)</summary>
-        public string RequestCode { get; set; } = string.Empty;
+        /// <summary>FK → User.UserId (Chuyên gia gửi yêu cầu)</summary>
+        public Guid UserId { get; set; }
 
-        /// <summary>FK → ExpertProfile.Id</summary>
-        public Guid ExpertProfileId { get; set; }
-
-        /// <summary>Số tiền chuyên gia yêu cầu rút (VNĐ)</summary>
+        /// <summary>Số tiền yêu cầu rút (VNĐ, tối thiểu EXPERT_MIN_WITHDRAWAL_VND)</summary>
         public decimal Amount { get; set; }
 
-        /// <summary>Số tiền thuế TNCN khấu trừ tại nguồn nếu có quy định (VNĐ)</summary>
-        public decimal TaxWithheld { get; set; } = 0m;
-
-        /// <summary>Số tiền thực nhận sau khi khấu trừ thuế (Amount - TaxWithheld)</summary>
-        public decimal NetAmount { get; set; }
-
-        // ── Snapshot thông tin ngân hàng thụ hưởng tại thời điểm tạo lệnh rút ──
-        public string BankCode { get; set; } = string.Empty;
+        /// <summary>Tên ngân hàng thụ hưởng (VD: Vietcombank, Techcombank, MBBank)</summary>
         public string BankName { get; set; } = string.Empty;
+
+        /// <summary>Số tài khoản ngân hàng thụ hưởng</summary>
         public string AccountNumber { get; set; } = string.Empty;
-        public string AccountHolderName { get; set; } = string.Empty;
 
-        /// <summary>Trạng thái xử lý: Pending | Approved | Transferred | Rejected</summary>
-        public WithdrawalStatus Status { get; set; } = WithdrawalStatus.Pending;
+        /// <summary>Tên chủ tài khoản ngân hàng (phải trùng với họ tên xác thực eKYC)</summary>
+        public string AccountName { get; set; } = string.Empty;
 
-        /// <summary>Đường dẫn ảnh chụp chứng từ ủy nhiệm chi / biên lai chuyển khoản</summary>
-        public string? TransferProofUrl { get; set; }
+        /// <summary>Trạng thái: PENDING (Chờ duyệt), APPROVED (Đã duyệt), REJECTED (Từ chối), COMPLETED (Đã chuyển khoản thành công)</summary>
+        public string Status { get; set; } = "PENDING";
 
-        /// <summary>Mã tham chiếu bút toán ngân hàng chuyển khoản</summary>
-        public string? BankTransactionReference { get; set; }
-
-        /// <summary>Ghi chú của Admin / Kế toán</summary>
-        public string? AdminNote { get; set; }
-
-        /// <summary>Lý do từ chối (bắt buộc khi Rejected)</summary>
+        /// <summary>Lý do từ chối nếu bị Admin bác bỏ</summary>
         public string? RejectionReason { get; set; }
 
-        /// <summary>Admin / Kế toán duyệt hoặc từ chối lệnh</summary>
-        public Guid? ReviewedBy { get; set; }
-        public DateTimeOffset? ReviewedAt { get; set; }
+        /// <summary>Mã giao dịch ngân hàng / Bằng chứng chuyển khoản</summary>
+        public string? TransactionReference { get; set; }
 
-        /// <summary>Thời điểm chuyển tiền thành công</summary>
-        public DateTimeOffset? TransferredAt { get; set; }
+        /// <summary>Ghi chú của Admin khi xử lý</summary>
+        public string? AdminNotes { get; set; }
+
+        /// <summary>Admin tiếp nhận và xử lý</summary>
+        public Guid? ProcessedBy { get; set; }
+
+        public DateTimeOffset? ProcessedAt { get; set; }
 
         public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
         public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 
-        // Navigation properties
-        public ExpertProfile? ExpertProfile { get; set; }
-        public User? Reviewer { get; set; }
+        // Navigation
+        public User? User { get; set; }
     }
 }

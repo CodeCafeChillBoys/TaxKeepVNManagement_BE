@@ -60,6 +60,11 @@ namespace TaxKeepVN.Domain.Enums
         /// <summary>
         /// Khoản tiền tạm giữ trong Escrow đã được quyết toán / giải ngân cho chuyên gia sau thời gian Cool-down (Đặc tả 7)
         /// </summary>
-        SETTLED
+        SETTLED,
+
+        /// <summary>
+        /// Phiên tư vấn phát sinh tranh chấp / khiếu nại dịch vụ, khoản tiền tạm giữ bị đóng băng chờ Admin xử lý (Đặc tả 7)
+        /// </summary>
+        UNDER_DISPUTE
     }
 }

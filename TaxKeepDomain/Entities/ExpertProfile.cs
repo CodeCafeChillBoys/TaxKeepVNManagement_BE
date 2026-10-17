@@ -48,7 +48,5 @@ namespace TaxKeepVN.Domain.Entities
         public ExpertApplication? LatestApplication { get; set; }
         public ICollection<ExpertSlot> Slots { get; set; } = new List<ExpertSlot>();
         public ICollection<ExpertReview> Reviews { get; set; } = new List<ExpertReview>();
-        public ICollection<ExpertBankAccount> BankAccounts { get; set; } = new List<ExpertBankAccount>();
-        public ICollection<WithdrawalRequest> WithdrawalRequests { get; set; } = new List<WithdrawalRequest>();
     }
 }

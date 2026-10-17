@@ -14,6 +14,12 @@ namespace TaxKeepVN.Application.DTOs.Experts
         /// <summary>Tên hiển thị người đánh giá (ẩn danh hoặc che bớt họ tên nếu is_anonymous = true)</summary>
         public string ReviewerDisplayName { get; set; } = string.Empty;
 
+        /// <summary>Phản hồi công khai từ chuyên gia (nếu có)</summary>
+        public string? ExpertReply { get; set; }
+
+        /// <summary>Thời điểm chuyên gia gửi phản hồi</summary>
+        public DateTimeOffset? ExpertRepliedAt { get; set; }
+
         public DateTimeOffset CreatedAt { get; set; }
     }
 }

@@ -588,6 +588,8 @@ namespace TaxKeepVN.Application.Service.Implementations
                 escrow.RefundedAt = nowUtc;
                 escrow.UpdatedAt = nowUtc;
                 _unitOfWork.Repository<EscrowTransaction>().Update(escrow);
+
+                await CreditRefundToUserWalletAsync(booking.UserId, booking.Id, booking.BookingCode, escrow.RefundAmount, cleanReason, nowUtc);
             }
 
             // Mở lại khung giờ
@@ -740,6 +742,11 @@ namespace TaxKeepVN.Application.Service.Implementations
                 _unitOfWork.Repository<ExpertSlot>().Update(slot);
             }
 
+            if (escrow != null && escrow.RefundAmount > 0)
+            {
+                await CreditRefundToUserWalletAsync(booking.UserId, booking.Id, booking.BookingCode, escrow.RefundAmount, cleanReason, nowUtc);
+            }
+
             _unitOfWork.Repository<Booking>().Update(booking);
             await _unitOfWork.SaveChangesAsync();
 
@@ -747,6 +754,172 @@ namespace TaxKeepVN.Application.Service.Implementations
                 userId, booking.BookingCode, booking.RefundStatus);
 
             return await GetBookingByIdAsync(booking.Id, userId, "taxpayer");
+        }
+
+        // ── 10.B CHUYÊN GIA HỦY LỊCH HẸN ĐÃ XÁC NHẬN (EXPERT CANCEL) ───────────────
+        public async Task<BookingDetailResponse> ExpertCancelBookingAsync(Guid expertUserId, Guid bookingId, string reason, string? cancelledBy = null)
+        {
+            var booking = await _unitOfWork.Repository<Booking>().GetByIdAsync(bookingId);
+            if (booking == null)
+            {
+                throw new NotFoundException($"Không tìm thấy lịch hẹn với Id = {bookingId}.");
+            }
+
+            var slot = await _unitOfWork.Repository<ExpertSlot>().GetByIdAsync(booking.ExpertSlotId);
+            var profile = slot != null ? await _unitOfWork.Repository<ExpertProfile>().GetByIdAsync(slot.ExpertProfileId) : null;
+
+            if (profile == null || profile.UserId != expertUserId)
+            {
+                throw new ForbiddenException("Bạn không phải chuyên gia phụ trách ca tư vấn này.");
+            }
+
+            if (booking.Status != BookingStatus.CONFIRMED)
+            {
+                throw new BadRequestException("CANNOT_CANCEL", $"Chỉ có thể hủy ca tư vấn đang ở trạng thái đã xác nhận (CONFIRMED). Hiện tại: '{booking.Status}'.");
+            }
+
+            var nowUtc = DateTimeOffset.UtcNow;
+            var cleanReason = string.IsNullOrWhiteSpace(reason) ? "Chuyên gia hủy lịch do sự cố đột xuất." : reason.Trim();
+
+            booking.Status = BookingStatus.CANCELLED_BY_EXPERT;
+            booking.CancelledBy = !string.IsNullOrWhiteSpace(cancelledBy) ? cancelledBy : "EXPERT";
+            booking.CancelledAt = nowUtc;
+            booking.CancellationReason = cleanReason;
+            booking.RefundStatus = "REFUNDED";
+            booking.RefundedAt = nowUtc;
+            booking.UpdatedAt = nowUtc;
+
+            // 1. Hoàn tiền 100% cho người nộp thuế
+            var escrows = await _unitOfWork.Repository<EscrowTransaction>().FindAsync(e => e.BookingId == booking.Id);
+            var escrow = escrows.FirstOrDefault();
+            if (escrow != null)
+            {
+                escrow.EscrowStatus = EscrowStatus.Refunded;
+                escrow.RefundAmount = escrow.Amount;
+                escrow.RefundReason = $"Chuyên gia hủy lịch hẹn: {cleanReason}";
+                escrow.RefundedAt = nowUtc;
+                escrow.UpdatedAt = nowUtc;
+                _unitOfWork.Repository<EscrowTransaction>().Update(escrow);
+
+                await CreditRefundToUserWalletAsync(booking.UserId, booking.Id, booking.BookingCode, escrow.RefundAmount, cleanReason, nowUtc);
+            }
+
+            // 2. Kiểm tra phạt hủy sát giờ (< EXPERT_LATE_CANCEL_HOURS, mặc định 12 giờ)
+            var lateCancelHours = await BookingHelper.GetRequiredConfigIntAsync(_unitOfWork, BookingHelper.ConfigKeyExpertLateCancelHours);
+            var penaltyVnd = await BookingHelper.GetRequiredConfigDecimalAsync(_unitOfWork, BookingHelper.ConfigKeyExpertLateCancelPenaltyVnd);
+
+            var slotStartUtc = slot != null ? BookingHelper.ConvertSlotToUtc(slot.SlotDate, slot.StartTime) : nowUtc;
+            var hoursBefore = (slotStartUtc - nowUtc).TotalHours;
+
+            if (hoursBefore < lateCancelHours && penaltyVnd > 0)
+            {
+                var expertWallets = await _unitOfWork.Repository<UserWallet>().FindAsync(w => w.UserId == expertUserId && w.WalletType == "EXPERT");
+                var expertWallet = expertWallets.FirstOrDefault();
+                if (expertWallet == null)
+                {
+                    expertWallet = new UserWallet
+                    {
+                        Id = Guid.NewGuid(),
+                        UserId = expertUserId,
+                        WalletType = "EXPERT",
+                        AvailableBalance = 0m,
+                        CreatedAt = nowUtc,
+                        UpdatedAt = nowUtc
+                    };
+                    await _unitOfWork.Repository<UserWallet>().AddAsync(expertWallet);
+                }
+
+                var beforeBal = expertWallet.AvailableBalance;
+                expertWallet.AvailableBalance = Math.Max(0m, expertWallet.AvailableBalance - penaltyVnd);
+                expertWallet.UpdatedAt = nowUtc;
+                _unitOfWork.Repository<UserWallet>().Update(expertWallet);
+
+                await _unitOfWork.Repository<WalletTransaction>().AddAsync(new WalletTransaction
+                {
+                    Id = Guid.NewGuid(),
+                    WalletId = expertWallet.Id,
+                    UserId = expertUserId,
+                    Amount = -penaltyVnd,
+                    BalanceBefore = beforeBal,
+                    BalanceAfter = expertWallet.AvailableBalance,
+                    TransactionType = "PENALTY",
+                    ReferenceId = booking.Id,
+                    Description = $"Phạt vi phạm hủy lịch sát giờ hẹn (< {lateCancelHours} giờ) ca #{booking.BookingCode}",
+                    CreatedAt = nowUtc
+                });
+
+                _logger.LogWarning("Chuyên gia {ExpertUserId} hủy sát giờ booking {BookingCode} ({Hours}h trước ca). Áp dụng phạt {Penalty} VNĐ.",
+                    expertUserId, booking.BookingCode, hoursBefore, penaltyVnd);
+            }
+
+            // 3. Giải phóng slot
+            if (slot != null)
+            {
+                slot.IsBooked = false;
+                slot.HoldExpiresAt = null;
+                slot.HoldUserId = null;
+                slot.UpdatedAt = nowUtc;
+                _unitOfWork.Repository<ExpertSlot>().Update(slot);
+            }
+
+            _unitOfWork.Repository<Booking>().Update(booking);
+
+            // 4. Gửi thông báo cho khách hàng
+            await _unitOfWork.Repository<SystemNotification>().AddAsync(new SystemNotification
+            {
+                NotificationId = Guid.NewGuid(),
+                UserId = booking.UserId,
+                Title = "Chuyên gia đã hủy lịch hẹn – Hoàn tiền 100%",
+                Message = $"Chuyên gia đã hủy lịch hẹn #{booking.BookingCode} (Lý do: {cleanReason}). Khoản tiền {booking.Fee:N0} VNĐ đã được hoàn trả lại cho bạn.",
+                NotificationType = "BOOKING_CANCELLED_BY_EXPERT",
+                IsRead = false,
+                TargetActionUrl = "/experts",
+                CreatedAt = nowUtc.UtcDateTime
+            });
+
+            await _unitOfWork.SaveChangesAsync();
+
+            return await GetBookingByIdAsync(booking.Id, expertUserId, "expert");
+        }
+
+        private async Task CreditRefundToUserWalletAsync(Guid userId, Guid bookingId, string bookingCode, decimal refundAmount, string reason, DateTimeOffset nowUtc)
+        {
+            if (refundAmount <= 0) return;
+
+            var wallets = await _unitOfWork.Repository<UserWallet>().FindAsync(w => w.UserId == userId && w.WalletType == "USER");
+            var userWallet = wallets.FirstOrDefault();
+            if (userWallet == null)
+            {
+                userWallet = new UserWallet
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = userId,
+                    WalletType = "USER",
+                    AvailableBalance = 0m,
+                    CreatedAt = nowUtc,
+                    UpdatedAt = nowUtc
+                };
+                await _unitOfWork.Repository<UserWallet>().AddAsync(userWallet);
+            }
+
+            var before = userWallet.AvailableBalance;
+            userWallet.AvailableBalance += refundAmount;
+            userWallet.UpdatedAt = nowUtc;
+            _unitOfWork.Repository<UserWallet>().Update(userWallet);
+
+            await _unitOfWork.Repository<WalletTransaction>().AddAsync(new WalletTransaction
+            {
+                Id = Guid.NewGuid(),
+                WalletId = userWallet.Id,
+                UserId = userId,
+                Amount = refundAmount,
+                BalanceBefore = before,
+                BalanceAfter = userWallet.AvailableBalance,
+                TransactionType = "REFUND",
+                ReferenceId = bookingId,
+                Description = $"Hoàn tiền ca tư vấn #{bookingCode} ({reason})",
+                CreatedAt = nowUtc
+            });
         }
 
         // ── 11. TẢI TỆP CHỨNG TỪ AN TOÀN (SECURE DOWNLOAD) ───────────────────────────
