@@ -804,9 +804,10 @@ namespace TaxKeepVN.Application.Service.Implementations
                 await CreditRefundToUserWalletAsync(booking.UserId, booking.Id, booking.BookingCode, escrow.RefundAmount, cleanReason, nowUtc);
             }
 
-            // 2. Kiểm tra phạt hủy sát giờ (< EXPERT_LATE_CANCEL_HOURS, mặc định 12 giờ)
-            var lateCancelHours = await BookingHelper.GetRequiredConfigIntAsync(_unitOfWork, BookingHelper.ConfigKeyExpertLateCancelHours);
-            var penaltyVnd = await BookingHelper.GetRequiredConfigDecimalAsync(_unitOfWork, BookingHelper.ConfigKeyExpertLateCancelPenaltyVnd);
+            // 2. Kiểm tra phạt hủy sát giờ (< ExpertLateCancelHours, mặc định 12 giờ) từ chính sách sàn ConsultationPlatformPolicy
+            var policy = await BookingHelper.GetPlatformPolicyAsync(_unitOfWork);
+            var lateCancelHours = policy.ExpertLateCancelHours;
+            var penaltyVnd = policy.ExpertLateCancelPenaltyVnd;
 
             var slotStartUtc = slot != null ? BookingHelper.ConvertSlotToUtc(slot.SlotDate, slot.StartTime) : nowUtc;
             var hoursBefore = (slotStartUtc - nowUtc).TotalHours;
