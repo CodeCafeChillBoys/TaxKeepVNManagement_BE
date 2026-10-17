@@ -648,9 +648,17 @@ namespace TaxKeepVN.Application.Service.Implementations
             var user = await _unitOfWork.Repository<User>().GetByIdAsync(userId)
                 ?? throw new NotFoundException("Không tìm thấy thông tin người dùng.");
 
+            var isExpert = string.Equals(user.UserRole, "expert", StringComparison.OrdinalIgnoreCase);
+
             var type = !string.IsNullOrWhiteSpace(walletType)
                 ? walletType.Trim().ToUpperInvariant()
-                : (user.UserRole == "expert" ? "EXPERT" : "USER");
+                : (isExpert ? "EXPERT" : "USER");
+
+            // Nếu người dùng không phải Chuyên gia mà yêu cầu xem ví EXPERT -> Tự động chuyển về ví USER để tránh tạo bản ghi ví rác
+            if (type == "EXPERT" && !isExpert)
+            {
+                type = "USER";
+            }
 
             var wallet = await GetOrCreateWalletAsync(userId, type);
 
@@ -950,7 +958,14 @@ namespace TaxKeepVN.Application.Service.Implementations
 
         private async Task<UserWallet> GetOrCreateWalletAsync(Guid userId, string walletType)
         {
-            var wallets = await _unitOfWork.Repository<UserWallet>().FindAsync(w => w.UserId == userId && w.WalletType == walletType);
+            var user = await _unitOfWork.Repository<User>().GetByIdAsync(userId);
+            var isExpert = user != null && string.Equals(user.UserRole, "expert", StringComparison.OrdinalIgnoreCase);
+
+            var resolvedType = (walletType.Equals("EXPERT", StringComparison.OrdinalIgnoreCase) && !isExpert)
+                ? "USER"
+                : walletType.Trim().ToUpperInvariant();
+
+            var wallets = await _unitOfWork.Repository<UserWallet>().FindAsync(w => w.UserId == userId && w.WalletType == resolvedType);
             var wallet = wallets.FirstOrDefault();
 
             if (wallet == null)
@@ -959,7 +974,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 {
                     Id = Guid.NewGuid(),
                     UserId = userId,
-                    WalletType = walletType,
+                    WalletType = resolvedType,
                     AvailableBalance = 0m,
                     FrozenBalance = 0m,
                     TotalEarned = 0m,
