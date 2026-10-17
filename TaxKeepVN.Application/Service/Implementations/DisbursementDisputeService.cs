@@ -80,7 +80,8 @@ namespace TaxKeepVN.Application.Service.Implementations
             }
 
             var nowUtc = DateTimeOffset.UtcNow;
-            var coolDownHours = await BookingHelper.GetRequiredConfigIntAsync(_unitOfWork, BookingHelper.ConfigKeyEscrowCooldownHours);
+            var policy = await BookingHelper.GetPlatformPolicyAsync(_unitOfWork);
+            var coolDownHours = policy.EscrowCooldownHours > 0 ? policy.EscrowCooldownHours : 24;
             var completedAt = booking.CompletedAt ?? booking.UpdatedAt;
 
             if (nowUtc < completedAt.AddHours(coolDownHours))
@@ -198,7 +199,8 @@ namespace TaxKeepVN.Application.Service.Implementations
                 };
             }
 
-            var disputeWindowHours = await BookingHelper.GetRequiredConfigIntAsync(_unitOfWork, BookingHelper.ConfigKeyDisputeWindowHours);
+            var policy = await BookingHelper.GetPlatformPolicyAsync(_unitOfWork);
+            var disputeWindowHours = policy.DisputeWindowHours > 0 ? policy.DisputeWindowHours : 24;
             var completedAt = booking.CompletedAt ?? booking.UpdatedAt;
             var deadline = completedAt.AddHours(disputeWindowHours);
             var nowUtc = DateTimeOffset.UtcNow;
@@ -256,7 +258,8 @@ namespace TaxKeepVN.Application.Service.Implementations
                 ?? throw new BadRequestException("ESCROW_NOT_FOUND", "Không tìm thấy giao dịch Escrow cho ca tư vấn này.");
 
             var nowUtc = DateTimeOffset.UtcNow;
-            var replyHours = await BookingHelper.GetRequiredConfigIntAsync(_unitOfWork, BookingHelper.ConfigKeyDisputeExpertReplyHours);
+            var policy = await BookingHelper.GetPlatformPolicyAsync(_unitOfWork);
+            var replyHours = policy.DisputeExpertReplyHours > 0 ? policy.DisputeExpertReplyHours : 24;
 
             // 1. Đóng băng tiền Escrow (Freeze Escrow) & chuyển trạng thái Booking
             escrow.EscrowStatus = EscrowStatus.Disputed;
@@ -489,7 +492,8 @@ namespace TaxKeepVN.Application.Service.Implementations
             decimal expertReceivable = 0m;
             decimal platformFee = 0m;
 
-            var commissionRate = await BookingHelper.GetRequiredConfigDecimalAsync(_unitOfWork, BookingHelper.ConfigKeyPlatformCommissionRatePercent);
+            var policy = await BookingHelper.GetPlatformPolicyAsync(_unitOfWork);
+            var commissionRate = policy.PlatformCommissionRatePercent;
 
             if (decisionType == "FULL_REFUND")
             {
@@ -730,7 +734,8 @@ namespace TaxKeepVN.Application.Service.Implementations
                 throw new BadRequestException("TAX_ID_REQUIRED", "Bạn cần cập nhật Mã số thuế cá nhân hợp lệ trong hồ sơ trước khi thực hiện rút tiền.");
             }
 
-            var minWithdrawal = await BookingHelper.GetRequiredConfigDecimalAsync(_unitOfWork, BookingHelper.ConfigKeyExpertMinWithdrawalVnd);
+            var policy = await BookingHelper.GetPlatformPolicyAsync(_unitOfWork);
+            var minWithdrawal = policy.ExpertMinWithdrawalVnd > 0m ? policy.ExpertMinWithdrawalVnd : 500000m;
             if (request.Amount < minWithdrawal)
             {
                 throw new BadRequestException("MIN_WITHDRAWAL_NOT_MET",

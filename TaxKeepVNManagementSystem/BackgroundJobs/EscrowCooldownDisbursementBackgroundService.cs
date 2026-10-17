@@ -71,20 +71,6 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
                 ? policy.EscrowCooldownHours
                 : 24;
 
-            if (coolDownHours == 24)
-            {
-                var config = await dbContext.SystemConfigs
-                    .AsNoTracking()
-                    .Where(c => c.ConfigKey == BookingHelper.ConfigKeyEscrowCooldownHours && c.IsActive)
-                    .OrderByDescending(c => c.AppliesFromYear ?? int.MinValue)
-                    .FirstOrDefaultAsync();
-
-                if (config != null && int.TryParse(config.ConfigValue, out var val) && val > 0)
-                {
-                    coolDownHours = val;
-                }
-            }
-
             var thresholdUtc = nowUtc.AddHours(-coolDownHours);
 
             // 2. Tìm các Booking hoàn thành (COMPLETED) đã vượt quá 24h kể từ khi kết thúc

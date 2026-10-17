@@ -513,7 +513,8 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             booking.Status = BookingStatus.COMPLETED;
             booking.CompletedAt = nowUtc;
-            var ratingWindowDays = await BookingHelper.GetConfigIntOrDefaultAsync(_unitOfWork, BookingHelper.ConfigKeyRatingWindowDays, 7);
+            var policy = await BookingHelper.GetPlatformPolicyAsync(_unitOfWork);
+            var ratingWindowDays = policy.RatingWindowDays > 0 ? policy.RatingWindowDays : 7;
             booking.ReviewDeadline = nowUtc.AddDays(ratingWindowDays);
             booking.UpdatedAt = nowUtc;
 
@@ -733,7 +734,7 @@ namespace TaxKeepVN.Application.Service.Implementations
 
                 booking.Status = BookingStatus.COMPLETED;
                 booking.CompletedAt = nowUtc;
-                var ratingDaysNoShow = await BookingHelper.GetConfigIntOrDefaultAsync(_unitOfWork, BookingHelper.ConfigKeyRatingWindowDays, 7);
+                var ratingDaysNoShow = policy.RatingWindowDays > 0 ? policy.RatingWindowDays : 7;
                 booking.ReviewDeadline = nowUtc.AddDays(ratingDaysNoShow);
                 booking.UpdatedAt = nowUtc;
 
