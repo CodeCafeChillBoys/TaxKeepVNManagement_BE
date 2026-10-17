@@ -17,6 +17,7 @@ namespace TaxKeepVNManagementSystem.Controllers
     [ApiController]
     [Route("api/v1/admin/tax-settlement-schedule")]
     [Authorize(Roles = "admin")]
+    [Produces("application/json")]
     [Tags("Admin - Tax Settlement Schedule (Lịch trình quyết toán thuế)")]
     public class TaxSettlementScheduleController : ControllerBase
     {

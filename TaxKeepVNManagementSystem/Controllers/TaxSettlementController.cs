@@ -19,6 +19,7 @@ namespace TaxKeepVNManagementSystem.Controllers
     [ApiController]
     [Route("api/v1/tax-settlements")]
     [Authorize]
+    [Produces("application/json")]
     [Tags("Tax Settlement - Quyết Toán Thuế TNCN")]
     public class TaxSettlementController : ControllerBase
     {
@@ -51,15 +52,12 @@ namespace TaxKeepVNManagementSystem.Controllers
 
         /// <summary>
         /// Đếm ngược hạn nộp quyết toán thuế TNCN kèm số ngày còn lại và mức độ cấp bách (Mục 4 Góp ý Hội đồng).
-        /// Hỗ trợ cả 2 định dạng route:
-        /// GET /api/v1/tax-settlement/deadline-countdown
         /// GET /api/v1/tax-settlements/deadline-countdown
         /// </summary>
-        // GET /api/v1/tax-settlement/deadline-countdown
-        [HttpGet("/api/v1/tax-settlement/deadline-countdown", Name = "GetTaxSettlementDeadlineCountdownSingular")]
-        [HttpGet("deadline-countdown", Name = "GetTaxSettlementDeadlineCountdownPlural")]
+        // GET /api/v1/tax-settlements/deadline-countdown
+        [HttpGet("deadline-countdown", Name = "GetTaxSettlementDeadlineCountdown")]
         [AllowAnonymous]
-        [EndpointSummary("Đếm ngược hạn chót nộp hồ sơ quyết toán thuế TNCN cho Dashboard khách hàng (Mục 4 Góp ý Cô)")]
+        [EndpointSummary("Đếm ngược hạn chót nộp hồ sơ quyết toán thuế TNCN cho Dashboard khách hàng")]
         [ProducesResponseType(typeof(ApiResponse<TaxSettlementDeadlineCountdownDto>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetDeadlineCountdown([FromQuery] int? taxYear = null)
         {
@@ -81,38 +79,61 @@ namespace TaxKeepVNManagementSystem.Controllers
             var vietnamNow = DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(7)).Date;
             int currentYear = vietnamNow.Year;
 
-            // Xác định năm quyết toán và năm hạn nộp
+            // Hạn chót của năm hiện tại
+            var deadlineThisYear = new DateTime(currentYear, deadlineMonth, deadlineDay);
+
+            // Xác định năm quyết toán và năm hạn nộp tiếp theo (Next Upcoming Deadline)
             int resolvedTaxYear;
             int deadlineYear;
 
             if (taxYear.HasValue)
             {
-                resolvedTaxYear = taxYear.Value;
-                deadlineYear = resolvedTaxYear + 1;
+                var specifiedDeadline = new DateTime(taxYear.Value + 1, deadlineMonth, deadlineDay);
+                if (vietnamNow <= specifiedDeadline)
+                {
+                    resolvedTaxYear = taxYear.Value;
+                    deadlineYear = resolvedTaxYear + 1;
+                }
+                else
+                {
+                    // Đã qua hạn của năm chỉ định -> Luôn tự động chuyển sang đếm ngược hạn tiếp theo chứ không ghi quá hạn
+                    if (vietnamNow <= deadlineThisYear)
+                    {
+                        resolvedTaxYear = currentYear - 1;
+                        deadlineYear = currentYear;
+                    }
+                    else
+                    {
+                        resolvedTaxYear = currentYear;
+                        deadlineYear = currentYear + 1;
+                    }
+                }
             }
             else
             {
-                // Mặc định quyết toán cho năm trước
-                resolvedTaxYear = currentYear - 1;
-                deadlineYear = currentYear;
+                // Mặc định tự động đếm ngược đến hạn nộp tiếp theo:
+                // Nếu chưa qua hạn nộp năm nay (<= 30/04): đếm ngược đến 30/04 năm nay cho năm thuế currentYear - 1
+                // Nếu đã qua hạn nộp năm nay (> 30/04): chuyển sang đếm ngược đến 30/04 năm sau cho năm thuế currentYear
+                if (vietnamNow <= deadlineThisYear)
+                {
+                    resolvedTaxYear = currentYear - 1;
+                    deadlineYear = currentYear;
+                }
+                else
+                {
+                    resolvedTaxYear = currentYear;
+                    deadlineYear = currentYear + 1;
+                }
             }
 
             var deadlineDate = new DateTime(deadlineYear, deadlineMonth, deadlineDay);
-            int daysRemaining = (deadlineDate - vietnamNow).Days;
+            int daysRemaining = Math.Max(0, (deadlineDate - vietnamNow).Days);
 
-            // 3. Đánh giá mức độ cấp bách và thông điệp nhắc nhở
+            // 3. Đánh giá mức độ cấp bách và thông điệp nhắc nhở (KHÔNG BAO GIỜ hiển thị OVERDUE)
             string urgencyLevel;
             string reminderMessage;
-            bool isOverdue = false;
 
-            if (daysRemaining < 0)
-            {
-                urgencyLevel = "OVERDUE";
-                isOverdue = true;
-                int overdueDays = Math.Abs(daysRemaining);
-                reminderMessage = $"Hạn chót nộp hồ sơ quyết toán thuế TNCN năm {resolvedTaxYear} là ngày {deadlineDate:dd/MM/yyyy}. Bạn đã quá hạn {overdueDays} ngày. Vui lòng nộp ngay để tránh phát sinh tiền phạt chậm nộp!";
-            }
-            else if (daysRemaining == 0)
+            if (daysRemaining == 0)
             {
                 urgencyLevel = "CRITICAL";
                 reminderMessage = $"HÔM NAY là hạn chót nộp hồ sơ quyết toán thuế TNCN năm {resolvedTaxYear} (ngày {deadlineDate:dd/MM/yyyy}). Vui lòng hoàn thiện và nộp hồ sơ ngay!";
@@ -120,17 +141,69 @@ namespace TaxKeepVNManagementSystem.Controllers
             else if (daysRemaining <= 7)
             {
                 urgencyLevel = "CRITICAL";
-                reminderMessage = $"Hạn chót nộp hồ sơ quyết toán thuế TNCN là ngày {deadlineDate:dd/MM/yyyy}. Bạn còn {daysRemaining} ngày để hoàn thiện hồ sơ.";
+                reminderMessage = $"Hạn chót nộp hồ sơ quyết toán thuế TNCN năm {resolvedTaxYear} là ngày {deadlineDate:dd/MM/yyyy}. Bạn còn {daysRemaining} ngày để hoàn thiện hồ sơ.";
             }
             else if (daysRemaining <= 30)
             {
                 urgencyLevel = "WARNING";
-                reminderMessage = $"Hạn chót nộp hồ sơ quyết toán thuế TNCN là ngày {deadlineDate:dd/MM/yyyy}. Bạn còn {daysRemaining} ngày để hoàn thiện hồ sơ.";
+                reminderMessage = $"Hạn chót nộp hồ sơ quyết toán thuế TNCN năm {resolvedTaxYear} là ngày {deadlineDate:dd/MM/yyyy}. Bạn còn {daysRemaining} ngày để hoàn thiện hồ sơ.";
             }
             else
             {
                 urgencyLevel = "NORMAL";
-                reminderMessage = $"Hạn chót nộp hồ sơ quyết toán thuế TNCN là ngày {deadlineDate:dd/MM/yyyy}. Bạn còn {daysRemaining} ngày để hoàn thiện hồ sơ.";
+                reminderMessage = $"Hạn chót nộp hồ sơ quyết toán thuế TNCN năm {resolvedTaxYear} là ngày {deadlineDate:dd/MM/yyyy}. Bạn còn {daysRemaining} ngày để hoàn thiện hồ sơ.";
+            }
+
+            // 4. Cơ chế hỏi: "Bạn đã quyết toán thuế chưa?" (1 lần duy nhất)
+            // Kích hoạt khi: đúng vào ngày hạn nộp hoặc qua ngày hạn nộp (vietnamNow >= deadlineThisYear)
+            bool shouldPromptSettlementCheck = false;
+            int? promptTaxYear = null;
+            string? promptQuestion = null;
+
+            // Kiểm tra xem request có token của user đã đăng nhập hay không
+            Guid? currentUserId = null;
+            if (User.Identity?.IsAuthenticated == true)
+            {
+                var userIdClaim = User.FindFirst("userId")?.Value
+                    ?? User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+                if (!string.IsNullOrEmpty(userIdClaim) && Guid.TryParse(userIdClaim, out var parsedId))
+                {
+                    currentUserId = parsedId;
+                }
+            }
+
+            if (currentUserId.HasValue && vietnamNow >= deadlineThisYear)
+            {
+                int settlementYearToCheck = currentYear - 1;
+                promptTaxYear = settlementYearToCheck;
+
+                // Kiểm tra 1: User đã chốt hồ sơ quyết toán thuế cho năm đó chưa (Status == "LOCKED")
+                var dossierRepo = _unitOfWork.Repository<TaxSettlementDossier>();
+                var settledDossiers = await dossierRepo.FindAsync(d =>
+                    d.TaxpayerId == currentUserId.Value &&
+                    d.TaxYear == settlementYearToCheck &&
+                    d.Status == "LOCKED");
+
+                bool hasSettled = settledDossiers.Any();
+
+                if (!hasSettled)
+                {
+                    // Kiểm tra 2: User đã từng được hiển thị câu hỏi nhắc nhở này chưa (1 lần duy nhất)
+                    var notifRepo = _unitOfWork.Repository<SystemNotification>();
+                    var promptTargetUrl = $"/tax-settlement/{settlementYearToCheck}";
+                    var existingPrompts = await notifRepo.FindAsync(n =>
+                        n.UserId == currentUserId.Value &&
+                        n.NotificationType == "SETTLEMENT_PROMPT_SHOWN" &&
+                        (n.TargetActionUrl == settlementYearToCheck.ToString() || n.TargetActionUrl == promptTargetUrl));
+
+                    if (!existingPrompts.Any())
+                    {
+                        shouldPromptSettlementCheck = true;
+                        promptQuestion = vietnamNow == deadlineThisYear
+                            ? $"Hôm nay là hạn chót nộp hồ sơ quyết toán thuế TNCN năm {settlementYearToCheck} (ngày {deadlineThisYear:dd/MM/yyyy}). Bạn đã quyết toán thuế chưa?"
+                            : $"Hạn chót nộp hồ sơ quyết toán thuế TNCN năm {settlementYearToCheck} đã qua (ngày {deadlineThisYear:dd/MM/yyyy}). Bạn đã quyết toán thuế chưa?";
+                    }
+                }
             }
 
             var result = new TaxSettlementDeadlineCountdownDto
@@ -141,11 +214,148 @@ namespace TaxKeepVNManagementSystem.Controllers
                 DaysRemaining = daysRemaining,
                 ReminderMessage = reminderMessage,
                 UrgencyLevel = urgencyLevel,
-                IsOverdue = isOverdue,
-                ReminderMilestones = reminderMilestones
+                IsOverdue = false,
+                ReminderMilestones = reminderMilestones,
+                ShouldPromptSettlementCheck = shouldPromptSettlementCheck,
+                PromptTaxYear = shouldPromptSettlementCheck ? promptTaxYear : null,
+                PromptQuestion = shouldPromptSettlementCheck ? promptQuestion : null
             };
 
             return Ok(ApiResponse<TaxSettlementDeadlineCountdownDto>.Ok(result, "Lấy thông tin đếm ngược hạn nộp quyết toán thuế thành công."));
+        }
+
+        /// <summary>
+        /// Xác nhận đã hiển thị / người dùng đã phản hồi câu hỏi nhắc nhở "Bạn đã quyết toán thuế chưa?".
+        /// Lưu vết vào hệ thống để không bao giờ hiển thị lại cho năm quyết toán này nữa (1 lần duy nhất).
+        /// </summary>
+        // POST /api/v1/tax-settlements/acknowledge-prompt
+        [HttpPost("acknowledge-prompt", Name = "AcknowledgeSettlementPrompt")]
+        [Authorize]
+        [EndpointSummary("Xác nhận đã hiển thị câu hỏi nhắc nhở quyết toán thuế (1 lần duy nhất)")]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> AcknowledgeSettlementPrompt([FromBody] AcknowledgeSettlementPromptRequest request)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ApiResponse<object>.ValidationFail(ModelState));
+
+            var userId = GetUserIdFromToken();
+            var notifRepo = _unitOfWork.Repository<SystemNotification>();
+
+            var promptTargetUrl = $"/tax-settlement/{request.TaxYear}";
+            var existing = await notifRepo.FindAsync(n =>
+                n.UserId == userId &&
+                n.NotificationType == "SETTLEMENT_PROMPT_SHOWN" &&
+                (n.TargetActionUrl == request.TaxYear.ToString() || n.TargetActionUrl == promptTargetUrl));
+
+            if (!existing.Any())
+            {
+                string messageText = request.Response?.Trim().ToUpperInvariant() switch
+                {
+                    "YES" => $"Người dùng đã xác nhận đã hoàn thành quyết toán thuế năm {request.TaxYear}.",
+                    "NO" => $"Người dùng xác nhận chưa quyết toán thuế năm {request.TaxYear}.",
+                    _ => $"Đã hiển thị popup nhắc nhở quyết toán thuế TNCN năm {request.TaxYear} cho người dùng."
+                };
+
+                var notif = new SystemNotification
+                {
+                    NotificationId = Guid.NewGuid(),
+                    UserId = userId,
+                    Title = $"Nhắc nhở quyết toán thuế TNCN năm {request.TaxYear}",
+                    Message = messageText,
+                    NotificationType = "SETTLEMENT_PROMPT_SHOWN",
+                    IsRead = true,
+                    TargetActionUrl = promptTargetUrl,
+                    CreatedAt = DateTime.UtcNow
+                };
+
+                await notifRepo.AddAsync(notif);
+                await _unitOfWork.SaveChangesAsync();
+            }
+
+            return Ok(ApiResponse<object>.Ok(null, "Đã ghi nhận xác nhận nhắc nhở quyết toán thuế thành công."));
+        }
+
+        /// <summary>
+        /// Kiểm tra trạng thái nhắc nhở "Bạn đã quyết toán thuế chưa?" cho người dùng hiện tại (1 lần duy nhất).
+        /// </summary>
+        // GET /api/v1/tax-settlements/settlement-prompt
+        [HttpGet("settlement-prompt", Name = "GetSettlementPromptCheck")]
+        [Authorize]
+        [EndpointSummary("Kiểm tra xem người dùng có cần hiển thị popup nhắc nhở quyết toán thuế (1 lần duy nhất) hay không")]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetSettlementPromptCheck([FromQuery] int? taxYear = null)
+        {
+            var userId = GetUserIdFromToken();
+
+            var scheduleRepo = _unitOfWork.Repository<TaxSettlementSchedule>();
+            var schedules = await scheduleRepo.FindAsync(s => s.IsActive && (taxYear == null || s.TaxYear == null || s.TaxYear == taxYear));
+            var schedule = schedules.OrderByDescending(s => s.TaxYear ?? 0).FirstOrDefault();
+
+            int deadlineMonth = schedule?.DeadlineMonth ?? 4;
+            int deadlineDay = schedule?.DeadlineDay ?? 30;
+
+            var vietnamNow = DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(7)).Date;
+            int currentYear = vietnamNow.Year;
+            var deadlineThisYear = new DateTime(currentYear, deadlineMonth, deadlineDay);
+
+            int settlementYearToCheck = taxYear ?? (currentYear - 1);
+
+            bool isPastOrAtDeadline = vietnamNow >= deadlineThisYear;
+            if (!isPastOrAtDeadline)
+            {
+                return Ok(ApiResponse<object>.Ok(new
+                {
+                    shouldPrompt = false,
+                    promptTaxYear = settlementYearToCheck,
+                    message = "Chưa đến hạn quyết toán thuế."
+                }));
+            }
+
+            // Kiểm tra xem đã chốt hồ sơ chưa
+            var dossierRepo = _unitOfWork.Repository<TaxSettlementDossier>();
+            var settledDossiers = await dossierRepo.FindAsync(d =>
+                d.TaxpayerId == userId &&
+                d.TaxYear == settlementYearToCheck &&
+                d.Status == "LOCKED");
+
+            if (settledDossiers.Any())
+            {
+                return Ok(ApiResponse<object>.Ok(new
+                {
+                    shouldPrompt = false,
+                    promptTaxYear = settlementYearToCheck,
+                    message = "Người dùng đã hoàn thành chốt hồ sơ quyết toán thuế."
+                }));
+            }
+
+            // Kiểm tra xem đã nhắc trước đó chưa
+            var notifRepo = _unitOfWork.Repository<SystemNotification>();
+            var promptTargetUrl = $"/tax-settlement/{settlementYearToCheck}";
+            var existingPrompts = await notifRepo.FindAsync(n =>
+                n.UserId == userId &&
+                n.NotificationType == "SETTLEMENT_PROMPT_SHOWN" &&
+                (n.TargetActionUrl == settlementYearToCheck.ToString() || n.TargetActionUrl == promptTargetUrl));
+
+            if (existingPrompts.Any())
+            {
+                return Ok(ApiResponse<object>.Ok(new
+                {
+                    shouldPrompt = false,
+                    promptTaxYear = settlementYearToCheck,
+                    message = "Người dùng đã được hỏi nhắc nhở trước đó."
+                }));
+            }
+
+            string question = vietnamNow == deadlineThisYear
+                ? $"Hôm nay là hạn chót nộp hồ sơ quyết toán thuế TNCN năm {settlementYearToCheck} (ngày {deadlineThisYear:dd/MM/yyyy}). Bạn đã quyết toán thuế chưa?"
+                : $"Hạn chót nộp hồ sơ quyết toán thuế TNCN năm {settlementYearToCheck} đã qua (ngày {deadlineThisYear:dd/MM/yyyy}). Bạn đã quyết toán thuế chưa?";
+
+            return Ok(ApiResponse<object>.Ok(new
+            {
+                shouldPrompt = true,
+                promptTaxYear = settlementYearToCheck,
+                question = question
+            }, "Kiểm tra nhắc nhở quyết toán thuế thành công."));
         }
 
         /// <summary>
@@ -244,6 +454,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         // GET /api/v1/tax-settlements/download/{token}
         [HttpGet("download/{token}", Name = "DownloadSettlementFile")]
         [AllowAnonymous]
+        [Produces("application/pdf", "application/zip", "application/octet-stream")]
         [EndpointSummary("Tải tệp hồ sơ quyết toán an toàn qua Signed Download Token (30 phút hiệu lực)")]
         public IActionResult DownloadFile(string token)
         {
