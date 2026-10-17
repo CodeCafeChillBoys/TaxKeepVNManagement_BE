@@ -156,7 +156,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             {
                 ExpertSlotId = slot.Id,
                 ExpertProfileId = profile.Id,
-                ExpertFullName = expertFullName,
+                ExpertFullName = expertFullName ?? string.Empty,
                 ExpertAvatarUrl = avatarUrl,
                 ExpertJobTitle = profile.JobTitle,
                 SlotDate = slot.SlotDate,
