@@ -44,9 +44,15 @@ namespace TaxKeepVNManagementSystem.Controllers
 
         /// <summary>
         /// Khởi tạo hoặc lấy lại Link thanh toán VNPay và mã VietQR cho Booking đang ở trạng thái PENDING_PAYMENT (Đặc tả 4)
-        /// POST /api/v1/bookings/{bookingId}/payment-link
+        /// Hỗ trợ cả 2 endpoint:
+        /// - POST /api/v1/bookings/{bookingId}/payment-link
+        /// - POST /api/v1/payments/create-link (bookingId truyền trong body hoặc URL)
+        /// Phương thức thanh toán (PaymentMethod):
+        /// - GATEWAY: Cổng VNPay / VietQR
+        /// - WALLET: Trừ trực tiếp số dư khả dụng ví User
         /// </summary>
         [HttpPost("api/v1/bookings/{bookingId:guid}/payment-link", Name = "CreateOrGetBookingPaymentLink")]
+        [HttpPost("api/v1/payments/create-link", Name = "CreateOrGetPaymentLinkAlternative")]
         [Authorize]
         [EndpointSummary("Khởi tạo hoặc lấy lại Link thanh toán VNPay và mã VietQR cho lịch hẹn tư vấn")]
         [ProducesResponseType(typeof(ApiResponse<PaymentLinkResponse>), StatusCodes.Status201Created)]
@@ -55,9 +61,15 @@ namespace TaxKeepVNManagementSystem.Controllers
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> CreateOrGetPaymentLink(
-            [FromRoute] Guid bookingId,
+            [FromRoute] Guid? bookingId = null,
             [FromBody] CreatePaymentLinkRequest? request = null)
         {
+            var targetBookingId = bookingId ?? request?.BookingId;
+            if (!targetBookingId.HasValue || targetBookingId.Value == Guid.Empty)
+            {
+                return BadRequest(ApiResponse<object>.Fail("MISSING_BOOKING_ID", "Vui lòng cung cấp mã lịch hẹn tư vấn (bookingId)."));
+            }
+
             if (!ModelState.IsValid)
             {
                 return BadRequest(ApiResponse<object>.ValidationFail(ModelState));
@@ -66,9 +78,9 @@ namespace TaxKeepVNManagementSystem.Controllers
             var userId = GetCurrentUserId();
             var rawIp = HttpContext.Connection.RemoteIpAddress?.ToString();
             var clientIp = (string.IsNullOrWhiteSpace(rawIp) || rawIp == "::1" || rawIp.Contains(':')) ? "127.0.0.1" : rawIp.Trim();
-            var result = await _paymentEscrowService.CreateOrGetPaymentLinkAsync(userId, bookingId, request, clientIp);
+            var result = await _paymentEscrowService.CreateOrGetPaymentLinkAsync(userId, targetBookingId.Value, request, clientIp);
             return StatusCode(StatusCodes.Status201Created,
-                ApiResponse<PaymentLinkResponse>.Ok(result, "Khởi tạo đường dẫn thanh toán VNPay & mã VietQR thành công."));
+                ApiResponse<PaymentLinkResponse>.Ok(result, "Khởi tạo thanh toán thành công."));
         }
 
         /// <summary>

@@ -81,6 +81,11 @@ namespace TaxKeepVN.Application.Service.Interfaces
         Task<WithdrawalResponse> RequestWithdrawalAsync(Guid expertUserId, CreateWithdrawalRequest request);
 
         /// <summary>
+        /// Khách hàng tạo lệnh rút tiền hoàn (Refund) từ Ví cá nhân về tài khoản ngân hàng
+        /// </summary>
+        Task<WithdrawalResponse> RequestUserRefundWithdrawalAsync(Guid userId, CreateWithdrawalRequest request);
+
+        /// <summary>
         /// Lấy danh sách lệnh rút tiền (Admin xem toàn bộ; Chuyên gia chỉ xem của mình)
         /// </summary>
         Task<PagedResult<WithdrawalResponse>> GetWithdrawalsAsync(Guid currentUserId, string currentUserRole, string? status = null, int page = 1, int size = 10);

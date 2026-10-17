@@ -7,6 +7,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using TaxKeepVN.Application.DTOs.Common;
 using TaxKeepVN.Application.DTOs.Payments;
+using TaxKeepVN.Application.DTOs.Wallets;
 using TaxKeepVN.Application.Exceptions;
 using TaxKeepVN.Application.Helpers;
 using TaxKeepVN.Application.Service.Interfaces;
@@ -79,10 +80,88 @@ namespace TaxKeepVN.Application.Service.Implementations
             // Đọc tỷ lệ hoa hồng nền tảng A% từ chính sách sàn tư vấn (Zero-Hardcode)
             var policy = await BookingHelper.GetPlatformPolicyAsync(_unitOfWork);
             var commissionRate = policy.PlatformCommissionRatePercent;
-
             var amount = booking.Fee;
             var commissionAmount = Math.Round(amount * (commissionRate / 100m), 2);
             var expertReceivable = amount - commissionAmount;
+
+            // ── Lựa chọn 1: Thanh toán bằng số dư khả dụng của ví USER ────────────────
+            if (string.Equals(request?.PaymentMethod, "WALLET", StringComparison.OrdinalIgnoreCase))
+            {
+                var wallets = await _unitOfWork.Repository<UserWallet>().FindAsync(w => w.UserId == userId && w.WalletType == "USER");
+                var wallet = wallets.FirstOrDefault();
+
+                if (wallet == null || wallet.AvailableBalance < booking.Fee)
+                {
+                    var balance = wallet?.AvailableBalance ?? 0m;
+                    throw new BadRequestException("INSUFFICIENT_WALLET_BALANCE",
+                        $"Số dư ví khả dụng ({balance:N0} VNĐ) không đủ để thanh toán cho ca tư vấn ({booking.Fee:N0} VNĐ). Vui lòng nạp thêm tiền hoặc chọn thanh toán qua cổng VNPay/VietQR.");
+                }
+
+                if (escrow == null)
+                {
+                    escrow = new EscrowTransaction
+                    {
+                        Id = Guid.NewGuid(),
+                        BookingId = booking.Id,
+                        OrderCode = BookingHelper.GeneratePayOsOrderCode(),
+                        Amount = amount,
+                        CommissionRate = commissionRate,
+                        CommissionAmount = commissionAmount,
+                        ExpertReceivable = expertReceivable,
+                        EscrowStatus = EscrowStatus.PendingPayment,
+                        PaymentGateway = "WALLET",
+                        CreatedAt = nowUtc,
+                        UpdatedAt = nowUtc
+                    };
+                    await _unitOfWork.Repository<EscrowTransaction>().AddAsync(escrow);
+                }
+                else
+                {
+                    escrow.PaymentGateway = "WALLET";
+                }
+
+                // Trừ tiền trong ví USER
+                var before = wallet.AvailableBalance;
+                wallet.AvailableBalance -= booking.Fee;
+                wallet.UpdatedAt = nowUtc;
+                _unitOfWork.Repository<UserWallet>().Update(wallet);
+
+                var txnRef = $"WALLET_PAY_{escrow.OrderCode}";
+                await _unitOfWork.Repository<WalletTransaction>().AddAsync(new WalletTransaction
+                {
+                    Id = Guid.NewGuid(),
+                    WalletId = wallet.Id,
+                    UserId = userId,
+                    Amount = -booking.Fee,
+                    BalanceBefore = before,
+                    BalanceAfter = wallet.AvailableBalance,
+                    TransactionType = "PAYMENT_CONSULTATION",
+                    ReferenceId = booking.Id,
+                    Description = $"Thanh toán phí ca tư vấn #{booking.BookingCode} bằng số dư ví",
+                    CreatedAt = nowUtc
+                });
+
+                await ApplyPaymentSuccessAsync(escrow, booking, txnRef);
+
+                return new PaymentLinkResponse
+                {
+                    BookingId = booking.Id,
+                    BookingCode = booking.BookingCode,
+                    EscrowTransactionId = escrow.Id,
+                    OrderCode = escrow.OrderCode,
+                    Amount = escrow.Amount,
+                    CommissionRate = escrow.CommissionRate,
+                    CommissionAmount = escrow.CommissionAmount,
+                    ExpertReceivable = expertReceivable,
+                    EscrowStatus = escrow.EscrowStatus,
+                    PaymentGateway = "WALLET",
+                    CheckoutUrl = null,
+                    QrCode = null,
+                    HoldExpiresAt = booking.HoldExpiresAt,
+                    HoldCountdownSeconds = 0
+                };
+            }
+
             var orderCode = escrow?.OrderCode ?? BookingHelper.GeneratePayOsOrderCode();
 
             // Đọc cấu hình VNPay
@@ -190,6 +269,50 @@ namespace TaxKeepVN.Application.Service.Implementations
             var escrow = escrows.FirstOrDefault();
             if (escrow == null)
             {
+                // Kiểm tra xem có phải giao dịch nạp tiền vào ví (Top-Up) không
+                var topUpTxs = await _unitOfWork.Repository<WalletTransaction>().FindAsync(t =>
+                    t.Description.Contains($"TOPUP_ORDER:{orderCode}"));
+                var topUpTx = topUpTxs.FirstOrDefault();
+                if (topUpTx != null)
+                {
+                    if (topUpTx.TransactionType == "TOPUP")
+                    {
+                        return VnPayIpnResponse.OrderAlreadyConfirmed();
+                    }
+
+                    var responseCodeVal = queryParams.TryGetValue("vnp_ResponseCode", out var rspVal) ? rspVal : "99";
+                    var transactionNoVal = queryParams.TryGetValue("vnp_TransactionNo", out var txnVal) ? txnVal : $"VNPAY_{orderCode}";
+
+                    if (responseCodeVal == "00")
+                    {
+                        var wallet = await _unitOfWork.Repository<UserWallet>().GetByIdAsync(topUpTx.WalletId);
+                        if (wallet != null)
+                        {
+                            var before = wallet.AvailableBalance;
+                            wallet.AvailableBalance += topUpTx.Amount;
+                            wallet.TotalEarned += topUpTx.Amount;
+                            wallet.UpdatedAt = DateTimeOffset.UtcNow;
+                            _unitOfWork.Repository<UserWallet>().Update(wallet);
+
+                            topUpTx.BalanceBefore = before;
+                            topUpTx.BalanceAfter = wallet.AvailableBalance;
+                            topUpTx.TransactionType = "TOPUP";
+                            topUpTx.Description = $"Nạp tiền vào ví thành công qua VNPay (Mã GD: {transactionNoVal}, Đơn: {orderCode})";
+                            _unitOfWork.Repository<WalletTransaction>().Update(topUpTx);
+
+                            await _unitOfWork.SaveChangesAsync();
+                        }
+                    }
+                    else
+                    {
+                        topUpTx.TransactionType = "TOPUP_FAILED";
+                        _unitOfWork.Repository<WalletTransaction>().Update(topUpTx);
+                        await _unitOfWork.SaveChangesAsync();
+                    }
+
+                    return VnPayIpnResponse.Success();
+                }
+
                 return VnPayIpnResponse.OrderNotFound();
             }
 
@@ -215,8 +338,8 @@ namespace TaxKeepVN.Application.Service.Implementations
                 }
             }
 
-            var responseCode = queryParams.TryGetValue("vnp_ResponseCode", out var rspVal) ? rspVal : "99";
-            var transactionNo = queryParams.TryGetValue("vnp_TransactionNo", out var txnVal) ? txnVal : $"VNPAY_{orderCode}";
+            var responseCode = queryParams.TryGetValue("vnp_ResponseCode", out var rspV) ? rspV : "99";
+            var transactionNo = queryParams.TryGetValue("vnp_TransactionNo", out var txnV) ? txnV : $"VNPAY_{orderCode}";
 
             if (responseCode == "00")
             {
@@ -259,7 +382,48 @@ namespace TaxKeepVN.Application.Service.Implementations
             var escrow = escrows.FirstOrDefault();
             if (escrow == null)
             {
-                throw new NotFoundException($"Không tìm thấy giao dịch Escrow cho mã đơn hàng = {orderCode}.");
+                // Kiểm tra xem có phải giao dịch nạp tiền vào ví (Top-Up) không
+                var topUpTxs = await _unitOfWork.Repository<WalletTransaction>().FindAsync(t =>
+                    t.Description.Contains($"TOPUP_ORDER:{orderCode}"));
+                var topUpTx = topUpTxs.FirstOrDefault();
+                if (topUpTx != null)
+                {
+                    var responseCodeRet = queryParams.TryGetValue("vnp_ResponseCode", out var topUpRspVal) ? topUpRspVal : "99";
+                    var transactionNoRet = queryParams.TryGetValue("vnp_TransactionNo", out var topUpTxnVal) ? topUpTxnVal : $"VNPAY_{orderCode}";
+
+                    if (responseCodeRet == "00" && topUpTx.TransactionType == "TOPUP_PENDING")
+                    {
+                        var wallet = await _unitOfWork.Repository<UserWallet>().GetByIdAsync(topUpTx.WalletId);
+                        if (wallet != null)
+                        {
+                            var before = wallet.AvailableBalance;
+                            wallet.AvailableBalance += topUpTx.Amount;
+                            wallet.TotalEarned += topUpTx.Amount;
+                            wallet.UpdatedAt = DateTimeOffset.UtcNow;
+                            _unitOfWork.Repository<UserWallet>().Update(wallet);
+
+                            topUpTx.BalanceBefore = before;
+                            topUpTx.BalanceAfter = wallet.AvailableBalance;
+                            topUpTx.TransactionType = "TOPUP";
+                            topUpTx.Description = $"Nạp tiền vào ví thành công qua VNPay (Mã GD: {transactionNoRet}, Đơn: {orderCode})";
+                            _unitOfWork.Repository<WalletTransaction>().Update(topUpTx);
+
+                            await _unitOfWork.SaveChangesAsync();
+                        }
+                    }
+
+                    return new EscrowTransactionResponse
+                    {
+                        OrderCode = orderCode,
+                        Amount = topUpTx.Amount,
+                        EscrowStatus = topUpTx.TransactionType == "TOPUP" ? EscrowStatus.Settled : EscrowStatus.Cancelled,
+                        PaymentGateway = "VNPAY",
+                        PaymentReference = transactionNoRet,
+                        CreatedAt = topUpTx.CreatedAt
+                    };
+                }
+
+                throw new NotFoundException($"Không tìm thấy giao dịch Escrow hoặc nạp ví cho mã đơn hàng = {orderCode}.");
             }
 
             var booking = await _unitOfWork.Repository<Booking>().GetByIdAsync(escrow.BookingId);
@@ -505,6 +669,104 @@ namespace TaxKeepVN.Application.Service.Implementations
                 TotalRefundedToTaxpayers = totalRefundedToTaxpayers,
                 Stats = stats,
                 RecentTransactions = recentTransactions
+            };
+        }
+
+        // ── 7. KHỞI TẠO GIAO DỊCH NẠP TIỀN VÀO VÍ USER QUA VNPAY / VIETQR ─────────────
+        public async Task<WalletTopUpResponse> CreateWalletTopUpPaymentUrlAsync(Guid userId, WalletTopUpRequest request, string? clientIp = null)
+        {
+            if (request == null || request.Amount < 10000m)
+            {
+                throw new BadRequestException("INVALID_AMOUNT", "Số tiền nạp tối thiểu vào ví là 10.000 VNĐ.");
+            }
+
+            var nowUtc = DateTimeOffset.UtcNow;
+
+            // Tìm hoặc khởi tạo ví người dùng USER
+            var wallets = await _unitOfWork.Repository<UserWallet>().FindAsync(w => w.UserId == userId && w.WalletType == "USER");
+            var wallet = wallets.FirstOrDefault();
+            if (wallet == null)
+            {
+                wallet = new UserWallet
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = userId,
+                    WalletType = "USER",
+                    AvailableBalance = 0m,
+                    FrozenBalance = 0m,
+                    TotalEarned = 0m,
+                    TotalWithdrawn = 0m,
+                    CreatedAt = nowUtc,
+                    UpdatedAt = nowUtc
+                };
+                await _unitOfWork.Repository<UserWallet>().AddAsync(wallet);
+                await _unitOfWork.SaveChangesAsync();
+            }
+
+            var orderCode = BookingHelper.GeneratePayOsOrderCode();
+            var amount = request.Amount;
+
+            // Đọc cấu hình VNPay
+            var vnpTmnCode = _configuration["VnPay:TmnCode"] ?? "CGXZLS0Z";
+            var vnpHashSecret = _configuration["VnPay:HashSecret"] ?? "XNBCJFAKAZQSGTARRLGCHVZWCIOIGSHN";
+            var vnpBaseUrl = _configuration["VnPay:BaseUrl"] ?? _configuration["VnPay:PaymentUrl"] ?? "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html";
+            var vnpReturnUrl = _configuration["VnPay:ReturnUrl"] ?? "https://localhost:7027/api/v1/payments/vnpay-return";
+
+            // Đọc cấu hình VietQR
+            var qrBankBin = _configuration["VietQr:BankBin"] ?? _configuration["VietQR:BankBin"] ?? "970405";
+            var qrAccountNo = _configuration["VietQr:AccountNumber"] ?? _configuration["VietQR:AccountNumber"] ?? _configuration["VietQr:AccountNo"] ?? _configuration["VietQR:AccountNo"] ?? "5402205457446";
+            var qrAccountName = _configuration["VietQr:AccountName"] ?? _configuration["VietQR:AccountName"] ?? "";
+            var qrTemplate = _configuration["VietQr:Template"] ?? _configuration["VietQR:Template"] ?? "compact2";
+
+            var orderInfo = $"NAPVI{orderCode}";
+            var holdExpiresAt = nowUtc.AddMinutes(15);
+
+            // 1. Tạo VNPay checkout URL
+            var checkoutUrl = VnPayHelper.CreatePaymentUrl(
+                vnpBaseUrl,
+                vnpTmnCode,
+                vnpHashSecret,
+                vnpReturnUrl,
+                orderCode,
+                amount,
+                orderInfo,
+                holdExpiresAt,
+                clientIp ?? "127.0.0.1",
+                request.ReturnUrl);
+
+            // 2. Tạo mã VietQR QuickLink
+            var qrCode = VietQrHelper.GenerateVietQrUrl(
+                qrBankBin,
+                qrAccountNo,
+                qrAccountName,
+                amount,
+                orderInfo,
+                qrTemplate);
+
+            // 3. Ghi nhận giao dịch nạp tiền đang chờ TOPUP_PENDING
+            var walletTxn = new WalletTransaction
+            {
+                Id = Guid.NewGuid(),
+                WalletId = wallet.Id,
+                UserId = userId,
+                Amount = amount,
+                BalanceBefore = wallet.AvailableBalance,
+                BalanceAfter = wallet.AvailableBalance,
+                TransactionType = "TOPUP_PENDING",
+                Description = $"TOPUP_ORDER:{orderCode}|Nạp {amount:N0} VNĐ vào ví cá nhân",
+                CreatedAt = nowUtc
+            };
+            await _unitOfWork.Repository<WalletTransaction>().AddAsync(walletTxn);
+            await _unitOfWork.SaveChangesAsync();
+
+            return new WalletTopUpResponse
+            {
+                OrderCode = orderCode,
+                Amount = amount,
+                PaymentGateway = "VNPAY",
+                CheckoutUrl = checkoutUrl,
+                QrCode = qrCode,
+                CreatedAt = nowUtc
             };
         }
 
