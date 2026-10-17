@@ -65,6 +65,22 @@ namespace TaxKeepVN.Application.Service.Implementations
             };
 
             await userRepo.AddAsync(newUser);
+
+            // Tự động khởi tạo ví cá nhân (WalletType = "USER", số dư 0 VNĐ) ngay khi đăng ký tài khoản mới
+            var initialWallet = new UserWallet
+            {
+                Id = Guid.NewGuid(),
+                UserId = newUser.UserId,
+                WalletType = "USER",
+                AvailableBalance = 0m,
+                FrozenBalance = 0m,
+                TotalEarned = 0m,
+                TotalWithdrawn = 0m,
+                CreatedAt = DateTimeOffset.UtcNow,
+                UpdatedAt = DateTimeOffset.UtcNow
+            };
+            await _unitOfWork.Repository<UserWallet>().AddAsync(initialWallet);
+
             await _unitOfWork.SaveChangesAsync();
 
             return new RegisterResponse

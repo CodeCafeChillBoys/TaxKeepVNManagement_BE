@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 
 namespace TaxKeepVN.Application.DTOs.Wallets
 {
@@ -89,5 +90,30 @@ namespace TaxKeepVN.Application.DTOs.Wallets
 
         /// <summary>Ghi chú của Admin</summary>
         public string? AdminNotes { get; set; }
+    }
+
+    /// <summary>
+    /// Request nạp tiền vào ví cá nhân qua cổng thanh toán VNPay / VietQR
+    /// </summary>
+    public class WalletTopUpRequest
+    {
+        [Range(10000, 100000000, ErrorMessage = "Số tiền nạp tối thiểu là 10.000 VNĐ và tối đa 100.000.000 VNĐ.")]
+        public decimal Amount { get; set; }
+
+        /// <summary>Đường dẫn quay về sau khi hoàn tất thanh toán (Tùy chọn)</summary>
+        public string? ReturnUrl { get; set; }
+    }
+
+    /// <summary>
+    /// Response khởi tạo link nạp tiền vào ví
+    /// </summary>
+    public class WalletTopUpResponse
+    {
+        public long OrderCode { get; set; }
+        public decimal Amount { get; set; }
+        public string PaymentGateway { get; set; } = "VNPAY";
+        public string? CheckoutUrl { get; set; }
+        public string? QrCode { get; set; }
+        public DateTimeOffset CreatedAt { get; set; }
     }
 }
