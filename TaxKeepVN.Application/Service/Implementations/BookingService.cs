@@ -156,7 +156,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             {
                 ExpertSlotId = slot.Id,
                 ExpertProfileId = profile.Id,
-                ExpertFullName = expertFullName,
+                ExpertFullName = expertFullName ?? string.Empty,
                 ExpertAvatarUrl = avatarUrl,
                 ExpertJobTitle = profile.JobTitle,
                 SlotDate = slot.SlotDate,
@@ -188,6 +188,9 @@ namespace TaxKeepVN.Application.Service.Implementations
                 throw new NotFoundException("Chủ đề tư vấn không tồn tại hoặc đã ngừng hỗ trợ.");
             }
 
+            
+
+
             await _unitOfWork.BeginTransactionAsync();
             try
             {
@@ -216,6 +219,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 var holdMinutes = policy.BookingSlotHoldMinutes;
                 // Chuyển đổi giờ slot (lưu theo giờ VN) sang UTC để so sánh chuẩn xác với nowUtc
                 var slotStartUtc = BookingHelper.ConvertSlotToUtc(slot.SlotDate, slot.StartTime);
+
 
                 // 2. Kiểm tra Minimum Lead-time (Đặc tả 6 & 8)
                 // đặt mà thời gian nó sát vs tk gian chuyên gia chuẩn bị làm
@@ -800,9 +804,10 @@ namespace TaxKeepVN.Application.Service.Implementations
                 await CreditRefundToUserWalletAsync(booking.UserId, booking.Id, booking.BookingCode, escrow.RefundAmount, cleanReason, nowUtc);
             }
 
-            // 2. Kiểm tra phạt hủy sát giờ (< EXPERT_LATE_CANCEL_HOURS, mặc định 12 giờ)
-            var lateCancelHours = await BookingHelper.GetRequiredConfigIntAsync(_unitOfWork, BookingHelper.ConfigKeyExpertLateCancelHours);
-            var penaltyVnd = await BookingHelper.GetRequiredConfigDecimalAsync(_unitOfWork, BookingHelper.ConfigKeyExpertLateCancelPenaltyVnd);
+            // 2. Kiểm tra phạt hủy sát giờ (< ExpertLateCancelHours, mặc định 12 giờ) từ chính sách sàn ConsultationPlatformPolicy
+            var policy = await BookingHelper.GetPlatformPolicyAsync(_unitOfWork);
+            var lateCancelHours = policy.ExpertLateCancelHours;
+            var penaltyVnd = policy.ExpertLateCancelPenaltyVnd;
 
             var slotStartUtc = slot != null ? BookingHelper.ConvertSlotToUtc(slot.SlotDate, slot.StartTime) : nowUtc;
             var hoursBefore = (slotStartUtc - nowUtc).TotalHours;

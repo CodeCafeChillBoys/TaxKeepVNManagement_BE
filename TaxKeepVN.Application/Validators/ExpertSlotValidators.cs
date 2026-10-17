@@ -44,6 +44,26 @@ namespace TaxKeepVN.Application.Validators
                 .IsInEnum().WithMessage("Hình thức tư vấn không hợp lệ.");
         }
     }
+    public class WeeklySlotItemDtoValidator : AbstractValidator<WeeklySlotItemDto>
+    {
+        public WeeklySlotItemDtoValidator()
+        {
+            RuleFor(x => x.DayOfWeek)
+                .IsInEnum().WithMessage("Thứ trong tuần không hợp lệ.");
+            RuleFor(x => x.EndTime)
+                .GreaterThan(x => x.StartTime)
+                .WithMessage("Thời gian kết thúc phải lớn hơn thời gian bắt đầu.");
+            RuleFor(x => x)
+                .Must(x =>
+                {
+                    var duration = (x.EndTime - x.StartTime).TotalMinutes;
+                    return duration >= 15 && duration <= 480;
+                })
+                .WithMessage("Thời lượng của khung giờ làm việc phải từ 15 phút đến tối đa 8 tiếng.");
+            RuleFor(x => x.SessionType)
+                .IsInEnum().WithMessage("Hình thức tư vấn không hợp lệ.");
+        }
+    }
 
     public class UpdateExpertSlotRequestValidator : AbstractValidator<UpdateExpertSlotRequest>
     {

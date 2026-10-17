@@ -1,9 +1,5 @@
-using System;
-using System.Collections.Generic;
 using System.Security.Claims;
-using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using TaxKeepVN.Application.DTOs.Experts;
 using TaxKeepVN.Application.DTOs.Responses;
@@ -28,9 +24,52 @@ namespace TaxKeepVNManagementSystem.Controllers
 
         private Guid GetCurrentUserId()
         {
-            var claim = User.FindFirst("userId")?.Value 
+            var claim = User.FindFirst("userId")?.Value
                      ?? User.FindFirst(ClaimTypes.NameIdentifier)?.Value;
             return Guid.TryParse(claim, out var id) ? id : Guid.Empty;
+        }
+
+        // Helper lấy Họ tên (hoặc Email/CCCD) của người dùng hiện tại từ Token
+        private string GetCurrentUserName()
+        {
+            return User.FindFirst("fullName")?.Value
+                ?? User.FindFirst("email")?.Value
+                ?? User.FindFirst("citizenId")?.Value
+                ?? "EXPERT";
+        }
+
+
+        [HttpPost("{id:guid}/emergency-cancel")]
+        [Authorize(Roles = "expert")]
+        [ProducesResponseType(typeof(ApiResponse<EmergencyCancelSlotResponse>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> EmergencyCancelSlot(Guid id, [FromBody] EmergencyCancelSlotRequest request)
+        {
+            var currentUserId = GetCurrentUserId();
+
+            // Lấy tên từ Token (Format: "EXPERT: Nguyễn Văn A" - đồng bộ với BookingController)
+            var expertName = GetCurrentUserName();
+            var cancelledBy = $"EXPERT: {expertName}";
+
+            var result = await _expertSlotService.EmergencyCancelSlotAsync(currentUserId, id, request, cancelledBy);
+            return Ok(ApiResponse<EmergencyCancelSlotResponse>.Ok(result, result.Message));
+        }
+
+        /// <summary>
+        /// Tạo hàng loạt khung giờ làm việc định kỳ theo tuần (Batch Recurring Slots)
+        /// Tự động sinh slot cho nhiều tuần liên tiếp, tự động bỏ qua các slot trùng hoặc vượt quá số ca tối đa trong ngày.
+        /// POST /api/v1/expert/slots/recurring
+        /// </summary>
+        [HttpPost("recurring")]
+        [ProducesResponseType(typeof(ApiResponse<RecurringSlotBatchResultResponse>), StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> CreateRecurringSlots([FromBody] CreateRecurringSlotRequest request)
+        {
+            var expertUserId = GetCurrentUserId();
+            var result = await _expertSlotService.CreateRecurringSlotsAsync(expertUserId, request);
+            return StatusCode(StatusCodes.Status201Created,
+                ApiResponse<RecurringSlotBatchResultResponse>.Ok(result, $"Tạo hàng loạt khung giờ làm việc thành công. Đã tạo {result.TotalCreated} ca, bỏ qua {result.TotalSkipped} ca."));
         }
 
         /// <summary>
