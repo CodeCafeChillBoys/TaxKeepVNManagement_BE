@@ -9,6 +9,7 @@ namespace TaxKeepVN.Application.DTOs.ExpertApplications
     public class CertificateResponseDto
     {
         public Guid Id { get; set; }
+        public Guid? TaskId { get; set; }
         public string CertificateType { get; set; } = string.Empty;
         public string CertificateName { get; set; } = string.Empty;
         public string CertificateNumber { get; set; } = string.Empty;

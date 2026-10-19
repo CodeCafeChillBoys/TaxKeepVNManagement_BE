@@ -37,6 +37,7 @@ namespace TaxKeepVN.Infrastructure.Contexts
 
         // Expert Registration & Management
         public DbSet<Specialization> Specializations { get; set; }
+        public DbSet<ExpertCertificateConfiguration> ExpertCertificateConfigurations { get; set; }
         public DbSet<ConsultationFeeConfiguration> ConsultationFeeConfigurations { get; set; }
         public DbSet<ExpertApplication> ExpertApplications { get; set; }
         public DbSet<ExpertApplicationSpecialization> ExpertApplicationSpecializations { get; set; }
@@ -530,6 +531,88 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.HasData(
                     new ConsultationFeeConfiguration { Id = 1, SessionType = SessionType.ONLINE_MEETING, DurationMinutes = 30, MinFee = 100000m, MaxFee = 1000000m, IsActive = true },
                     new ConsultationFeeConfiguration { Id = 2, SessionType = SessionType.ONLINE_MEETING, DurationMinutes = 60, MinFee = 200000m, MaxFee = 2000000m, IsActive = true }
+                );
+            });
+
+            // ── ExpertCertificateConfiguration ──────────────────────────────────
+            modelBuilder.Entity<ExpertCertificateConfiguration>(entity =>
+            {
+                entity.ToTable("expert_certificate_configurations");
+                entity.HasKey(c => c.Id);
+
+                entity.Property(c => c.Id).HasColumnName("id").UseIdentityByDefaultColumn();
+                entity.Property(c => c.Code).HasColumnName("code").HasMaxLength(50).IsRequired();
+                entity.Property(c => c.Name).HasColumnName("name").HasMaxLength(255).IsRequired();
+                entity.Property(c => c.Description).HasColumnName("description").HasMaxLength(500);
+                entity.Property(c => c.DefaultIssuingAuthority).HasColumnName("default_issuing_authority").HasMaxLength(255);
+                entity.Property(c => c.RequiresExpiryDate).HasColumnName("requires_expiry_date").HasDefaultValue(false);
+                entity.Property(c => c.AiKeywords).HasColumnName("ai_keywords").HasMaxLength(500);
+                entity.Property(c => c.DisplayOrder).HasColumnName("display_order").HasDefaultValue(0);
+                entity.Property(c => c.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+                entity.Property(c => c.CreatedAt).HasColumnName("created_at");
+                entity.Property(c => c.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasIndex(c => c.Code)
+                    .IsUnique()
+                    .HasDatabaseName("uq_expert_certificate_code");
+
+                entity.HasData(
+                    new ExpertCertificateConfiguration
+                    {
+                        Id = 1,
+                        Code = "TAX_AGENT",
+                        Name = "Chứng chỉ hành nghề dịch vụ làm thủ tục về thuế (Đại lý thuế)",
+                        DefaultIssuingAuthority = "Tổng cục Thuế",
+                        RequiresExpiryDate = false,
+                        AiKeywords = "đại lý thuế, tax agent, làm thủ tục về thuế, chứng chỉ hành nghề dịch vụ làm thủ tục về thuế",
+                        Description = "Chứng chỉ do Tổng cục Thuế cấp cho cá nhân đủ điều kiện hành nghề dịch vụ thuế.",
+                        DisplayOrder = 1,
+                        IsActive = true,
+                        CreatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
+                        UpdatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)
+                    },
+                    new ExpertCertificateConfiguration
+                    {
+                        Id = 2,
+                        Code = "CPA",
+                        Name = "Chứng chỉ Kiểm toán viên (CPA Việt Nam)",
+                        DefaultIssuingAuthority = "Bộ Tài chính",
+                        RequiresExpiryDate = false,
+                        AiKeywords = "kiểm toán viên, cpa, certified public accountant, bộ tài chính",
+                        Description = "Chứng chỉ kiểm toán viên do Bộ Tài chính cấp.",
+                        DisplayOrder = 2,
+                        IsActive = true,
+                        CreatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
+                        UpdatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)
+                    },
+                    new ExpertCertificateConfiguration
+                    {
+                        Id = 3,
+                        Code = "ACCOUNTANT",
+                        Name = "Chứng chỉ hành nghề Kế toán",
+                        DefaultIssuingAuthority = "Bộ Tài chính",
+                        RequiresExpiryDate = false,
+                        AiKeywords = "hành nghề kế toán, kế toán viên, chứng chỉ kế toán",
+                        Description = "Chứng chỉ hành nghề kế toán do Bộ Tài chính cấp theo quy định Luật Kế toán.",
+                        DisplayOrder = 3,
+                        IsActive = true,
+                        CreatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
+                        UpdatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)
+                    },
+                    new ExpertCertificateConfiguration
+                    {
+                        Id = 4,
+                        Code = "CHIEF_ACCOUNTANT",
+                        Name = "Chứng chỉ bồi dưỡng Kế toán trưởng",
+                        DefaultIssuingAuthority = "Bộ Tài chính",
+                        RequiresExpiryDate = true,
+                        AiKeywords = "kế toán trưởng, bồi dưỡng kế toán trưởng",
+                        Description = "Chứng chỉ bồi dưỡng nghiệp vụ kế toán trưởng, có thời hạn hiệu lực 5 năm theo quy định.",
+                        DisplayOrder = 4,
+                        IsActive = true,
+                        CreatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
+                        UpdatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)
+                    }
                 );
             });
 

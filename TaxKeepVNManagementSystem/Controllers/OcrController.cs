@@ -9,6 +9,8 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
+using System.Collections.Generic;
+using System.Linq;
 using TaxKeepVN.Application.DTOs.OcrAI;
 using TaxKeepVN.Application.DTOs.Responses;
 using TaxKeepVN.Application.Service.Interfaces;
