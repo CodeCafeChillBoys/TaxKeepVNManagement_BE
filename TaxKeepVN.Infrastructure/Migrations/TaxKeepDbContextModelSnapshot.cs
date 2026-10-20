@@ -1722,6 +1722,108 @@ namespace TaxKeepVN.Infrastructure.Migrations
                     b.ToTable("expert_reviews", (string)null);
                 });
 
+            modelBuilder.Entity("TaxKeepVN.Domain.Entities.ExpertSearchConfiguration", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasColumnName("id");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("AllowedSortOptions")
+                        .HasColumnType("text")
+                        .HasColumnName("allowed_sort_options");
+
+                    b.Property<double>("CompletedConsultationsWeight")
+                        .HasColumnType("double precision")
+                        .HasColumnName("completed_consultations_weight");
+
+                    b.Property<string>("DefaultSortBy")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("default_sort_by");
+
+                    b.Property<string>("FeaturedSpecializationIds")
+                        .HasColumnType("text")
+                        .HasColumnName("featured_specialization_ids");
+
+                    b.Property<double>("RatingWeight")
+                        .HasColumnType("double precision")
+                        .HasColumnName("rating_weight");
+
+                    b.Property<bool>("RequireVerifiedCertificate")
+                        .HasColumnType("boolean")
+                        .HasColumnName("require_verified_certificate");
+
+                    b.Property<double>("ReviewsCountWeight")
+                        .HasColumnType("double precision")
+                        .HasColumnName("reviews_count_weight");
+
+                    b.Property<bool>("SearchInBio")
+                        .HasColumnType("boolean")
+                        .HasColumnName("search_in_bio");
+
+                    b.Property<bool>("SearchInCertificates")
+                        .HasColumnType("boolean")
+                        .HasColumnName("search_in_certificates");
+
+                    b.Property<bool>("SearchInCompanyName")
+                        .HasColumnType("boolean")
+                        .HasColumnName("search_in_company_name");
+
+                    b.Property<bool>("SearchInFullName")
+                        .HasColumnType("boolean")
+                        .HasColumnName("search_in_full_name");
+
+                    b.Property<bool>("SearchInJobTitle")
+                        .HasColumnType("boolean")
+                        .HasColumnName("search_in_job_title");
+
+                    b.Property<bool>("SearchInSpecializations")
+                        .HasColumnType("boolean")
+                        .HasColumnName("search_in_specializations");
+
+                    b.Property<double>("SlotAvailabilityWeight")
+                        .HasColumnType("double precision")
+                        .HasColumnName("slot_availability_weight");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<double>("VerifiedCertificateWeight")
+                        .HasColumnType("double precision")
+                        .HasColumnName("verified_certificate_weight");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("expert_search_configurations", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Id = 1,
+                            AllowedSortOptions = "[\"Recommended\",\"RatingDesc\",\"CompletedSessionsDesc\",\"FeeAsc\",\"FeeDesc\",\"ExperienceDesc\"]",
+                            CompletedConsultationsWeight = 0.25,
+                            DefaultSortBy = "Recommended",
+                            FeaturedSpecializationIds = "[]",
+                            RatingWeight = 0.34999999999999998,
+                            RequireVerifiedCertificate = false,
+                            ReviewsCountWeight = 0.14999999999999999,
+                            SearchInBio = true,
+                            SearchInCertificates = true,
+                            SearchInCompanyName = true,
+                            SearchInFullName = true,
+                            SearchInJobTitle = true,
+                            SearchInSpecializations = true,
+                            SlotAvailabilityWeight = 0.14999999999999999,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            VerifiedCertificateWeight = 0.10000000000000001
+                        });
+                });
+
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.ExpertSlot", b =>
                 {
                     b.Property<Guid>("Id")

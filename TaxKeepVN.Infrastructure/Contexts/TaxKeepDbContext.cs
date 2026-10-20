@@ -38,6 +38,7 @@ namespace TaxKeepVN.Infrastructure.Contexts
         // Expert Registration & Management
         public DbSet<Specialization> Specializations { get; set; }
         public DbSet<ExpertCertificateConfiguration> ExpertCertificateConfigurations { get; set; }
+        public DbSet<ExpertSearchConfiguration> ExpertSearchConfigurations { get; set; }
         public DbSet<ConsultationFeeConfiguration> ConsultationFeeConfigurations { get; set; }
         public DbSet<ExpertApplication> ExpertApplications { get; set; }
         public DbSet<ExpertApplicationSpecialization> ExpertApplicationSpecializations { get; set; }
@@ -611,6 +612,54 @@ namespace TaxKeepVN.Infrastructure.Contexts
                         DisplayOrder = 4,
                         IsActive = true,
                         CreatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
+                        UpdatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)
+                    }
+                );
+            });
+
+            // ── ExpertSearchConfiguration ─────────────────────────────────────────
+            modelBuilder.Entity<ExpertSearchConfiguration>(entity =>
+            {
+                entity.ToTable("expert_search_configurations");
+                entity.HasKey(c => c.Id);
+
+                entity.Property(c => c.Id).HasColumnName("id").UseIdentityByDefaultColumn();
+                entity.Property(c => c.DefaultSortBy).HasColumnName("default_sort_by").HasConversion<string>().HasMaxLength(50);
+                entity.Property(c => c.RequireVerifiedCertificate).HasColumnName("require_verified_certificate");
+                entity.Property(c => c.SearchInFullName).HasColumnName("search_in_full_name");
+                entity.Property(c => c.SearchInJobTitle).HasColumnName("search_in_job_title");
+                entity.Property(c => c.SearchInCompanyName).HasColumnName("search_in_company_name");
+                entity.Property(c => c.SearchInBio).HasColumnName("search_in_bio");
+                entity.Property(c => c.SearchInSpecializations).HasColumnName("search_in_specializations");
+                entity.Property(c => c.SearchInCertificates).HasColumnName("search_in_certificates");
+                entity.Property(c => c.RatingWeight).HasColumnName("rating_weight");
+                entity.Property(c => c.CompletedConsultationsWeight).HasColumnName("completed_consultations_weight");
+                entity.Property(c => c.ReviewsCountWeight).HasColumnName("reviews_count_weight");
+                entity.Property(c => c.SlotAvailabilityWeight).HasColumnName("slot_availability_weight");
+                entity.Property(c => c.VerifiedCertificateWeight).HasColumnName("verified_certificate_weight");
+                entity.Property(c => c.FeaturedSpecializationIds).HasColumnName("featured_specialization_ids").HasColumnType("text");
+                entity.Property(c => c.AllowedSortOptions).HasColumnName("allowed_sort_options").HasColumnType("text");
+                entity.Property(c => c.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasData(
+                    new ExpertSearchConfiguration
+                    {
+                        Id = 1,
+                        DefaultSortBy = ExpertSortBy.Recommended,
+                        RequireVerifiedCertificate = false,
+                        SearchInFullName = true,
+                        SearchInJobTitle = true,
+                        SearchInCompanyName = true,
+                        SearchInBio = true,
+                        SearchInSpecializations = true,
+                        SearchInCertificates = true,
+                        RatingWeight = 0.35,
+                        CompletedConsultationsWeight = 0.25,
+                        ReviewsCountWeight = 0.15,
+                        SlotAvailabilityWeight = 0.15,
+                        VerifiedCertificateWeight = 0.10,
+                        FeaturedSpecializationIds = "[]",
+                        AllowedSortOptions = "[\"Recommended\",\"RatingDesc\",\"CompletedSessionsDesc\",\"FeeAsc\",\"FeeDesc\",\"ExperienceDesc\"]",
                         UpdatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)
                     }
                 );

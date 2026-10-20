@@ -145,6 +145,7 @@ builder.Services.AddScoped<ISpecializationService, SpecializationService>();
 builder.Services.AddScoped<IExpertApplicationService, ExpertApplicationService>();
 builder.Services.AddScoped<IConsultationFeeConfigService, ConsultationFeeConfigService>();
 builder.Services.AddScoped<IExpertCertificateConfigService, ExpertCertificateConfigService>();
+builder.Services.AddScoped<IExpertSearchConfigService, ExpertSearchConfigService>();
 builder.Services.AddScoped<IExpertSearchService, ExpertSearchService>();
 builder.Services.AddScoped<IBookingService, BookingService>();
 builder.Services.AddScoped<IReviewService, ReviewService>();
