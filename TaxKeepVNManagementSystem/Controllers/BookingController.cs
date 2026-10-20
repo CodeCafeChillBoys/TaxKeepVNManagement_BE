@@ -84,11 +84,10 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// POST /api/v1/bookings
         /// </summary>
         [HttpPost]
-        [Consumes("multipart/form-data")]
         [ProducesResponseType(typeof(ApiResponse<BookingDetailResponse>), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status409Conflict)]
-        public async Task<IActionResult> CreateBooking([FromForm] CreateBookingRequest request)
+        public async Task<IActionResult> CreateBooking([FromBody] CreateBookingRequest request)
         {
             var userId = GetCurrentUserId();
             var result = await _bookingService.CreateBookingAsync(userId, request);
@@ -154,20 +153,5 @@ namespace TaxKeepVNManagementSystem.Controllers
         }
 
         /// <summary>
-        /// Lấy đường dẫn tải an toàn cho tệp chứng từ đính kèm của buổi tư vấn
-        /// GET /api/v1/bookings/{id}/attachments/{attachmentId}/download
-        /// </summary>
-        [HttpGet("{id:guid}/attachments/{attachmentId:guid}/download")]
-        [Authorize]
-        [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status200OK)]
-        [ProducesResponseType(StatusCodes.Status403Forbidden)]
-        [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> DownloadAttachment([FromRoute] Guid id, [FromRoute] Guid attachmentId)
-        {
-            var userId = GetCurrentUserId();
-            var role = GetCurrentUserRole();
-            var downloadUrl = await _bookingService.GetAttachmentDownloadUrlAsync(id, attachmentId, userId, role);
-            return Ok(ApiResponse<string>.Ok(downloadUrl, "Lấy đường dẫn tải tệp chứng từ thành công."));
-        }
     }
 }

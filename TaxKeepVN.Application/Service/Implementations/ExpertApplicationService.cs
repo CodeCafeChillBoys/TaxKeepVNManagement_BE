@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Logging;
 using TaxKeepVN.Application.DTOs.ExpertApplications;
+using TaxKeepVN.Application.DTOs.OcrAI;
 using TaxKeepVN.Application.Exceptions;
 using TaxKeepVN.Application.Helpers;
 using TaxKeepVN.Application.Service.Interfaces;
@@ -16,15 +17,18 @@ namespace TaxKeepVN.Application.Service.Implementations
     {
         private readonly IUnitOfWork _unitOfWork;
         private readonly IFileStorageService _fileStorageService;
+        private readonly ICertificateOcrProducerService _certProducerService;
         private readonly ILogger<ExpertApplicationService> _logger;
 
         public ExpertApplicationService(
             IUnitOfWork unitOfWork,
             IFileStorageService fileStorageService,
+            ICertificateOcrProducerService certProducerService,
             ILogger<ExpertApplicationService> logger)
         {
             _unitOfWork = unitOfWork;
             _fileStorageService = fileStorageService;
+            _certProducerService = certProducerService;
             _logger = logger;
         }
 
@@ -258,6 +262,23 @@ namespace TaxKeepVN.Application.Service.Implementations
                 await _unitOfWork.SaveChangesAsync();
             }
 
+            // Kiểm tra loại chứng chỉ trong danh mục cấu hình hợp lệ của Admin
+            var targetType = request.CertificateType?.Trim().ToUpperInvariant() ?? string.Empty;
+            var certConfigRepo = _unitOfWork.Repository<ExpertCertificateConfiguration>();
+            var allowedConfigs = await certConfigRepo.FindAsync(c => c.Code == targetType && c.IsActive);
+            var matchedConfig = allowedConfigs.FirstOrDefault();
+            if (matchedConfig == null)
+            {
+                throw new BadRequestException("INVALID_CERTIFICATE_TYPE",
+                    $"Loại chứng chỉ '{request.CertificateType}' không hợp lệ hoặc đã ngừng áp dụng trên hệ thống.");
+            }
+
+            if (matchedConfig.RequiresExpiryDate && !request.HasExpiry)
+            {
+                throw new BadRequestException("EXPIRY_REQUIRED_FOR_TYPE",
+                    $"Chứng chỉ '{matchedConfig.Name}' bắt buộc phải khai báo thời hạn hiệu lực.");
+            }
+
             // Kiểm tra quy tắc ngày cấp chứng chỉ (BR-07)
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
             if (request.IssueDate > today)
@@ -306,7 +327,15 @@ namespace TaxKeepVN.Application.Service.Implementations
                 throw new BadRequestException("FILE_TOO_LARGE", "Dung lượng file chứng chỉ không được vượt quá 10MB.");
             }
 
-            // Upload file lên Supabase Storage
+            // 1. Chuyển đổi file sang Base64 để gửi sang AI OCR
+            string fileBase64;
+            using (var ms = new MemoryStream())
+            {
+                await request.File.CopyToAsync(ms);
+                fileBase64 = Convert.ToBase64String(ms.ToArray());
+            }
+
+            // 2. Upload file lên Supabase Storage
             var folderName = $"expert-certificates/{app.Id}";
             var fileUrl = await _fileStorageService.SaveFileAsync(request.File, folderName);
 
@@ -331,9 +360,44 @@ namespace TaxKeepVN.Application.Service.Implementations
             await _unitOfWork.Repository<ExpertApplicationCertificate>().AddAsync(certificate);
             await _unitOfWork.SaveChangesAsync();
 
+            // 3. Tự động gửi message sang RabbitMQ để AI bóc tách & đối soát thẩm định
+            var taskId = Guid.NewGuid();
+            try
+            {
+                var allActiveConfigs = await certConfigRepo.FindAsync(c => c.IsActive);
+                var allowedTypes = allActiveConfigs.Select(c => new Dictionary<string, string>
+                {
+                    ["code"] = c.Code,
+                    ["name"] = c.Name,
+                    ["description"] = c.Description ?? string.Empty,
+                    ["keywords"] = c.AiKeywords ?? string.Empty
+                }).ToList();
+
+                var ocrMessage = new CertificateOcrRequestMessage
+                {
+                    TaskId = taskId,
+                    UserId = userId,
+                    ApplicationId = app.Id,
+                    CertificateId = certificate.Id,
+                    FileName = request.File.FileName,
+                    FileUrl = fileUrl,
+                    FileBase64 = fileBase64,
+                    AllowedTypes = allowedTypes
+                };
+
+                _certProducerService.PublishCertificateOcrTask(ocrMessage);
+                _logger.LogInformation("Đã đẩy yêu cầu AI OCR thẩm định chứng chỉ {CertId} của User {UserId} vào RabbitMQ (TaskId: {TaskId})",
+                    certificate.Id, userId, taskId);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Lỗi khi đẩy message OCR thẩm định chứng chỉ {CertId} vào RabbitMQ", certificate.Id);
+            }
+
             return new CertificateResponseDto
             {
                 Id = certificate.Id,
+                TaskId = taskId,
                 CertificateType = certificate.CertificateType,
                 CertificateName = certificate.CertificateName,
                 CertificateNumber = certificate.CertificateNumber,

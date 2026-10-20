@@ -26,8 +26,8 @@ namespace TaxKeepVN.Application.DTOs.Experts
         /// <summary>Lọc theo khung thời gian rảnh (Today, Tomorrow, ThisWeekend, Next7Days)</summary>
         public ExpertTimeFilter TimeFilter { get; set; } = ExpertTimeFilter.All;
 
-        /// <summary>Tiêu chí sắp xếp kết quả (Recommended, RatingDesc, FeeAsc, FeeDesc, ExperienceDesc)</summary>
-        public ExpertSortBy SortBy { get; set; } = ExpertSortBy.Recommended;
+        /// <summary>Tiêu chí sắp xếp kết quả (Nếu để trống sẽ tự động lấy theo DefaultSortBy do Admin cấu hình)</summary>
+        public ExpertSortBy? SortBy { get; set; }
 
         /// <summary>Số trang hiện tại (bắt đầu từ 1)</summary>
         public int Page { get; set; } = 1;
