@@ -21,10 +21,14 @@ namespace TaxKeepVNManagementSystem.Controllers
     public class WalletController : ControllerBase
     {
         private readonly IDisbursementDisputeService _service;
+        private readonly IPaymentEscrowService _paymentEscrowService;
 
-        public WalletController(IDisbursementDisputeService service)
+        public WalletController(
+            IDisbursementDisputeService service,
+            IPaymentEscrowService paymentEscrowService)
         {
             _service = service;
+            _paymentEscrowService = paymentEscrowService;
         }
 
         private Guid GetCurrentUserId()
@@ -75,6 +79,28 @@ namespace TaxKeepVNManagementSystem.Controllers
             return Ok(ApiResponse<PagedResult<WalletTransactionResponse>>.Ok(result, "Lấy lịch sử biến động số dư thành công."));
         }
 
+        /// <summary>
+        /// Nạp tiền vào ví cá nhân thông qua cổng thanh toán VNPay / VietQR
+        /// POST /api/v1/wallets/top-up
+        /// </summary>
+        [HttpPost("api/v1/wallets/top-up")]
+        [ProducesResponseType(typeof(ApiResponse<WalletTopUpResponse>), StatusCodes.Status201Created)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> TopUpWallet([FromBody] WalletTopUpRequest request)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ApiResponse<object>.ValidationFail(ModelState));
+            }
+
+            var userId = GetCurrentUserId();
+            var rawIp = HttpContext.Connection.RemoteIpAddress?.ToString();
+            var clientIp = (string.IsNullOrWhiteSpace(rawIp) || rawIp == "::1" || rawIp.Contains(':')) ? "127.0.0.1" : rawIp.Trim();
+            var result = await _paymentEscrowService.CreateWalletTopUpPaymentUrlAsync(userId, request, clientIp);
+            return StatusCode(StatusCodes.Status201Created,
+                ApiResponse<WalletTopUpResponse>.Ok(result, "Khởi tạo link nạp tiền vào ví thành công."));
+        }
+
         // ════════════════════════════════════════════════════════════════════════
         //  2. CHUYÊN GIA: LỆNH RÚT TIỀN VỀ NGÂN HÀNG (MỤC 5.3)
         // ════════════════════════════════════════════════════════════════════════
@@ -112,6 +138,45 @@ namespace TaxKeepVNManagementSystem.Controllers
             var expertUserId = GetCurrentUserId();
             var result = await _service.GetWithdrawalsAsync(expertUserId, "expert", status, page, size);
             return Ok(ApiResponse<PagedResult<WithdrawalResponse>>.Ok(result, "Lấy danh sách lệnh rút tiền thành công."));
+        }
+
+        // ════════════════════════════════════════════════════════════════════════
+        //  2.1 KHÁCH HÀNG: LỆNH RÚT TIỀN HOÀN VỀ NGÂN HÀNG (REFUND WITHDRAWAL)
+        // ════════════════════════════════════════════════════════════════════════
+
+        /// <summary>
+        /// Khách hàng tạo lệnh rút tiền hoàn (Refund) từ ví cá nhân về tài khoản ngân hàng
+        /// POST /api/v1/user/wallets/withdraw
+        /// </summary>
+        [HttpPost("api/v1/user/wallets/withdraw")]
+        [ProducesResponseType(typeof(ApiResponse<WithdrawalResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> RequestUserRefundWithdrawal([FromBody] CreateWithdrawalRequest request)
+        {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ApiResponse<object>.ValidationFail(ModelState));
+            }
+
+            var userId = GetCurrentUserId();
+            var result = await _service.RequestUserRefundWithdrawalAsync(userId, request);
+            return Ok(ApiResponse<WithdrawalResponse>.Ok(result, "Tạo yêu cầu rút tiền hoàn thành công. Tiền đã được tạm giữ để Admin chuyển khoản trả lại STK của bạn."));
+        }
+
+        /// <summary>
+        /// Khách hàng xem danh sách các yêu cầu rút tiền hoàn của mình
+        /// GET /api/v1/user/wallets/withdrawals?status=PENDING&page=1&size=10
+        /// </summary>
+        [HttpGet("api/v1/user/wallets/withdrawals")]
+        [ProducesResponseType(typeof(ApiResponse<PagedResult<WithdrawalResponse>>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetUserWithdrawals(
+            [FromQuery] string? status = null,
+            [FromQuery] int page = 1,
+            [FromQuery] int size = 10)
+        {
+            var userId = GetCurrentUserId();
+            var result = await _service.GetWithdrawalsAsync(userId, "taxpayer", status, page, size);
+            return Ok(ApiResponse<PagedResult<WithdrawalResponse>>.Ok(result, "Lấy danh sách yêu cầu rút tiền hoàn thành công."));
         }
 
         // ════════════════════════════════════════════════════════════════════════

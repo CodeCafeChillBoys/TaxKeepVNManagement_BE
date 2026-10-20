@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using TaxKeepVN.Application.DTOs.Common;
 using TaxKeepVN.Application.DTOs.Payments;
+using TaxKeepVN.Application.DTOs.Wallets;
 
 namespace TaxKeepVN.Application.Service.Interfaces
 {
@@ -41,5 +42,10 @@ namespace TaxKeepVN.Application.Service.Interfaces
         /// Chỉ dành riêng cho quyền Admin.
         /// </summary>
         Task<AdminPlatformWalletResponse> GetAdminPlatformWalletAsync(Guid currentUserId, string currentUserRole);
+
+        /// <summary>
+        /// Khởi tạo giao dịch nạp tiền vào ví cá nhân qua cổng thanh toán VNPay / VietQR
+        /// </summary>
+        Task<WalletTopUpResponse> CreateWalletTopUpPaymentUrlAsync(Guid userId, WalletTopUpRequest request, string? clientIp = null);
     }
 }

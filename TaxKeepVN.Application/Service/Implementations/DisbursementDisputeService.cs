@@ -648,9 +648,17 @@ namespace TaxKeepVN.Application.Service.Implementations
             var user = await _unitOfWork.Repository<User>().GetByIdAsync(userId)
                 ?? throw new NotFoundException("Không tìm thấy thông tin người dùng.");
 
+            var isExpert = string.Equals(user.UserRole, "expert", StringComparison.OrdinalIgnoreCase);
+
             var type = !string.IsNullOrWhiteSpace(walletType)
                 ? walletType.Trim().ToUpperInvariant()
-                : (user.UserRole == "expert" ? "EXPERT" : "USER");
+                : (isExpert ? "EXPERT" : "USER");
+
+            // Nếu người dùng không phải Chuyên gia mà yêu cầu xem ví EXPERT -> Tự động chuyển về ví USER để tránh tạo bản ghi ví rác
+            if (type == "EXPERT" && !isExpert)
+            {
+                type = "USER";
+            }
 
             var wallet = await GetOrCreateWalletAsync(userId, type);
 
@@ -810,6 +818,87 @@ namespace TaxKeepVN.Application.Service.Implementations
             return MapToWithdrawalResponse(withdrawal, user);
         }
 
+        public async Task<WithdrawalResponse> RequestUserRefundWithdrawalAsync(Guid userId, CreateWithdrawalRequest request)
+        {
+            var user = await _unitOfWork.Repository<User>().GetByIdAsync(userId)
+                ?? throw new NotFoundException("Không tìm thấy thông tin người dùng.");
+
+            const decimal minRefundWithdrawal = 50000m; // Ngưỡng rút tiền hoàn tối thiểu 50.000 VNĐ
+            if (request.Amount < minRefundWithdrawal)
+            {
+                throw new BadRequestException("MIN_WITHDRAWAL_NOT_MET",
+                    $"Số tiền rút tiền hoàn tối thiểu là {minRefundWithdrawal:N0} VNĐ. Số tiền bạn yêu cầu: {request.Amount:N0} VNĐ.");
+            }
+
+            var wallet = await GetOrCreateWalletAsync(userId, "USER");
+            if (wallet.AvailableBalance < request.Amount)
+            {
+                throw new BadRequestException("INSUFFICIENT_BALANCE",
+                    $"Số dư hoàn tiền khả dụng trong ví ({wallet.AvailableBalance:N0} VNĐ) không đủ để thực hiện lệnh rút {request.Amount:N0} VNĐ.");
+            }
+
+            if (string.IsNullOrWhiteSpace(request.BankName) ||
+                string.IsNullOrWhiteSpace(request.AccountNumber) ||
+                string.IsNullOrWhiteSpace(request.AccountName))
+            {
+                throw new BadRequestException("BANK_INFO_REQUIRED", "Vui lòng nhập đầy đủ tên ngân hàng, số tài khoản và tên chủ tài khoản thụ hưởng.");
+            }
+
+            var nowUtc = DateTimeOffset.UtcNow;
+
+            // Tạm đóng băng số tiền yêu cầu rút từ ví USER
+            var before = wallet.AvailableBalance;
+            wallet.AvailableBalance -= request.Amount;
+            wallet.FrozenBalance += request.Amount;
+            wallet.UpdatedAt = nowUtc;
+            _unitOfWork.Repository<UserWallet>().Update(wallet);
+
+            var withdrawal = new WithdrawalRequest
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                Amount = request.Amount,
+                BankName = request.BankName.Trim().ToUpperInvariant(),
+                AccountNumber = request.AccountNumber.Trim(),
+                AccountName = request.AccountName.Trim().ToUpperInvariant(),
+                Status = "PENDING",
+                AdminNotes = "Khách hàng yêu cầu rút tiền hoàn từ ví cá nhân",
+                CreatedAt = nowUtc,
+                UpdatedAt = nowUtc
+            };
+            await _unitOfWork.Repository<WithdrawalRequest>().AddAsync(withdrawal);
+
+            await _unitOfWork.Repository<WalletTransaction>().AddAsync(new WalletTransaction
+            {
+                Id = Guid.NewGuid(),
+                WalletId = wallet.Id,
+                UserId = userId,
+                Amount = -request.Amount,
+                BalanceBefore = before,
+                BalanceAfter = wallet.AvailableBalance,
+                TransactionType = "WITHDRAWAL",
+                ReferenceId = withdrawal.Id,
+                Description = $"Tạm giữ số dư để xử lý lệnh rút tiền hoàn về ngân hàng {withdrawal.BankName} - STK {withdrawal.AccountNumber}",
+                CreatedAt = nowUtc
+            });
+
+            // Bắn thông báo cho Admin
+            var admins = (await _unitOfWork.Repository<User>().FindAsync(u => u.UserRole == "admin")).ToList();
+            foreach (var admin in admins)
+            {
+                await SendNotificationAsync(
+                    userId: admin.UserId,
+                    title: "Khách hàng yêu cầu rút tiền hoàn",
+                    message: $"Người dùng {user.FullName} gửi yêu cầu rút hoàn {request.Amount:N0} VNĐ về STK {withdrawal.AccountNumber} ({withdrawal.BankName}).",
+                    type: "USER_WITHDRAWAL_REQUEST",
+                    targetUrl: "/admin/withdrawals");
+            }
+
+            await _unitOfWork.SaveChangesAsync();
+
+            return MapToWithdrawalResponse(withdrawal, user);
+        }
+
         public async Task<PagedResult<WithdrawalResponse>> GetWithdrawalsAsync(Guid currentUserId, string currentUserRole, string? status = null, int page = 1, int size = 10)
         {
             var isAdmin = string.Equals(currentUserRole, "admin", StringComparison.OrdinalIgnoreCase);
@@ -868,8 +957,10 @@ namespace TaxKeepVN.Application.Service.Implementations
                 throw new BadRequestException("INVALID_ACTION", "Hành động phải là 'APPROVE' hoặc 'REJECT'.");
             }
 
-            var wallet = await GetOrCreateWalletAsync(withdrawal.UserId, "EXPERT");
             var user = await _unitOfWork.Repository<User>().GetByIdAsync(withdrawal.UserId);
+            var isExpert = user != null && string.Equals(user.UserRole, "expert", StringComparison.OrdinalIgnoreCase);
+            var targetWalletType = isExpert ? "EXPERT" : "USER";
+            var wallet = await GetOrCreateWalletAsync(withdrawal.UserId, targetWalletType);
             var nowUtc = DateTimeOffset.UtcNow;
 
             if (action == "APPROVE")
@@ -888,12 +979,13 @@ namespace TaxKeepVN.Application.Service.Implementations
                 withdrawal.UpdatedAt = nowUtc;
                 _unitOfWork.Repository<WithdrawalRequest>().Update(withdrawal);
 
+                var targetUrl = isExpert ? "/expert/wallet" : "/wallet";
                 await SendNotificationAsync(
                     userId: withdrawal.UserId,
                     title: "Lệnh rút tiền đã hoàn tất thành công",
                     message: $"Khoản tiền {withdrawal.Amount:N0} VNĐ đã được chuyển về tài khoản {withdrawal.BankName} - {withdrawal.AccountNumber}. Mã tham chiếu: {withdrawal.TransactionReference ?? "N/A"}.",
                     type: "WITHDRAWAL_SUCCESS",
-                    targetUrl: "/expert/wallet");
+                    targetUrl: targetUrl);
             }
             else // REJECT
             {
@@ -931,12 +1023,13 @@ namespace TaxKeepVN.Application.Service.Implementations
                     CreatedAt = nowUtc
                 });
 
+                var targetUrl = isExpert ? "/expert/wallet" : "/wallet";
                 await SendNotificationAsync(
                     userId: withdrawal.UserId,
                     title: "Lệnh rút tiền bị từ chối – Số dư đã được hoàn lại",
                     message: $"Lệnh rút {withdrawal.Amount:N0} VNĐ đã bị từ chối (Lý do: {withdrawal.RejectionReason}). Số tiền đã được hoàn trả lại ví khả dụng.",
                     type: "WITHDRAWAL_REJECTED",
-                    targetUrl: "/expert/wallet");
+                    targetUrl: targetUrl);
             }
 
             await _unitOfWork.SaveChangesAsync();
@@ -950,7 +1043,14 @@ namespace TaxKeepVN.Application.Service.Implementations
 
         private async Task<UserWallet> GetOrCreateWalletAsync(Guid userId, string walletType)
         {
-            var wallets = await _unitOfWork.Repository<UserWallet>().FindAsync(w => w.UserId == userId && w.WalletType == walletType);
+            var user = await _unitOfWork.Repository<User>().GetByIdAsync(userId);
+            var isExpert = user != null && string.Equals(user.UserRole, "expert", StringComparison.OrdinalIgnoreCase);
+
+            var resolvedType = (walletType.Equals("EXPERT", StringComparison.OrdinalIgnoreCase) && !isExpert)
+                ? "USER"
+                : walletType.Trim().ToUpperInvariant();
+
+            var wallets = await _unitOfWork.Repository<UserWallet>().FindAsync(w => w.UserId == userId && w.WalletType == resolvedType);
             var wallet = wallets.FirstOrDefault();
 
             if (wallet == null)
@@ -959,7 +1059,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 {
                     Id = Guid.NewGuid(),
                     UserId = userId,
-                    WalletType = walletType,
+                    WalletType = resolvedType,
                     AvailableBalance = 0m,
                     FrozenBalance = 0m,
                     TotalEarned = 0m,

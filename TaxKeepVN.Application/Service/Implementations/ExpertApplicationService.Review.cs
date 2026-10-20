@@ -263,6 +263,26 @@ namespace TaxKeepVN.Application.Service.Implementations
                 profileRepo.Update(existingProfile);
             }
 
+            // Khởi tạo Ví thu nhập Chuyên gia (WalletType = "EXPERT", 0 VNĐ) nếu chưa có
+            var walletRepo = _unitOfWork.Repository<UserWallet>();
+            var expertWallets = await walletRepo.FindAsync(w => w.UserId == app.UserId && w.WalletType == "EXPERT");
+            if (!expertWallets.Any())
+            {
+                var newExpertWallet = new UserWallet
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = app.UserId,
+                    WalletType = "EXPERT",
+                    AvailableBalance = 0m,
+                    FrozenBalance = 0m,
+                    TotalEarned = 0m,
+                    TotalWithdrawn = 0m,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    UpdatedAt = DateTimeOffset.UtcNow
+                };
+                await walletRepo.AddAsync(newExpertWallet);
+            }
+
             // BR-11: Ghi log Audit
             var audit = new ExpertApplicationAudit
             {

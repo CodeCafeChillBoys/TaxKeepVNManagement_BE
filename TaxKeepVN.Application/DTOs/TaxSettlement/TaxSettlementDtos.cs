@@ -296,14 +296,42 @@ namespace TaxKeepVN.Application.DTOs.TaxSettlement
         /// - NORMAL: > 30 ngày
         /// - WARNING: 8 – 30 ngày
         /// - CRITICAL: <= 7 ngày
-        /// - OVERDUE: Quá hạn (< 0 ngày)
         /// </summary>
         public string UrgencyLevel { get; set; } = "NORMAL";
 
-        /// <summary>Đã quá hạn chót chưa.</summary>
+        /// <summary>Đã quá hạn chót chưa (luôn false vì hệ thống tự động đếm ngược đến hạn tiếp theo).</summary>
         public bool IsOverdue { get; set; }
 
         /// <summary>Các mốc ngày nhắc nhở được cấu hình trong hệ thống.</summary>
         public List<int> ReminderMilestones { get; set; } = new();
+
+        /// <summary>
+        /// Cờ báo cho Frontend hiển thị popup nhắc nhở "Bạn đã quyết toán thuế chưa?" (1 lần duy nhất).
+        /// Trả về true nếu người dùng đã đăng nhập, đang vào hoặc qua hạn nộp, chưa chốt hồ sơ và chưa từng được hỏi.
+        /// </summary>
+        public bool ShouldPromptSettlementCheck { get; set; }
+
+        /// <summary>Năm quyết toán cần hỏi (ví dụ: 2025).</summary>
+        public int? PromptTaxYear { get; set; }
+
+        /// <summary>Nội dung câu hỏi nhắc nhở hiển thị trên popup modal.</summary>
+        public string? PromptQuestion { get; set; }
+    }
+
+    /// <summary>
+    /// Request ghi nhận phản hồi / xác nhận đã hiển thị câu hỏi nhắc nhở quyết toán thuế (1 lần duy nhất).
+    /// </summary>
+    public class AcknowledgeSettlementPromptRequest
+    {
+        [Required(ErrorMessage = "Năm tính thuế không được để trống.")]
+        public int TaxYear { get; set; }
+
+        /// <summary>
+        /// Phản hồi của người dùng:
+        /// - "YES": Đã hoàn thành quyết toán thuế
+        /// - "NO": Chưa quyết toán thuế (hướng dẫn thực hiện)
+        /// - "DISMISSED": Bỏ qua / Đóng thông báo
+        /// </summary>
+        public string? Response { get; set; }
     }
 }
