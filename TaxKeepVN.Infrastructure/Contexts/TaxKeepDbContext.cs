@@ -49,7 +49,6 @@ namespace TaxKeepVN.Infrastructure.Contexts
         public DbSet<ExpertSlot> ExpertSlots { get; set; }
         public DbSet<ExpertReview> ExpertReviews { get; set; }
         public DbSet<Booking> Bookings { get; set; }
-        public DbSet<BookingAttachment> BookingAttachments { get; set; }
         public DbSet<EscrowTransaction> EscrowTransactions { get; set; }
         public DbSet<ConsultationSession> ConsultationSessions { get; set; }
         public DbSet<UserWallet> UserWallets { get; set; }
@@ -1013,28 +1012,6 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.HasIndex(b => b.UserId).HasDatabaseName("idx_bookings_user_id");
                 entity.HasIndex(b => b.ExpertSlotId).HasDatabaseName("idx_bookings_slot_id");
                 entity.HasIndex(b => new { b.Status, b.HoldExpiresAt }).HasDatabaseName("idx_bookings_status_hold");
-            });
-
-            // ── BookingAttachment ───────────────────────────────────────────────
-            modelBuilder.Entity<BookingAttachment>(entity =>
-            {
-                entity.ToTable("booking_attachments");
-                entity.HasKey(a => a.Id);
-
-                entity.Property(a => a.Id).HasColumnName("id");
-                entity.Property(a => a.BookingId).HasColumnName("booking_id").IsRequired();
-                entity.Property(a => a.FileName).HasColumnName("file_name").HasMaxLength(255).IsRequired();
-                entity.Property(a => a.FileUrl).HasColumnName("file_url").IsRequired();
-                entity.Property(a => a.FileSize).HasColumnName("file_size").IsRequired();
-                entity.Property(a => a.ContentType).HasColumnName("content_type").HasMaxLength(100).IsRequired();
-                entity.Property(a => a.CreatedAt).HasColumnName("created_at");
-
-                entity.HasOne(a => a.Booking)
-                    .WithMany(b => b.Attachments)
-                    .HasForeignKey(a => a.BookingId)
-                    .OnDelete(DeleteBehavior.Cascade);
-
-                entity.HasIndex(a => a.BookingId).HasDatabaseName("idx_booking_attachments_booking_id");
             });
 
             // ── EscrowTransaction (Đặc tả 4 & 7) ────────────────────────────────

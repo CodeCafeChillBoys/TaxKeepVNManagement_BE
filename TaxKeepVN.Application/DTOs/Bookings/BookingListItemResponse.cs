@@ -30,7 +30,6 @@ namespace TaxKeepVN.Application.DTOs.Bookings
         public BookingStatus Status { get; set; }
         public DateTimeOffset HoldExpiresAt { get; set; }
         public DateTimeOffset? ApprovalDeadline { get; set; }
-        public int AttachmentCount { get; set; }
 
         public DateTimeOffset CreatedAt { get; set; }
     }

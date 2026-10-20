@@ -369,17 +369,6 @@ namespace TaxKeepVN.Application.Service.Implementations
                 };
             }
 
-            // 5. Booking Attachments (File bổ trợ ngoài)
-            var attachments = (await _unitOfWork.Repository<BookingAttachment>().FindAsync(a => a.BookingId == bookingId)).ToList();
-            var attachmentDtos = attachments.Select(a => new SharedAttachmentDto
-            {
-                Id = a.Id,
-                FileName = a.FileName,
-                FileUrl = a.FileUrl,
-                ContentType = a.ContentType,
-                FileSize = a.FileSize
-            }).ToList();
-
             return new SharedTaxDossierResponse
             {
                 BookingId = booking.Id,
@@ -399,7 +388,6 @@ namespace TaxKeepVN.Application.Service.Implementations
                 DeductibleDocuments = documentDtos,
                 TotalMedicalEducationExpenses = 0,
                 DraftSettlement = draftDto,
-                BookingAttachments = attachmentDtos
             };
         }
 

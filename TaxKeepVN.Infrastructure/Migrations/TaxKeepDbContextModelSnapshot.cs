@@ -171,50 +171,6 @@ namespace TaxKeepVN.Infrastructure.Migrations
                     b.ToTable("bookings", (string)null);
                 });
 
-            modelBuilder.Entity("TaxKeepVN.Domain.Entities.BookingAttachment", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("uuid")
-                        .HasColumnName("id");
-
-                    b.Property<Guid>("BookingId")
-                        .HasColumnType("uuid")
-                        .HasColumnName("booking_id");
-
-                    b.Property<string>("ContentType")
-                        .IsRequired()
-                        .HasMaxLength(100)
-                        .HasColumnType("character varying(100)")
-                        .HasColumnName("content_type");
-
-                    b.Property<DateTimeOffset>("CreatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("created_at");
-
-                    b.Property<string>("FileName")
-                        .IsRequired()
-                        .HasMaxLength(255)
-                        .HasColumnType("character varying(255)")
-                        .HasColumnName("file_name");
-
-                    b.Property<long>("FileSize")
-                        .HasColumnType("bigint")
-                        .HasColumnName("file_size");
-
-                    b.Property<string>("FileUrl")
-                        .IsRequired()
-                        .HasColumnType("text")
-                        .HasColumnName("file_url");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("BookingId")
-                        .HasDatabaseName("idx_booking_attachments_booking_id");
-
-                    b.ToTable("booking_attachments", (string)null);
-                });
-
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.BookingDispute", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3253,17 +3209,6 @@ namespace TaxKeepVN.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
-            modelBuilder.Entity("TaxKeepVN.Domain.Entities.BookingAttachment", b =>
-                {
-                    b.HasOne("TaxKeepVN.Domain.Entities.Booking", "Booking")
-                        .WithMany("Attachments")
-                        .HasForeignKey("BookingId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Booking");
-                });
-
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.BookingDispute", b =>
                 {
                     b.HasOne("TaxKeepVN.Domain.Entities.Booking", "Booking")
@@ -3563,8 +3508,6 @@ namespace TaxKeepVN.Infrastructure.Migrations
 
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.Booking", b =>
                 {
-                    b.Navigation("Attachments");
-
                     b.Navigation("EscrowTransaction");
                 });
 

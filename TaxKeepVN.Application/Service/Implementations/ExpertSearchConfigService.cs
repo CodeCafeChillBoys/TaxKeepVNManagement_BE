@@ -1,4 +1,8 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Text.Json;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Caching.Memory;
 using TaxKeepVN.Application.DTOs.SearchConfigs;
 using TaxKeepVN.Application.Service.Interfaces;
@@ -11,49 +15,35 @@ namespace TaxKeepVN.Application.Service.Implementations
     public class ExpertSearchConfigService : IExpertSearchConfigService
     {
         private readonly IUnitOfWork _unitOfWork;
-        private readonly IMemoryCache _cache;
-        private const string CacheKey = "CACHE_EXPERT_SEARCH_CONFIG";
 
-        public ExpertSearchConfigService(IUnitOfWork unitOfWork, IMemoryCache cache)
+        public ExpertSearchConfigService(IUnitOfWork unitOfWork)
         {
             _unitOfWork = unitOfWork;
-            _cache = cache;
         }
 
         public async Task<ExpertSearchCriteriaConfigDto> GetConfigAsync()
         {
-            if (_cache.TryGetValue(CacheKey, out ExpertSearchCriteriaConfigDto? cached) && cached != null)
-            {
-                return cached;
-            }
-
             var repo = _unitOfWork.Repository<ExpertSearchConfiguration>();
-            var records = await repo.FindAsync(c => c.Id == 1);
-            var entity = records.FirstOrDefault();
+            var allConfigs = await repo.GetAllAsync();
+            var entity = allConfigs.OrderBy(c => c.Id).FirstOrDefault();
 
-            ExpertSearchCriteriaConfigDto config;
             if (entity == null)
             {
-                config = new ExpertSearchCriteriaConfigDto();
-            }
-            else
-            {
-                config = MapToDto(entity);
+                return new ExpertSearchCriteriaConfigDto();
             }
 
-            _cache.Set(CacheKey, config, TimeSpan.FromHours(1));
-            return config;
+            return MapToDto(entity);
         }
 
         public async Task<ExpertSearchCriteriaConfigDto> UpdateConfigAsync(ExpertSearchCriteriaConfigDto newConfig)
         {
             var repo = _unitOfWork.Repository<ExpertSearchConfiguration>();
-            var records = await repo.FindAsync(c => c.Id == 1);
-            var entity = records.FirstOrDefault();
+            var allConfigs = await repo.GetAllAsync();
+            var entity = allConfigs.OrderBy(c => c.Id).FirstOrDefault();
 
             if (entity == null)
             {
-                entity = new ExpertSearchConfiguration { Id = 1 };
+                entity = new ExpertSearchConfiguration();
                 MapFromDto(newConfig, entity);
                 entity.UpdatedAt = DateTimeOffset.UtcNow;
                 await repo.AddAsync(entity);
@@ -66,10 +56,8 @@ namespace TaxKeepVN.Application.Service.Implementations
             }
 
             await _unitOfWork.SaveChangesAsync();
-            _cache.Remove(CacheKey); // Xóa cache để toàn hệ thống áp dụng ngay tức thì
             return newConfig;
         }
-        
 
         public async Task<ExpertSearchCriteriaConfigDto> ResetToDefaultsAsync()
         {
