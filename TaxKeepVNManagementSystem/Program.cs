@@ -140,6 +140,7 @@ builder.Services.AddScoped<ITaxAiConfigService, TaxAiConfigService>();
 builder.Services.AddScoped<IUrlRuleService, UrlRuleService>();
 builder.Services.AddScoped<IOcrAIProducerService, OcrAIProducerService>();
 builder.Services.AddScoped<ICertificateOcrProducerService, CertificateOcrProducerService>();
+builder.Services.AddScoped<ITaxChatService, TaxChatService>();
 
 builder.Services.AddScoped<ISpecializationService, SpecializationService>();
 builder.Services.AddScoped<IExpertApplicationService, ExpertApplicationService>();
