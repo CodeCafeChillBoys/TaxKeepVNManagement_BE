@@ -64,5 +64,15 @@ namespace TaxKeepVN.Application.DTOs.Bookings
 
         // Danh sách tệp đính kèm
         public List<BookingAttachmentDto> Attachments { get; set; } = new();
+
+        /// <summary>
+        /// Loại vắng mặt nếu xảy ra No-Show: "NONE", "USER_NO_SHOW", "EXPERT_NO_SHOW"
+        /// </summary>
+        public string NoShowType { get; set; } = "NONE";
+
+        /// <summary>
+        /// Biên bản kết luận hoặc ghi chú tự động của phiên tư vấn
+        /// </summary>
+        public string? SessionSharedNotes { get; set; }
     }
 }

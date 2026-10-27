@@ -43,7 +43,8 @@ namespace TaxKeepVN.Application.Mappers
             Specialization spec,
             User? expertUser,
             ExpertApplication? app,
-            List<BookingAttachmentDto> attachments)
+            List<BookingAttachmentDto> attachments,
+            ConsultationSession? session = null)
         {   
             
             if (booking == null) return null!;
@@ -103,7 +104,10 @@ namespace TaxKeepVN.Application.Mappers
                 CancelledBy = booking.CancelledBy,
 
                 CreatedAt = booking.CreatedAt,
-                Attachments = attachments ?? new List<BookingAttachmentDto>()
+                Attachments = attachments ?? new List<BookingAttachmentDto>(),
+
+                NoShowType = session?.NoShowType ?? "NONE",
+                SessionSharedNotes = session?.SharedNotes
             };
         }
 
@@ -115,8 +119,9 @@ namespace TaxKeepVN.Application.Mappers
             Specialization spec,
             User? expertUser,
             ExpertApplication? app,
-            List<BookingAttachmentDto> attachments)
-            => MapToDetailResponse(booking, clientUser, expertProfile, slot, spec, expertUser, app, attachments);
+            List<BookingAttachmentDto> attachments,
+            ConsultationSession? session = null)
+            => MapToDetailResponse(booking, clientUser, expertProfile, slot, spec, expertUser, app, attachments, session);
 
         /// <summary>
         /// Chuyển đổi một Booking entity sang BookingListItemResponse
@@ -129,7 +134,8 @@ namespace TaxKeepVN.Application.Mappers
             Specialization? spec,
             User? expertUser,
             ExpertApplication? app,
-            int attachmentCount)
+            int attachmentCount,
+            string noShowType = "NONE")
         {
             if (booking == null) return null!;
 
@@ -154,7 +160,8 @@ namespace TaxKeepVN.Application.Mappers
                 HoldExpiresAt = booking.HoldExpiresAt,
                 ApprovalDeadline = booking.ApprovalDeadline,
                 AttachmentCount = attachmentCount,
-                CreatedAt = booking.CreatedAt
+                CreatedAt = booking.CreatedAt,
+                NoShowType = noShowType
             };
         }
 
@@ -166,8 +173,9 @@ namespace TaxKeepVN.Application.Mappers
             Specialization? spec,
             User? expertUser,
             ExpertApplication? app,
-            int attachmentCount)
-            => MapToListItemResponse(booking, clientUser, profile, slot, spec, expertUser, app, attachmentCount);
+            int attachmentCount,
+            string noShowType = "NONE")
+            => MapToListItemResponse(booking, clientUser, profile, slot, spec, expertUser, app, attachmentCount, noShowType);
 
         /// <summary>
         /// Nạp các quan hệ dữ liệu liên quan và chuyển danh sách Booking entity sang BookingListItemResponse DTO
@@ -205,6 +213,8 @@ namespace TaxKeepVN.Application.Mappers
             var bookingIds = bookings.Select(b => b.Id).ToList();
             // sau đó check trong BookingAttachment
             var attachments = (await unitOfWork.Repository<BookingAttachment>().FindAsync(a => bookingIds.Contains(a.BookingId))).ToList();
+            var sessions = (await unitOfWork.Repository<ConsultationSession>().FindAsync(s => bookingIds.Contains(s.BookingId)))
+                .ToDictionary(s => s.BookingId);
 
             return bookings.Select(b =>
             {
@@ -228,8 +238,10 @@ namespace TaxKeepVN.Application.Mappers
                 }
 
                 var attCount = attachments.Count(a => a.BookingId == b.Id);
+                sessions.TryGetValue(b.Id, out var sess);
+                var noShowType = sess?.NoShowType ?? "NONE";
 
-                return MapToListItemResponse(b, clientUser, profile, slot, spec, expertUser, app, attCount);
+                return MapToListItemResponse(b, clientUser, profile, slot, spec, expertUser, app, attCount, noShowType);
             }).ToList();
         }
     }
