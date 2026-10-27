@@ -16,8 +16,39 @@ namespace TaxKeepVN.Application.DTOs.Wallets
         public decimal FrozenBalance { get; set; }
         public decimal TotalEarned { get; set; }
         public decimal TotalWithdrawn { get; set; }
+
+        /// <summary>
+        /// Tổng tiền thù lao đang bị tạm giữ chưa giải ngân về ví EXPERT (EscrowStatus = HeldInEscrow hoặc CoolingDown)
+        /// </summary>
+        public decimal PendingEscrowReceivable { get; set; }
+
+        /// <summary>
+        /// Danh sách chi tiết các ca tư vấn đang tạm giữ tiền bảo chứng chờ giải ngân
+        /// </summary>
+        public List<PendingEscrowDetailResponse> PendingEscrowDetails { get; set; } = new();
+
         public DateTimeOffset UpdatedAt { get; set; }
         public List<WalletTransactionResponse> RecentTransactions { get; set; } = new();
+    }
+
+    /// <summary>
+    /// Chi tiết ca tư vấn đang bị tạm giữ tiền ký quỹ Escrow chờ giải ngân
+    /// </summary>
+    public class PendingEscrowDetailResponse
+    {
+        public Guid EscrowId { get; set; }
+        public Guid BookingId { get; set; }
+        public string BookingCode { get; set; } = string.Empty;
+        public string TaxpayerName { get; set; } = string.Empty;
+        public decimal TotalAmount { get; set; }
+        public decimal CommissionRate { get; set; }
+        public decimal CommissionAmount { get; set; }
+        public decimal ExpertReceivable { get; set; }
+        public string EscrowStatus { get; set; } = string.Empty;
+        public string EscrowStatusDescription { get; set; } = string.Empty;
+        public DateTimeOffset? PaidAt { get; set; }
+        public DateTimeOffset? ConsultationTime { get; set; }
+        public DateTimeOffset? EstimatedReleaseAt { get; set; }
     }
 
     /// <summary>

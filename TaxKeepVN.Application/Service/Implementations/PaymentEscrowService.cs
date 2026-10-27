@@ -97,51 +97,102 @@ namespace TaxKeepVN.Application.Service.Implementations
                         $"Số dư ví khả dụng ({balance:N0} VNĐ) không đủ để thanh toán cho ca tư vấn ({booking.Fee:N0} VNĐ). Vui lòng nạp thêm tiền hoặc chọn thanh toán qua cổng VNPay/VietQR.");
                 }
 
-                if (escrow == null)
+                // ── Tất cả thao tác ghi được gói trong một transaction nguyên tử ────────
+                await _unitOfWork.BeginTransactionAsync();
+                try
                 {
-                    escrow = new EscrowTransaction
+                    // 1. Tạo hoặc cập nhật EscrowTransaction
+                    if (escrow == null)
+                    {
+                        escrow = new EscrowTransaction
+                        {
+                            Id = Guid.NewGuid(),
+                            BookingId = booking.Id,
+                            OrderCode = BookingHelper.GeneratePayOsOrderCode(),
+                            Amount = amount,
+                            CommissionRate = commissionRate,
+                            CommissionAmount = commissionAmount,
+                            ExpertReceivable = expertReceivable,
+                            EscrowStatus = EscrowStatus.PendingPayment,
+                            PaymentGateway = "WALLET",
+                            CreatedAt = nowUtc,
+                            UpdatedAt = nowUtc
+                        };
+                        await _unitOfWork.Repository<EscrowTransaction>().AddAsync(escrow);
+                    }
+                    else
+                    {
+                        escrow.PaymentGateway = "WALLET";
+                        _unitOfWork.Repository<EscrowTransaction>().Update(escrow);
+                    }
+
+                    // 2. Trừ số dư ví USER
+                    var before = wallet.AvailableBalance;
+                    wallet.AvailableBalance -= booking.Fee;
+                    wallet.UpdatedAt = nowUtc;
+                    _unitOfWork.Repository<UserWallet>().Update(wallet);
+
+                    // 3. Ghi lịch sử giao dịch ví (WalletTransaction)
+                    var txnRef = $"WALLET_PAY_{escrow.OrderCode}";
+                    await _unitOfWork.Repository<WalletTransaction>().AddAsync(new WalletTransaction
                     {
                         Id = Guid.NewGuid(),
-                        BookingId = booking.Id,
-                        OrderCode = BookingHelper.GeneratePayOsOrderCode(),
-                        Amount = amount,
-                        CommissionRate = commissionRate,
-                        CommissionAmount = commissionAmount,
-                        ExpertReceivable = expertReceivable,
-                        EscrowStatus = EscrowStatus.PendingPayment,
-                        PaymentGateway = "WALLET",
-                        CreatedAt = nowUtc,
-                        UpdatedAt = nowUtc
-                    };
-                    await _unitOfWork.Repository<EscrowTransaction>().AddAsync(escrow);
+                        WalletId = wallet.Id,
+                        UserId = userId,
+                        Amount = -booking.Fee,
+                        BalanceBefore = before,
+                        BalanceAfter = wallet.AvailableBalance,
+                        TransactionType = "PAYMENT_CONSULTATION",
+                        ReferenceId = booking.Id,
+                        Description = $"Thanh toán phí ca tư vấn #{booking.BookingCode} bằng số dư ví",
+                        CreatedAt = nowUtc
+                    });
+
+                    // 4. Flush toàn bộ các entity đang tracked (escrow mới, wallet, walletTxn)
+                    //    vào DB trong cùng transaction trước khi gọi ApplyPaymentSuccessAsync
+                    //    (hàm này sẽ gọi Update(escrow) – cần escrow đã có trong DB trước)
+                    await _unitOfWork.SaveChangesAsync();
+
+                    // 5. Cập nhật Escrow → HeldInEscrow, Booking → AWAITING_EXPERT_APPROVAL, khóa Slot
+                    var policy2 = await BookingHelper.GetPlatformPolicyAsync(_unitOfWork);
+                    var approvalDeadline = nowUtc.AddHours(policy2.ExpertConfirmTimeoutHours);
+
+                    escrow.EscrowStatus = EscrowStatus.HeldInEscrow;
+                    escrow.PaidAt = nowUtc;
+                    escrow.PaymentReference = txnRef;
+                    escrow.UpdatedAt = nowUtc;
+                    _unitOfWork.Repository<EscrowTransaction>().Update(escrow);
+
+                    booking.Status = BookingStatus.AWAITING_EXPERT_APPROVAL;
+                    booking.PaidAt = nowUtc;
+                    booking.PaymentReference = txnRef;
+                    booking.ApprovalDeadline = approvalDeadline;
+                    booking.UpdatedAt = nowUtc;
+                    _unitOfWork.Repository<Booking>().Update(booking);
+
+                    var slot = await _unitOfWork.Repository<ExpertSlot>().GetByIdAsync(booking.ExpertSlotId);
+                    if (slot != null)
+                    {
+                        slot.IsBooked = true;
+                        slot.HoldExpiresAt = null;
+                        slot.HoldUserId = null;
+                        slot.UpdatedAt = nowUtc;
+                        _unitOfWork.Repository<ExpertSlot>().Update(slot);
+                    }
+
+                    await _unitOfWork.CommitTransactionAsync();
+
+                    _logger.LogInformation(
+                        "Thanh toán ví thành công: OrderCode {OrderCode}, Booking {BookingCode}, " +
+                        "Số dư ví trước={Before:N0} sau={After:N0}, hạn duyệt chuyên gia={Deadline}.",
+                        escrow.OrderCode, booking.BookingCode, before, wallet.AvailableBalance, approvalDeadline);
                 }
-                else
+                catch (Exception ex)
                 {
-                    escrow.PaymentGateway = "WALLET";
+                    await _unitOfWork.RollbackTransactionAsync();
+                    _logger.LogError(ex, "Lỗi thanh toán bằng ví cho Booking {BookingCode}.", booking.BookingCode);
+                    throw;
                 }
-
-                // Trừ tiền trong ví USER
-                var before = wallet.AvailableBalance;
-                wallet.AvailableBalance -= booking.Fee;
-                wallet.UpdatedAt = nowUtc;
-                _unitOfWork.Repository<UserWallet>().Update(wallet);
-
-                var txnRef = $"WALLET_PAY_{escrow.OrderCode}";
-                await _unitOfWork.Repository<WalletTransaction>().AddAsync(new WalletTransaction
-                {
-                    Id = Guid.NewGuid(),
-                    WalletId = wallet.Id,
-                    UserId = userId,
-                    Amount = -booking.Fee,
-                    BalanceBefore = before,
-                    BalanceAfter = wallet.AvailableBalance,
-                    TransactionType = "PAYMENT_CONSULTATION",
-                    ReferenceId = booking.Id,
-                    Description = $"Thanh toán phí ca tư vấn #{booking.BookingCode} bằng số dư ví",
-                    CreatedAt = nowUtc
-                });
-
-                await ApplyPaymentSuccessAsync(escrow, booking, txnRef);
 
                 return new PaymentLinkResponse
                 {
@@ -657,6 +708,27 @@ namespace TaxKeepVN.Application.Service.Implementations
                 })
                 .ToList();
 
+            // 7. Ví doanh thu nền tảng (Platform Wallet) & biến động số dư hoa hồng
+            var platformWallet = await BookingHelper.GetOrCreatePlatformWalletAsync(_unitOfWork);
+            var policy = await BookingHelper.GetPlatformPolicyAsync(_unitOfWork);
+
+            var recentPlatformTransactions = (await _unitOfWork.Repository<WalletTransaction>()
+                .FindAsync(t => t.WalletId == platformWallet.Id))
+                .OrderByDescending(t => t.CreatedAt)
+                .Take(10)
+                .Select(t => new WalletTransactionResponse
+                {
+                    Id = t.Id,
+                    WalletId = t.WalletId,
+                    Amount = t.Amount,
+                    BalanceBefore = t.BalanceBefore,
+                    BalanceAfter = t.BalanceAfter,
+                    TransactionType = t.TransactionType,
+                    ReferenceId = t.ReferenceId,
+                    Description = t.Description,
+                    CreatedAt = t.CreatedAt
+                }).ToList();
+
             return new AdminPlatformWalletResponse
             {
                 TotalGrossVolume = totalGrossVolume,
@@ -667,6 +739,12 @@ namespace TaxKeepVN.Application.Service.Implementations
                 TotalAccumulatedRevenue = totalAccumulatedRevenue,
                 TotalSettledToExperts = totalSettledToExperts,
                 TotalRefundedToTaxpayers = totalRefundedToTaxpayers,
+                CurrentCommissionRatePercent = policy.PlatformCommissionRatePercent,
+                PlatformWalletId = platformWallet.Id,
+                PlatformAvailableBalance = platformWallet.AvailableBalance,
+                PlatformFrozenBalance = platformWallet.FrozenBalance,
+                PlatformTotalWithdrawn = platformWallet.TotalWithdrawn,
+                RecentPlatformTransactions = recentPlatformTransactions,
                 Stats = stats,
                 RecentTransactions = recentTransactions
             };
@@ -842,6 +920,152 @@ namespace TaxKeepVN.Application.Service.Implementations
                 "updatedat"   => query.OrderBy(e => e.UpdatedAt),
                 "-updatedat"  => query.OrderByDescending(e => e.UpdatedAt),
                 _             => query.OrderByDescending(e => e.CreatedAt)
+            };
+        }
+
+        // ── 8. ADMIN RÚT TIỀN HOA HỒNG / LỢI NHUẬN SÀN VỀ NGÂN HÀNG ──────────────────
+        public async Task<WithdrawalResponse> RequestAdminPlatformWithdrawalAsync(Guid adminId, CreateWithdrawalRequest request)
+        {
+            var admin = await _unitOfWork.Repository<User>().GetByIdAsync(adminId)
+                ?? throw new NotFoundException("Không tìm thấy thông tin quản trị viên.");
+
+            if (!string.Equals(admin.UserRole, "admin", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ForbiddenException("FORBIDDEN", "Chỉ quản trị viên mới có quyền rút tiền doanh thu hoa hồng của hệ thống.");
+            }
+
+            if (request == null || request.Amount < 50000m)
+            {
+                throw new BadRequestException("INVALID_AMOUNT", "Số tiền rút tối thiểu là 50.000 VNĐ.");
+            }
+
+            if (string.IsNullOrWhiteSpace(request.BankName) ||
+                string.IsNullOrWhiteSpace(request.AccountNumber) ||
+                string.IsNullOrWhiteSpace(request.AccountName))
+            {
+                throw new BadRequestException("BANK_INFO_REQUIRED", "Vui lòng nhập đầy đủ tên ngân hàng, số tài khoản và tên chủ tài khoản thụ hưởng.");
+            }
+
+            var platformWallet = await BookingHelper.GetOrCreatePlatformWalletAsync(_unitOfWork, adminId);
+            if (platformWallet.AvailableBalance < request.Amount)
+            {
+                throw new BadRequestException("INSUFFICIENT_BALANCE", 
+                    $"Số dư hoa hồng khả dụng của hệ thống ({platformWallet.AvailableBalance:N0} VNĐ) không đủ để thực hiện lệnh rút {request.Amount:N0} VNĐ.");
+            }
+
+            var nowUtc = DateTimeOffset.UtcNow;
+            var before = platformWallet.AvailableBalance;
+            platformWallet.AvailableBalance -= request.Amount;
+            platformWallet.TotalWithdrawn += request.Amount;
+            platformWallet.UpdatedAt = nowUtc;
+            _unitOfWork.Repository<UserWallet>().Update(platformWallet);
+
+            var txRef = $"PLATFORM-WD-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}-{Guid.NewGuid().ToString("N")[..4].ToUpperInvariant()}";
+
+            var withdrawal = new WithdrawalRequest
+            {
+                Id = Guid.NewGuid(),
+                UserId = adminId,
+                Amount = request.Amount,
+                BankName = request.BankName.Trim(),
+                AccountNumber = request.AccountNumber.Trim(),
+                AccountName = request.AccountName.Trim().ToUpperInvariant(),
+                Status = "COMPLETED",
+                TransactionReference = txRef,
+                AdminNotes = $"Admin {admin.FullName} rút lợi nhuận/hoa hồng nền tảng về tài khoản ngân hàng thực tế.",
+                ProcessedBy = adminId,
+                ProcessedAt = nowUtc,
+                CreatedAt = nowUtc,
+                UpdatedAt = nowUtc
+            };
+            await _unitOfWork.Repository<WithdrawalRequest>().AddAsync(withdrawal);
+
+            await _unitOfWork.Repository<WalletTransaction>().AddAsync(new WalletTransaction
+            {
+                Id = Guid.NewGuid(),
+                WalletId = platformWallet.Id,
+                UserId = adminId,
+                Amount = -request.Amount,
+                BalanceBefore = before,
+                BalanceAfter = platformWallet.AvailableBalance,
+                TransactionType = "WITHDRAWAL",
+                ReferenceId = withdrawal.Id,
+                Description = $"Admin rút doanh thu hoa hồng sàn về ngân hàng {withdrawal.BankName} - STK {withdrawal.AccountNumber} ({withdrawal.AccountName})",
+                CreatedAt = nowUtc
+            });
+
+            await _unitOfWork.SaveChangesAsync();
+
+            return new WithdrawalResponse
+            {
+                Id = withdrawal.Id,
+                UserId = withdrawal.UserId,
+                UserFullName = admin.FullName,
+                Amount = withdrawal.Amount,
+                BankName = withdrawal.BankName,
+                AccountNumber = withdrawal.AccountNumber,
+                AccountName = withdrawal.AccountName,
+                Status = withdrawal.Status,
+                TransactionReference = withdrawal.TransactionReference,
+                AdminNotes = withdrawal.AdminNotes,
+                CreatedAt = withdrawal.CreatedAt,
+                ProcessedAt = withdrawal.ProcessedAt
+            };
+        }
+
+        public async Task<PagedResult<WithdrawalResponse>> GetAdminPlatformWithdrawalsAsync(Guid adminId, int page = 1, int size = 10)
+        {
+            var admin = await _unitOfWork.Repository<User>().GetByIdAsync(adminId);
+            if (admin == null || !string.Equals(admin.UserRole, "admin", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ForbiddenException("FORBIDDEN", "Chỉ quản trị viên mới có quyền xem lịch sử rút doanh thu nền tảng.");
+            }
+
+            var platformWallet = await BookingHelper.GetOrCreatePlatformWalletAsync(_unitOfWork, adminId);
+
+            var platformWithdrawalTx = (await _unitOfWork.Repository<WalletTransaction>()
+                .FindAsync(t => t.WalletId == platformWallet.Id && t.TransactionType == "WITHDRAWAL"))
+                .ToList();
+
+            var withdrawalIds = platformWithdrawalTx.Where(t => t.ReferenceId.HasValue).Select(t => t.ReferenceId!.Value).ToHashSet();
+            var withdrawals = (await _unitOfWork.Repository<WithdrawalRequest>()
+                .FindAsync(w => withdrawalIds.Contains(w.Id) || (w.AdminNotes != null && w.AdminNotes.Contains("rút lợi nhuận/hoa hồng nền tảng"))))
+                .OrderByDescending(w => w.CreatedAt)
+                .ToList();
+
+            var adminIds = withdrawals.Select(w => w.UserId).Distinct().ToList();
+            var admins = (await _unitOfWork.Repository<User>().FindAsync(u => adminIds.Contains(u.UserId)))
+                .ToDictionary(u => u.UserId, u => u.FullName);
+
+            var totalItems = withdrawals.Count;
+            var paged = withdrawals.Skip((page - 1) * size).Take(size).ToList();
+
+            var items = paged.Select(w => new WithdrawalResponse
+            {
+                Id = w.Id,
+                UserId = w.UserId,
+                UserFullName = admins.TryGetValue(w.UserId, out var name) ? name : "Admin",
+                Amount = w.Amount,
+                BankName = w.BankName,
+                AccountNumber = w.AccountNumber,
+                AccountName = w.AccountName,
+                Status = w.Status,
+                TransactionReference = w.TransactionReference,
+                AdminNotes = w.AdminNotes,
+                CreatedAt = w.CreatedAt,
+                ProcessedAt = w.ProcessedAt
+            }).ToList();
+
+            return new PagedResult<WithdrawalResponse>
+            {
+                Items = items,
+                Pagination = new PaginationMeta
+                {
+                    Page = page,
+                    PageSize = size,
+                    TotalItems = totalItems,
+                    TotalPages = (int)Math.Ceiling(totalItems / (double)size)
+                }
             };
         }
     }

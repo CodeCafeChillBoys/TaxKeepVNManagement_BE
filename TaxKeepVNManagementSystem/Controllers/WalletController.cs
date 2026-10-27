@@ -65,17 +65,18 @@ namespace TaxKeepVNManagementSystem.Controllers
         }
 
         /// <summary>
-        /// Xem toàn bộ lịch sử biến động số dư ví (phân trang)
-        /// GET /api/v1/wallets/me/transactions?page=1&size=10
+        /// Xem toàn bộ lịch sử biến động số dư ví (phân trang, hỗ trợ lọc theo transactionType: DISBURSEMENT, PENDING_ESCROW, WITHDRAWAL)
+        /// GET /api/v1/wallets/me/transactions?page=1&size=10&transactionType=DISBURSEMENT
         /// </summary>
         [HttpGet("api/v1/wallets/me/transactions")]
         [ProducesResponseType(typeof(ApiResponse<PagedResult<WalletTransactionResponse>>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetMyWalletTransactions(
             [FromQuery] int page = 1,
-            [FromQuery] int size = 10)
+            [FromQuery] int size = 10,
+            [FromQuery] string? transactionType = null)
         {
             var userId = GetCurrentUserId();
-            var result = await _service.GetMyWalletTransactionsAsync(userId, page, size);
+            var result = await _service.GetMyWalletTransactionsAsync(userId, page, size, transactionType);
             return Ok(ApiResponse<PagedResult<WalletTransactionResponse>>.Ok(result, "Lấy lịch sử biến động số dư thành công."));
         }
 
@@ -138,6 +139,19 @@ namespace TaxKeepVNManagementSystem.Controllers
             var expertUserId = GetCurrentUserId();
             var result = await _service.GetWithdrawalsAsync(expertUserId, "expert", status, page, size);
             return Ok(ApiResponse<PagedResult<WithdrawalResponse>>.Ok(result, "Lấy danh sách lệnh rút tiền thành công."));
+        }
+
+        /// <summary>
+        /// Chuyên gia xem danh sách chi tiết các ca tư vấn đang tạm giữ tiền trong quỹ Escrow chờ giải ngân (Đặc tả 7)
+        /// GET /api/v1/expert/wallets/pending-escrow
+        /// </summary>
+        [HttpGet("api/v1/expert/wallets/pending-escrow")]
+        [ProducesResponseType(typeof(ApiResponse<List<PendingEscrowDetailResponse>>), StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetExpertPendingEscrow()
+        {
+            var expertUserId = GetCurrentUserId();
+            var result = await _service.GetExpertPendingEscrowDetailsAsync(expertUserId);
+            return Ok(ApiResponse<List<PendingEscrowDetailResponse>>.Ok(result, "Lấy danh sách các ca tư vấn đang tạm giữ tiền thành công."));
         }
 
         // ════════════════════════════════════════════════════════════════════════

@@ -47,5 +47,15 @@ namespace TaxKeepVN.Application.Service.Interfaces
         /// Khởi tạo giao dịch nạp tiền vào ví cá nhân qua cổng thanh toán VNPay / VietQR
         /// </summary>
         Task<WalletTopUpResponse> CreateWalletTopUpPaymentUrlAsync(Guid userId, WalletTopUpRequest request, string? clientIp = null);
+
+        /// <summary>
+        /// Admin thực hiện rút tiền doanh thu hoa hồng / lợi nhuận của hệ thống về tài khoản ngân hàng
+        /// </summary>
+        Task<WithdrawalResponse> RequestAdminPlatformWithdrawalAsync(Guid adminId, CreateWithdrawalRequest request);
+
+        /// <summary>
+        /// Admin xem danh sách các lần rút doanh thu hoa hồng / lợi nhuận hệ thống
+        /// </summary>
+        Task<PagedResult<WithdrawalResponse>> GetAdminPlatformWithdrawalsAsync(Guid adminId, int page = 1, int size = 10);
     }
 }
