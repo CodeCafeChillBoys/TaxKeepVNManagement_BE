@@ -62,5 +62,14 @@ namespace TaxKeepVN.Application.DTOs.Bookings
 
         public DateTimeOffset CreatedAt { get; set; }
 
+        /// <summary>
+        /// Loại vắng mặt nếu xảy ra No-Show: "NONE", "USER_NO_SHOW", "EXPERT_NO_SHOW"
+        /// </summary>
+        public string NoShowType { get; set; } = "NONE";
+
+        /// <summary>
+        /// Biên bản kết luận hoặc ghi chú tự động của phiên tư vấn
+        /// </summary>
+        public string? SessionSharedNotes { get; set; }
     }
 }
