@@ -187,10 +187,6 @@ namespace TaxKeepVN.Application.Service.Implementations
             {
                 throw new NotFoundException("Chủ đề tư vấn không tồn tại hoặc đã ngừng hỗ trợ.");
             }
-
-            
-
-
             await _unitOfWork.BeginTransactionAsync();
             try
             {
@@ -276,48 +272,19 @@ namespace TaxKeepVN.Application.Service.Implementations
                 };
 
                 await _unitOfWork.Repository<Booking>().AddAsync(booking);
-
-                // Upload tệp đính kèm (nếu có)
-                // khỏi tạo một cái list lưu lại file trên ram
-                var attachmentDtos = new List<BookingAttachmentDto>();
-                // kiểm tra xem có file ko 
-                if (request.Attachments != null && request.Attachments.Any())
-                {
-                    // duyệt vào qua từng file đc tuyền vào
-                    foreach (var file in request.Attachments)
-                    {
-                        // lưu trên superbase
-                        var fileUrl = await _fileStorageService.SaveFileAsync(file, "consultation-attachments");
-                        var attachment = new BookingAttachment
-                        {
-                            Id = Guid.NewGuid(),
-                            BookingId = booking.Id,
-                            FileName = file.FileName,
-                            FileUrl = fileUrl,
-                            FileSize = file.Length,
-                            ContentType = file.ContentType ?? "application/octet-stream",
-                            CreatedAt = nowUtc
-                        };
-                        // lưu vào DB
-                        await _unitOfWork.Repository<BookingAttachment>().AddAsync(attachment);
-                        // lưu trên ram
-                        attachmentDtos.Add(attachment.ToDto());
-                    }
-                }
-
                 await _unitOfWork.SaveChangesAsync();
                 await _unitOfWork.CommitTransactionAsync();
 
                 _logger.LogInformation("Khởi tạo booking {BookingCode} thành công cho User {UserId}, slot tạm giữ đến {HoldExpiresAt}.",
                     booking.BookingCode, userId, holdExpiresAt);
-                
+
                 // sau khi kết thúc phiên check kiểm tra
                 var expertUser = await _unitOfWork.Repository<User>().GetByIdAsync(profile.UserId);
                 // kiểm tra hồ sơ tuyển dụng của chuyên gia
                 var app = await _unitOfWork.Repository<ExpertApplication>().GetByIdAsync(profile.LatestApplicationId);
 
                 // trả BookingDetailResponse
-                return BookingMapper.MapToDetailResponse(booking, user, profile, slot, spec, expertUser, app, attachmentDtos);
+                return BookingMapper.MapToDetailResponse(booking, user, profile, slot, spec, expertUser, app);
             }
             catch
             {
@@ -361,11 +328,8 @@ namespace TaxKeepVN.Application.Service.Implementations
             var spec = (await _unitOfWork.Repository<Specialization>().FindAsync(s => s.Id == booking.SpecializationId)).FirstOrDefault();
             var expertUser = await _unitOfWork.Repository<User>().GetByIdAsync(profile.UserId);
             var app = await _unitOfWork.Repository<ExpertApplication>().GetByIdAsync(profile.LatestApplicationId);
-
-            var attachments = (await _unitOfWork.Repository<BookingAttachment>().FindAsync(a => a.BookingId == booking.Id)).ToDtoList();
             var session = (await _unitOfWork.Repository<ConsultationSession>().FindAsync(s => s.BookingId == booking.Id)).FirstOrDefault();
-
-            return BookingMapper.MapToDetailResponse(booking, user!, profile, slot!, spec!, expertUser, app, attachments, session);
+            return BookingMapper.MapToDetailResponse(booking, user!, profile, slot!, spec!, expertUser, app, session);
         }
 
         // ── 5. LẤY DANH SÁCH LỊCH HẸN CỦA KHÁCH HÀNG (MY BOOKINGS) ──────────────────
@@ -505,6 +469,14 @@ namespace TaxKeepVN.Application.Service.Implementations
                 throw new BadRequestException("INVALID_STATUS",
                     $"Lịch hẹn hiện tại ở trạng thái '{booking.Status}', không thể tiếp nhận.");
             }
+            
+
+            // Ràng buộc bảo vệ: Bắt buộc lịch hẹn đã thanh toán thành công mới được phép tiếp nhận
+            if (!booking.PaidAt.HasValue)
+            {
+                throw new BadRequestException("UNPAID_BOOKING",
+                    "Ca tư vấn này chưa được thanh toán thành công. Chuyên gia chỉ có thể tiếp nhận sau khi khách hàng đã thanh toán hoàn tất.");
+            }
 
             var nowUtc = DateTimeOffset.UtcNow;
             if (booking.ApprovalDeadline.HasValue && booking.ApprovalDeadline.Value <= nowUtc)
@@ -512,6 +484,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 throw new BadRequestException("APPROVAL_TIMEOUT",
                     "Đã quá thời hạn 2 giờ để tiếp nhận ca tư vấn này. Hệ thống đã tự động hủy yêu cầu.");
             }
+
 
             booking.Status = BookingStatus.CONFIRMED;
             booking.ApprovedAt = nowUtc;
@@ -541,7 +514,7 @@ namespace TaxKeepVN.Application.Service.Implementations
         }
 
         // ── 9. CHUYÊN GIA TỪ CHỐI TIẾP NHẬN CA TƯ VẤN (REJECT) ───────────────────────
-        public async Task<BookingDetailResponse> RejectBookingAsync(Guid expertUserId, Guid bookingId, RejectBookingRequest request,string? cancelledBy = null)
+        public async Task<BookingDetailResponse> RejectBookingAsync(Guid expertUserId, Guid bookingId, RejectBookingRequest request, string? cancelledBy = null)
         {
             var booking = await _unitOfWork.Repository<Booking>().GetByIdAsync(bookingId);
             if (booking == null)
@@ -923,44 +896,8 @@ namespace TaxKeepVN.Application.Service.Implementations
                 CreatedAt = nowUtc
             });
         }
+        
 
-        // ── 11. TẢI TỆP CHỨNG TỪ AN TOÀN (SECURE DOWNLOAD) ───────────────────────────
-        public async Task<string> GetAttachmentDownloadUrlAsync(Guid bookingId, Guid attachmentId, Guid currentUserId, string currentUserRole)
-        {
-            var booking = await _unitOfWork.Repository<Booking>().GetByIdAsync(bookingId);
-            if (booking == null)
-            {
-                throw new NotFoundException($"Không tìm thấy lịch hẹn với Id = {bookingId}.");
-            }
-
-            var slot = await _unitOfWork.Repository<ExpertSlot>().GetByIdAsync(booking.ExpertSlotId);
-            if (slot == null)
-            {
-                throw new NotFoundException("Không tìm thấy khung giờ của lịch hẹn.");
-            }
-
-            var profile = await _unitOfWork.Repository<ExpertProfile>().GetByIdAsync(slot.ExpertProfileId);
-            if (profile == null)
-            {
-                throw new NotFoundException("Không tìm thấy hồ sơ chuyên gia.");
-            }
-
-            var isClient = booking.UserId == currentUserId;
-            var isExpert = profile.UserId == currentUserId;
-            var isAdmin = currentUserRole.Equals("admin", StringComparison.OrdinalIgnoreCase);
-
-            if (!isClient && !isExpert && !isAdmin)
-            {
-                throw new ForbiddenException("Bạn không có quyền truy cập tệp chứng từ này.");
-            }
-
-            var attachment = (await _unitOfWork.Repository<BookingAttachment>().FindAsync(a => a.Id == attachmentId && a.BookingId == bookingId)).FirstOrDefault();
-            if (attachment == null)
-            {
-                throw new NotFoundException("Không tìm thấy tệp đính kèm yêu cầu.");
-            }
-
-            return attachment.FileUrl;
-        }
+       
     }
 }

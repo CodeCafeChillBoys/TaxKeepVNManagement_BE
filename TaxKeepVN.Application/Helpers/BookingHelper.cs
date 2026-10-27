@@ -37,7 +37,7 @@ namespace TaxKeepVN.Application.Helpers
             return DateTimeOffset.UtcNow.ToOffset(VietnamTimeZoneOffset);
         }
 
-       
+
         /// <summary>
         /// Lấy chính sách sàn tư vấn hiện hành từ bảng chuyên biệt consultation_platform_policies.
         /// </summary>
@@ -56,7 +56,7 @@ namespace TaxKeepVN.Application.Helpers
                 "Lỗi cấu hình hệ thống: Không tìm thấy chính sách sàn tư vấn trong bảng consultation_platform_policies. Vui lòng kiểm tra dữ liệu cấu hình.");
         }
 
-        
+
         /// <summary>
         /// Sinh mã định danh đặt lịch thân thiện với người dùng theo định dạng: BK-YYYYMMDD-XXXXXX
         /// </summary>
@@ -176,7 +176,6 @@ namespace TaxKeepVN.Application.Helpers
                 .ToDictionary(s => s.Id);
 
             var bookingIds = bookings.Select(b => b.Id).ToList();
-            var attachments = (await unitOfWork.Repository<BookingAttachment>().FindAsync(a => bookingIds.Contains(a.BookingId))).ToList();
 
             return bookings.Select(b =>
             {
@@ -197,10 +196,10 @@ namespace TaxKeepVN.Application.Helpers
                     apps.TryGetValue(profile.LatestApplicationId, out app);
                 }
 
-                var attCount = attachments.Count(a => a.BookingId == b.Id);
 
-                return b.ToListItemResponse(clientUser, profile, slot, spec, expertUser, app, attCount);
+                return b.ToListItemResponse(clientUser, profile, slot, spec, expertUser, app);
             }).ToList();
         }
+
     }
 }

@@ -1,10 +1,10 @@
-using Microsoft.AspNetCore.Http;
+using System;
 
 namespace TaxKeepVN.Application.DTOs.Bookings
 {
     /// <summary>
-    /// Request tạo lịch hẹn tư vấn (Đặc tả 3 - Mục 5 Luồng chính)
-    /// Nhận multipart/form-data kèm tệp đính kèm
+    /// Request tạo lịch hẹn tư vấn thuần JSON gọn nhẹ (Đặc tả 3 - Mục 5 Luồng chính)
+    /// Đã loại bỏ đính kèm tệp trước buổi tư vấn để bảo vệ quyền riêng tư & dữ liệu nhạy cảm của khách hàng
     /// </summary>
     public class CreateBookingRequest
     {
@@ -19,8 +19,5 @@ namespace TaxKeepVN.Application.DTOs.Bookings
 
         /// <summary>Mô tả chi tiết vấn đề / câu hỏi trọng tâm</summary>
         public string ProblemDescription { get; set; } = string.Empty;
-
-        /// <summary>Đính kèm chứng từ/báo cáo mẫu (Tối đa 5 file, tổng dung lượng <= 25MB)</summary>
-        public List<IFormFile>? Attachments { get; set; }
     }
 }

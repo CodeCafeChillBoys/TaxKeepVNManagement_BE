@@ -11,28 +11,6 @@ namespace TaxKeepVN.Application.Mappers
     public static class BookingMapper
     {
         /// <summary>
-        /// Chuyển đổi BookingAttachment entity sang DTO
-        /// </summary>
-        public static BookingAttachmentDto ToDto(this BookingAttachment attachment)
-        {
-            if (attachment == null) return null!;
-
-            return new BookingAttachmentDto
-            {
-                Id = attachment.Id,
-                FileName = attachment.FileName,
-                FileSize = attachment.FileSize,
-                ContentType = attachment.ContentType,
-                CreatedAt = attachment.CreatedAt
-            };
-        }
-
-        public static List<BookingAttachmentDto> ToDtoList(this IEnumerable<BookingAttachment> attachments)
-        {
-            return attachments?.Select(a => a.ToDto()).ToList() ?? new List<BookingAttachmentDto>();
-        }
-
-        /// <summary>
         /// Chuyển đổi Booking entity và các đối tượng liên quan sang BookingDetailResponse
         /// </summary>
         public static BookingDetailResponse MapToDetailResponse(
@@ -43,16 +21,11 @@ namespace TaxKeepVN.Application.Mappers
             Specialization spec,
             User? expertUser,
             ExpertApplication? app,
-            List<BookingAttachmentDto> attachments,
             ConsultationSession? session = null)
-        {   
-            
+        {
             if (booking == null) return null!;
-            // lấy ngày và mốc thời gian hiên tại
             var nowUtc = DateTimeOffset.UtcNow;
-            // Thời gian để hết bị block => giây còn lại trước khi booking
             var holdCountdown = (int)Math.Max(0, (booking.HoldExpiresAt - nowUtc).TotalSeconds);
-            // Thời gian đc duyệt => giây còn lại trc khi duyệt
             int? approvalCountdown = booking.ApprovalDeadline.HasValue
                 ? (int)Math.Max(0, (booking.ApprovalDeadline.Value - nowUtc).TotalSeconds)
                 : null;
@@ -62,14 +35,14 @@ namespace TaxKeepVN.Application.Mappers
                 Id = booking.Id,
                 BookingCode = booking.BookingCode,
                 UserId = booking.UserId,
-                UserFullName = clientUser?.FullName ?? "Khách hàng",
-                UserEmail = clientUser?.Email ?? string.Empty,
-                UserPhoneNumber = clientUser?.PhoneNumber,
+                UserFullName = clientUser.FullName,
+                UserEmail = clientUser.Email,
+                UserPhoneNumber = clientUser.PhoneNumber,
 
                 ExpertProfileId = expertProfile.Id,
                 ExpertFullName = app?.FullName ?? expertUser?.FullName ?? "Chuyên gia",
                 ExpertAvatarUrl = app?.AvatarUrl,
-                ExpertJobTitle = expertProfile.JobTitle,
+                ExpertJobTitle = app?.JobTitle ?? "Chuyên gia tư vấn",
 
                 ExpertSlotId = slot.Id,
                 SlotDate = slot.SlotDate,
@@ -79,8 +52,8 @@ namespace TaxKeepVN.Application.Mappers
                 DurationMinutes = booking.DurationMinutes,
                 Fee = booking.Fee,
 
-                SpecializationId = spec?.Id ?? 0,
-                SpecializationName = spec?.Name ?? string.Empty,
+                SpecializationId = spec.Id,
+                SpecializationName = spec.Name,
                 TopicTitle = booking.TopicTitle,
                 ProblemDescription = booking.ProblemDescription,
 
@@ -104,7 +77,6 @@ namespace TaxKeepVN.Application.Mappers
                 CancelledBy = booking.CancelledBy,
 
                 CreatedAt = booking.CreatedAt,
-                Attachments = attachments ?? new List<BookingAttachmentDto>(),
 
                 NoShowType = session?.NoShowType ?? "NONE",
                 SessionSharedNotes = session?.SharedNotes
@@ -119,9 +91,8 @@ namespace TaxKeepVN.Application.Mappers
             Specialization spec,
             User? expertUser,
             ExpertApplication? app,
-            List<BookingAttachmentDto> attachments,
             ConsultationSession? session = null)
-            => MapToDetailResponse(booking, clientUser, expertProfile, slot, spec, expertUser, app, attachments, session);
+            => MapToDetailResponse(booking, clientUser, expertProfile, slot, spec, expertUser, app, session);
 
         /// <summary>
         /// Chuyển đổi một Booking entity sang BookingListItemResponse
@@ -134,7 +105,6 @@ namespace TaxKeepVN.Application.Mappers
             Specialization? spec,
             User? expertUser,
             ExpertApplication? app,
-            int attachmentCount,
             string noShowType = "NONE")
         {
             if (booking == null) return null!;
@@ -159,7 +129,6 @@ namespace TaxKeepVN.Application.Mappers
                 Status = booking.Status,
                 HoldExpiresAt = booking.HoldExpiresAt,
                 ApprovalDeadline = booking.ApprovalDeadline,
-                AttachmentCount = attachmentCount,
                 CreatedAt = booking.CreatedAt,
                 NoShowType = noShowType
             };
@@ -173,9 +142,8 @@ namespace TaxKeepVN.Application.Mappers
             Specialization? spec,
             User? expertUser,
             ExpertApplication? app,
-            int attachmentCount,
             string noShowType = "NONE")
-            => MapToListItemResponse(booking, clientUser, profile, slot, spec, expertUser, app, attachmentCount, noShowType);
+            => MapToListItemResponse(booking, clientUser, profile, slot, spec, expertUser, app, noShowType);
 
         /// <summary>
         /// Nạp các quan hệ dữ liệu liên quan và chuyển danh sách Booking entity sang BookingListItemResponse DTO
@@ -185,41 +153,37 @@ namespace TaxKeepVN.Application.Mappers
             List<Booking> bookings)
         {
             if (!bookings.Any()) return new List<BookingListItemResponse>();
-            // kiểm tra userid tromg booking check trong bảng user
+
             var userIds = bookings.Select(b => b.UserId).Distinct().ToList();
             var users = (await unitOfWork.Repository<User>().FindAsync(u => userIds.Contains(u.UserId)))
                 .ToDictionary(u => u.UserId);
-            // kiểm tra slot trong booking sau đó check trong ExpertSlot
+
             var slotIds = bookings.Select(b => b.ExpertSlotId).Distinct().ToList();
             var slots = (await unitOfWork.Repository<ExpertSlot>().FindAsync(s => slotIds.Contains(s.Id)))
                 .ToDictionary(s => s.Id);
-            // kiểm tra profileIds trong slot check trong ExpertProfile
+
             var profileIds = slots.Values.Select(s => s.ExpertProfileId).Distinct().ToList();
             var profiles = (await unitOfWork.Repository<ExpertProfile>().FindAsync(p => profileIds.Contains(p.Id)))
                 .ToDictionary(p => p.Id);
-            // kiểm tra expertUserIds sau đó check trong User
+
             var expertUserIds = profiles.Values.Select(p => p.UserId).Distinct().ToList();
             var expertUsers = (await unitOfWork.Repository<User>().FindAsync(u => expertUserIds.Contains(u.UserId)))
                 .ToDictionary(u => u.UserId);
-            //  check trong appp trong profile sau đó check ExpertApplication
+
             var appIds = profiles.Values.Select(p => p.LatestApplicationId).Distinct().ToList();
             var apps = (await unitOfWork.Repository<ExpertApplication>().FindAsync(a => appIds.Contains(a.Id)))
                 .ToDictionary(a => a.Id);
-            // check specID trong booking sau đó check Specialization
+
             var specIds = bookings.Select(b => b.SpecializationId).Distinct().ToList();
             var specs = (await unitOfWork.Repository<Specialization>().FindAsync(s => specIds.Contains(s.Id)))
                 .ToDictionary(s => s.Id);
-            // lấy lên tất cả booking 
+
             var bookingIds = bookings.Select(b => b.Id).ToList();
-            // sau đó check trong BookingAttachment
-            var attachments = (await unitOfWork.Repository<BookingAttachment>().FindAsync(a => bookingIds.Contains(a.BookingId))).ToList();
             var sessions = (await unitOfWork.Repository<ConsultationSession>().FindAsync(s => bookingIds.Contains(s.BookingId)))
                 .ToDictionary(s => s.BookingId);
 
             return bookings.Select(b =>
             {
-
-                // TryGetValue : dùng để kiềm dic dạng key và value 
                 users.TryGetValue(b.UserId, out var clientUser);
                 slots.TryGetValue(b.ExpertSlotId, out var slot);
                 ExpertProfile? profile = null;
@@ -237,11 +201,10 @@ namespace TaxKeepVN.Application.Mappers
                     apps.TryGetValue(profile.LatestApplicationId, out app);
                 }
 
-                var attCount = attachments.Count(a => a.BookingId == b.Id);
                 sessions.TryGetValue(b.Id, out var sess);
                 var noShowType = sess?.NoShowType ?? "NONE";
 
-                return MapToListItemResponse(b, clientUser, profile, slot, spec, expertUser, app, attCount, noShowType);
+                return MapToListItemResponse(b, clientUser, profile, slot, spec, expertUser, app, noShowType);
             }).ToList();
         }
     }

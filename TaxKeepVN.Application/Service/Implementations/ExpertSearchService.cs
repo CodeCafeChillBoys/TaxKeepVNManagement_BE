@@ -1,6 +1,7 @@
 using Microsoft.Extensions.Logging;
 using TaxKeepVN.Application.DTOs.Common;
 using TaxKeepVN.Application.DTOs.Experts;
+using TaxKeepVN.Application.DTOs.SearchConfigs;
 using TaxKeepVN.Application.Exceptions;
 using TaxKeepVN.Application.Helpers;
 using TaxKeepVN.Application.Service.Interfaces;
@@ -16,22 +17,31 @@ namespace TaxKeepVN.Application.Service.Implementations
     public class ExpertSearchService : IExpertSearchService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IExpertSearchConfigService _searchConfigService;
         private readonly ILogger<ExpertSearchService> _logger;
 
-        public ExpertSearchService(IUnitOfWork unitOfWork, ILogger<ExpertSearchService> logger)
+        public ExpertSearchService(
+            IUnitOfWork unitOfWork,
+            IExpertSearchConfigService searchConfigService,
+            ILogger<ExpertSearchService> logger)
         {
             _unitOfWork = unitOfWork;
+            _searchConfigService = searchConfigService;
             _logger = logger;
         }
 
         // ── 1. TÌM KIẾM VÀ LỌC DANH SÁCH CHUYÊN GIA ─────────────────────────────────────
         public async Task<ExpertSearchResultDto> SearchExpertsAsync(ExpertSearchQueryParameters query)
         {
+            // lấy lên những config mà admin cấu hình
+            var searchConfig = await _searchConfigService.GetConfigAsync();
             var profileRepo = _unitOfWork.Repository<ExpertProfile>();
+            // lấy lên tất cả profile
             var allProfiles = (await profileRepo.GetAllAsync()).ToList();
 
             // BR-01: Chỉ những chuyên gia có trạng thái "Đã duyệt" và "Đang mở lịch nhận tư vấn" (IsActive = true)
             var activeProfiles = allProfiles.Where(p => p.IsActive).ToList();
+            // nếu ko hợp lễ quăng message
             if (!activeProfiles.Any())
             {
                 return new ExpertSearchResultDto
@@ -54,12 +64,12 @@ namespace TaxKeepVN.Application.Service.Implementations
             // kiểm tra xem chuyên gia trong bảng user user có status active với bên trong profile ko
             var users = (await _unitOfWork.Repository<User>().FindAsync(u => userIds.Contains(u.UserId) && u.Status == "active")).ToDictionary(u => u.UserId);
 
-            // Chỉ giữ lại profile có user hợp lệ và đơn đăng ký Approved
+            // Chỉ giữ lại profile có user hợp lệ và đơn đăng ký Approved by admin
             var validProfiles = activeProfiles.Where(p =>
                 users.ContainsKey(p.UserId) &&
                 apps.TryGetValue(p.LatestApplicationId, out var app) &&
                 app.Status == ExpertApplicationStatus.Approved).ToList();
-
+            // nếu ko có quăng ra lỗi
             if (!validProfiles.Any())
             {
                 return new ExpertSearchResultDto
@@ -87,7 +97,17 @@ namespace TaxKeepVN.Application.Service.Implementations
             // Tải Chứng chỉ Verified
             var certs = (await _unitOfWork.Repository<ExpertApplicationCertificate>().FindAsync(c => validAppIds.Contains(c.ApplicationId) && c.VerificationStatus == CertificateVerificationStatus.Verified)).ToList();
 
+            // Áp dụng điều kiện Admin: Bắt buộc có chứng chỉ Verified (nếu Admin bật)
+            if (searchConfig.RequireVerifiedCertificate)
+            {
+                // lấy lên các chứng chỉ có có hồ sơ ID mà ko bị dulicate
+                var validCertAppIds = certs.Select(c => c.ApplicationId).ToHashSet();
+                // kiểm tra hồ sơ đó có chứng chỉ và lấy lên tất cae
+                validProfiles = validProfiles.Where(p => validCertAppIds.Contains(p.LatestApplicationId)).ToList();
+            }
+
             // Tải Slots khả dụng từ hôm nay trở đi
+            // search slot từ hôm nay trở đi
             var today = DateOnly.FromDateTime(DateTime.UtcNow);
             var futureSlots = (await _unitOfWork.Repository<ExpertSlot>().FindAsync(s => validProfileIds.Contains(s.ExpertProfileId) && s.SlotDate >= today && !s.IsBooked && s.IsActive)).ToList();
 
@@ -109,11 +129,19 @@ namespace TaxKeepVN.Application.Service.Implementations
                     var jobTitle = p.JobTitle ?? string.Empty;
                     var company = p.CompanyName ?? string.Empty;
                     var bio = p.Bio ?? string.Empty;
-                    // tiến thành kiểm tra chuỗi đó có ký từ đc truyền vào thay ko
-                    return fullName.ToLowerInvariant().Contains(kw) ||
-                           jobTitle.ToLowerInvariant().Contains(kw) ||
-                           company.ToLowerInvariant().Contains(kw) ||
-                           bio.ToLowerInvariant().Contains(kw);
+                    var sFields = searchConfig.SearchableFields;
+                    var pSpecNames = appSpecs.Where(s => s.ApplicationId == p.LatestApplicationId)
+                                             .Select(s => allSpecs.TryGetValue(s.SpecializationId, out var name) ? name.ToLowerInvariant() : string.Empty);
+                    var pCertNames = certs.Where(c => c.ApplicationId == p.LatestApplicationId)
+                                          .Select(c => (c.CertificateName ?? string.Empty).ToLowerInvariant());
+
+                    // Kiểm tra các trường được Admin cho phép quét
+                    return (sFields.SearchInFullName && fullName.ToLowerInvariant().Contains(kw)) ||
+                           (sFields.SearchInJobTitle && jobTitle.ToLowerInvariant().Contains(kw)) ||
+                           (sFields.SearchInCompanyName && company.ToLowerInvariant().Contains(kw)) ||
+                           (sFields.SearchInBio && bio.ToLowerInvariant().Contains(kw)) ||
+                           (sFields.SearchInSpecializations && pSpecNames.Any(n => n.Contains(kw))) ||
+                           (sFields.SearchInCertificates && pCertNames.Any(n => n.Contains(kw)));
                 });
             }
 
@@ -180,6 +208,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                     var pSlots = futureSlots.Where(s => s.ExpertProfileId == p.Id);
                     return query.TimeFilter switch
                     {
+                        // nếu ko chọn thì mặc định sẽ lấy ra hết 
                         ExpertTimeFilter.Today => pSlots.Any(s => s.SlotDate == today),
                         ExpertTimeFilter.Tomorrow => pSlots.Any(s => s.SlotDate == tomorrow),
                         ExpertTimeFilter.ThisWeekend => pSlots.Any(s => s.SlotDate == weekendSaturday || s.SlotDate == weekendSunday),
@@ -207,15 +236,24 @@ namespace TaxKeepVN.Application.Service.Implementations
                 var startingFee = pFees.Any() ? pFees.Min() : 0m;
                 // đếm số bằng
                 var verifiedCertCount = certs.Count(c => c.ApplicationId == p.LatestApplicationId);
-                //lọc  qua profile và lấy lên sắp xếp theo SlotDate
+                //lọc qua profile và lấy lên sắp xếp theo SlotDate
                 var pSlots = futureSlots.Where(s => s.ExpertProfileId == p.Id).OrderBy(s => s.SlotDate).ThenBy(s => s.StartTime).ToList();
                 // kiểm tra xem chuyen gia có slot tròng vòng 3 ngày tới
                 var hasSlotSoon = pSlots.Any(s => s.SlotDate <= today.AddDays(3));
                 // Lấy SlotDate của phần tử đầu tiên trong pSlots.
                 var earliestDate = pSlots.FirstOrDefault()?.SlotDate;
 
-                // BR-02: Thuật toán Ranking mặc định
-                var rankingScore = ExpertSearchHelper.CalculateRankingScore(p, hasSlotSoon, pSlots.Any());
+                var expertSpecIds = appSpecs.Where(s => s.ApplicationId == p.LatestApplicationId).Select(s => s.SpecializationId).ToList();
+                var isFeatured = searchConfig.FeaturedSpecializationIds != null && 
+                                 searchConfig.FeaturedSpecializationIds.Any() &&
+                                 expertSpecIds.Any(id => searchConfig.FeaturedSpecializationIds.Contains(id));
+
+                // Thuật toán Ranking tính theo trọng số do Admin cấu hình
+                var rankingScore = ExpertSearchHelper.CalculateRankingScore(
+                    p, hasSlotSoon, pSlots.Any(), verifiedCertCount,
+                    searchConfig.RankingWeights,
+                    isFeaturedSpecialization: isFeatured
+                );
 
                 return new ExpertListItemResponse
                 {
@@ -240,7 +278,8 @@ namespace TaxKeepVN.Application.Service.Implementations
             }).ToList();
 
             // ── SẮP XẾP (Sorting) ────────────────────────────────────────────
-            itemsList = query.SortBy switch
+            var effectiveSortBy = query.SortBy ?? searchConfig.DefaultSortBy;
+            itemsList = effectiveSortBy switch
             {
                 ExpertSortBy.RatingDesc => itemsList.OrderByDescending(i => i.Rating).ThenByDescending(i => i.TotalReviews).ToList(),
                 ExpertSortBy.FeeAsc => itemsList.OrderBy(i => i.StartingFee).ThenByDescending(i => i.Rating).ToList(),
@@ -282,7 +321,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             {
                 Page = 1,
                 Size = Math.Max(1, Math.Min(count, 20)),
-                SortBy = ExpertSortBy.Recommended
+                SortBy = null // Tự động lấy theo DefaultSortBy do Admin cấu hình
             };
 
             var result = await SearchExpertsAsync(defaultQuery);

@@ -1,3 +1,6 @@
+using System.Collections.Generic;
+using System.Linq;
+using TaxKeepVN.Domain.Enums;
 using Microsoft.AspNetCore.Mvc;
 using TaxKeepVN.Application.DTOs.Common;
 using TaxKeepVN.Application.DTOs.Experts;
@@ -45,6 +48,41 @@ namespace TaxKeepVNManagementSystem.Controllers
             var result = await _expertSearchService.GetFeaturedExpertsAsync(count);
             return Ok(ApiResponse<List<ExpertListItemResponse>>.Ok(result, "Lấy danh sách chuyên gia nổi bật thành công."));
         }
+
+        /// <summary>
+        /// Lấy cấu hình tiêu chí sắp xếp mặc định và các option hiển thị cho giao diện tìm kiếm
+        /// (Dành cho Frontend để hiển thị dropdown sắp xếp theo cấu hình của Admin)
+        /// GET /api/v1/experts/sort-options
+        /// </summary>
+        [HttpGet("sort-options", Name = "GetExpertSortOptions")]
+        public async Task<IActionResult> GetSortOptions([FromServices] IExpertSearchConfigService configService)
+        {
+            var config = await configService.GetConfigAsync();
+            var sortLabels = new Dictionary<ExpertSortBy, string>
+            {
+                { ExpertSortBy.Recommended, "Đề xuất ưu tiên" },
+                { ExpertSortBy.RatingDesc, "Đánh giá sao cao nhất" },
+                { ExpertSortBy.CompletedSessionsDesc, "Nhiều ca tư vấn hoàn thành nhất" },
+                { ExpertSortBy.FeeAsc, "Mức phí thấp nhất" },
+                { ExpertSortBy.FeeDesc, "Mức phí cao nhất" },
+                { ExpertSortBy.ExperienceDesc, "Nhiều năm kinh nghiệm nhất" }
+            };
+
+            var response = new
+            {
+                defaultSortBy = config.DefaultSortBy.ToString(),
+                options = config.AllowedSortOptions.Select(opt => new
+                {
+                    value = opt.ToString(),
+                    code = (int)opt,
+                    label = sortLabels.TryGetValue(opt, out var label) ? label : opt.ToString(),
+                    isDefault = opt == config.DefaultSortBy
+                })
+            };
+
+            return Ok(ApiResponse<object>.Ok(response, "Lấy thông tin tiêu chí sắp xếp thành công."));
+        }
+
 
         /// <summary>
         /// Xem chi tiết thông tin công khai của chuyên gia (Đặc tả 2 - Mục 5 Luồng chính)

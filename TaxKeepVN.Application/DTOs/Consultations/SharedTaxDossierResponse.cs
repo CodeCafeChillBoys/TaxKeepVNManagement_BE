@@ -36,8 +36,6 @@ namespace TaxKeepVN.Application.DTOs.Consultations
         // Dự thảo quyết toán thuế (nếu đã tạo)
         public SharedDraftSettlementDto? DraftSettlement { get; set; }
 
-        // Tài liệu bổ trợ đính kèm riêng cho Booking
-        public List<SharedAttachmentDto> BookingAttachments { get; set; } = new();
     }
 
     public class SharedIncomeSourceDto
@@ -98,12 +96,4 @@ namespace TaxKeepVN.Application.DTOs.Consultations
         public decimal PersonalDeductionAmount { get; set; }
     }
 
-    public class SharedAttachmentDto
-    {
-        public Guid Id { get; set; }
-        public string FileName { get; set; } = string.Empty;
-        public string FileUrl { get; set; } = string.Empty;
-        public string ContentType { get; set; } = string.Empty;
-        public long FileSize { get; set; }
-    }
 }

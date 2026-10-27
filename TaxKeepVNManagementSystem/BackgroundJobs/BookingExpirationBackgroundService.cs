@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TaxKeepVN.Domain.Entities;
 using TaxKeepVN.Domain.Enums;
 using TaxKeepVN.Infrastructure.Contexts;
 
@@ -131,6 +132,39 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
                     booking.EscrowTransaction.RefundReason = booking.CancellationReason;
                     booking.EscrowTransaction.RefundedAt = now;
                     booking.EscrowTransaction.UpdatedAt = now;
+
+                    // Tự động hoàn tiền vào ví người dùng USER
+                    var userWallet = await dbContext.UserWallets.FirstOrDefaultAsync(w => w.UserId == booking.UserId && w.WalletType == "USER");
+                    if (userWallet == null)
+                    {
+                        userWallet = new UserWallet
+                        {
+                            Id = Guid.NewGuid(),
+                            UserId = booking.UserId,
+                            WalletType = "USER",
+                            AvailableBalance = 0m,
+                            CreatedAt = now,
+                            UpdatedAt = now
+                        };
+                        await dbContext.UserWallets.AddAsync(userWallet);
+                    }
+                    var beforeBal = userWallet.AvailableBalance;
+                    userWallet.AvailableBalance += booking.EscrowTransaction.Amount;
+                    userWallet.UpdatedAt = now;
+
+                    await dbContext.WalletTransactions.AddAsync(new WalletTransaction
+                    {
+                        Id = Guid.NewGuid(),
+                        WalletId = userWallet.Id,
+                        UserId = booking.UserId,
+                        Amount = booking.EscrowTransaction.Amount,
+                        BalanceBefore = beforeBal,
+                        BalanceAfter = userWallet.AvailableBalance,
+                        TransactionType = "REFUND",
+                        ReferenceId = booking.Id,
+                        Description = $"Hoàn tiền ca tư vấn #{booking.BookingCode} (Chuyên gia quá hạn phản hồi)",
+                        CreatedAt = now
+                    });
                 }
 
                 if (booking.ExpertSlot != null)

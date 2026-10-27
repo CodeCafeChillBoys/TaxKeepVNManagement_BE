@@ -62,9 +62,6 @@ namespace TaxKeepVN.Application.DTOs.Bookings
 
         public DateTimeOffset CreatedAt { get; set; }
 
-        // Danh sách tệp đính kèm
-        public List<BookingAttachmentDto> Attachments { get; set; } = new();
-
         /// <summary>
         /// Loại vắng mặt nếu xảy ra No-Show: "NONE", "USER_NO_SHOW", "EXPERT_NO_SHOW"
         /// </summary>
