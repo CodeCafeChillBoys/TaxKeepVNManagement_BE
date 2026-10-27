@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using TaxKeepVN.Application.DTOs.Wallets;
 using TaxKeepVN.Domain.Enums;
 
 namespace TaxKeepVN.Application.DTOs.Payments
@@ -9,6 +10,31 @@ namespace TaxKeepVN.Application.DTOs.Payments
     /// </summary>
     public class AdminPlatformWalletResponse
     {
+        /// <summary>
+        /// Tỷ lệ phần trăm hoa hồng nền tảng hiện tại (%) được áp dụng theo chính sách hệ thống
+        /// </summary>
+        public decimal CurrentCommissionRatePercent { get; set; }
+
+        /// <summary>
+        /// ID của ví quỹ hệ thống / doanh thu nền tảng (duy nhất 1 ví dùng chung cho toàn bộ Admin)
+        /// </summary>
+        public Guid PlatformWalletId { get; set; }
+
+        /// <summary>
+        /// Số dư doanh thu hoa hồng khả dụng của nền tảng (tiền lời sàn thực nhận đã kết toán, Admin có thể rút về ngân hàng)
+        /// </summary>
+        public decimal PlatformAvailableBalance { get; set; }
+
+        /// <summary>
+        /// Số dư quỹ nền tảng đang đóng băng trong các lệnh rút tiền đang xử lý
+        /// </summary>
+        public decimal PlatformFrozenBalance { get; set; }
+
+        /// <summary>
+        /// Tổng số tiền hoa hồng / doanh thu nền tảng Admin đã rút về tài khoản ngân hàng thực tế
+        /// </summary>
+        public decimal PlatformTotalWithdrawn { get; set; }
+
         /// <summary>
         /// Tổng dòng tiền khách hàng đã thanh toán qua hệ thống (Gross Merchandise Value - GMV)
         /// Gồm các khoản tiền thực tế đã nạp vào tài khoản sàn (HeldInEscrow, CoolingDown, Settled, Refunded)
@@ -55,6 +81,11 @@ namespace TaxKeepVN.Application.DTOs.Payments
         /// Thống kê số lượng giao dịch theo từng trạng thái
         /// </summary>
         public AdminWalletTransactionStats Stats { get; set; } = new();
+
+        /// <summary>
+        /// Lịch sử các biến động số dư của ví hệ thống (hoa hồng từng đơn chảy về, các lần Admin rút tiền)
+        /// </summary>
+        public List<WalletTransactionResponse> RecentPlatformTransactions { get; set; } = new();
 
         /// <summary>
         /// Danh sách 10 giao dịch ký quỹ / biến động số dư gần đây nhất

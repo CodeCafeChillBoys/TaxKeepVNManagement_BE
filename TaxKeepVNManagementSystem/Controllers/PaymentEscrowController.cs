@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.Mvc;
 using TaxKeepVN.Application.DTOs.Common;
 using TaxKeepVN.Application.DTOs.Payments;
 using TaxKeepVN.Application.DTOs.Responses;
+using TaxKeepVN.Application.DTOs.Wallets;
+using TaxKeepVN.Application.Exceptions;
 using TaxKeepVN.Application.Service.Interfaces;
 
 namespace TaxKeepVNManagementSystem.Controllers
@@ -186,6 +188,53 @@ namespace TaxKeepVNManagementSystem.Controllers
             var role = GetCurrentUserRole();
             var result = await _paymentEscrowService.GetAdminPlatformWalletAsync(userId, role);
             return Ok(ApiResponse<AdminPlatformWalletResponse>.Ok(result, "Lấy thông tin Ví Nền Tảng (Admin Platform Wallet) thành công."));
+        }
+
+        /// <summary>
+        /// Admin thực hiện rút tiền doanh thu hoa hồng / lợi nhuận của hệ thống về tài khoản ngân hàng (Đặc tả 4 & 7)
+        /// POST /api/v1/admin/platform-wallet/withdraw
+        /// </summary>
+        [HttpPost("api/v1/admin/platform-wallet/withdraw", Name = "RequestAdminPlatformWithdrawal")]
+        [Authorize]
+        [EndpointSummary("Admin rút doanh thu hoa hồng sàn về tài khoản ngân hàng thực tế")]
+        [ProducesResponseType(typeof(ApiResponse<WithdrawalResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> RequestAdminPlatformWithdrawal([FromBody] CreateWithdrawalRequest request)
+        {
+            var role = GetCurrentUserRole();
+            if (!string.Equals(role, "admin", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ForbiddenException("FORBIDDEN", "Chỉ quản trị viên mới có quyền rút tiền doanh thu nền tảng.");
+            }
+
+            var adminId = GetCurrentUserId();
+            var result = await _paymentEscrowService.RequestAdminPlatformWithdrawalAsync(adminId, request);
+            return Ok(ApiResponse<WithdrawalResponse>.Ok(result, "Rút tiền doanh thu hoa hồng hệ thống thành công."));
+        }
+
+        /// <summary>
+        /// Admin xem danh sách các lần rút doanh thu hoa hồng / lợi nhuận nền tảng về ngân hàng
+        /// GET /api/v1/admin/platform-wallet/withdrawals?page=1&size=10
+        /// </summary>
+        [HttpGet("api/v1/admin/platform-wallet/withdrawals", Name = "GetAdminPlatformWithdrawals")]
+        [Authorize]
+        [EndpointSummary("Admin xem danh sách các lần rút doanh thu hoa hồng hệ thống")]
+        [ProducesResponseType(typeof(ApiResponse<PagedResult<WithdrawalResponse>>), StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        public async Task<IActionResult> GetAdminPlatformWithdrawals(
+            [FromQuery] int page = 1,
+            [FromQuery] int size = 10)
+        {
+            var role = GetCurrentUserRole();
+            if (!string.Equals(role, "admin", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new ForbiddenException("FORBIDDEN", "Chỉ quản trị viên mới có quyền xem lịch sử rút doanh thu nền tảng.");
+            }
+
+            var adminId = GetCurrentUserId();
+            var result = await _paymentEscrowService.GetAdminPlatformWithdrawalsAsync(adminId, page, size);
+            return Ok(ApiResponse<PagedResult<WithdrawalResponse>>.Ok(result, "Lấy lịch sử rút doanh thu nền tảng thành công."));
         }
     }
 }

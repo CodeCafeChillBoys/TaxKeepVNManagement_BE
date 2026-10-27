@@ -140,6 +140,31 @@ namespace TaxKeepVN.Application.Service.Implementations
                 CreatedAt = nowUtc
             });
 
+            // 2.1 Ghi nhận hoa hồng vào ví doanh thu hệ thống (Platform Wallet)
+            if (escrow.CommissionAmount > 0)
+            {
+                var platformWallet = await BookingHelper.GetOrCreatePlatformWalletAsync(_unitOfWork);
+                var platformBefore = platformWallet.AvailableBalance;
+                platformWallet.AvailableBalance += escrow.CommissionAmount;
+                platformWallet.TotalEarned += escrow.CommissionAmount;
+                platformWallet.UpdatedAt = nowUtc;
+                _unitOfWork.Repository<UserWallet>().Update(platformWallet);
+
+                await _unitOfWork.Repository<WalletTransaction>().AddAsync(new WalletTransaction
+                {
+                    Id = Guid.NewGuid(),
+                    WalletId = platformWallet.Id,
+                    UserId = platformWallet.UserId,
+                    Amount = escrow.CommissionAmount,
+                    BalanceBefore = platformBefore,
+                    BalanceAfter = platformWallet.AvailableBalance,
+                    TransactionType = "COMMISSION_EARNED",
+                    ReferenceId = booking.Id,
+                    Description = $"Thu hoa hồng sàn từ ca tư vấn #{booking.BookingCode} ({escrow.CommissionRate}% của {escrow.Amount:N0} VNĐ)",
+                    CreatedAt = nowUtc
+                });
+            }
+
             // 3. Cập nhật Escrow và Booking
             escrow.EscrowStatus = EscrowStatus.Settled;
             escrow.SettledAt = nowUtc;
@@ -607,6 +632,31 @@ namespace TaxKeepVN.Application.Service.Implementations
                     targetUrl: $"/expert/wallet");
             }
 
+            // Thực thi ghi nhận doanh thu nền tảng (nếu có phí sàn)
+            if (platformFee > 0)
+            {
+                var platformWallet = await BookingHelper.GetOrCreatePlatformWalletAsync(_unitOfWork);
+                var beforePlatform = platformWallet.AvailableBalance;
+                platformWallet.AvailableBalance += platformFee;
+                platformWallet.TotalEarned += platformFee;
+                platformWallet.UpdatedAt = nowUtc;
+                _unitOfWork.Repository<UserWallet>().Update(platformWallet);
+
+                await _unitOfWork.Repository<WalletTransaction>().AddAsync(new WalletTransaction
+                {
+                    Id = Guid.NewGuid(),
+                    WalletId = platformWallet.Id,
+                    UserId = platformWallet.UserId,
+                    Amount = platformFee,
+                    BalanceBefore = beforePlatform,
+                    BalanceAfter = platformWallet.AvailableBalance,
+                    TransactionType = "PLATFORM_FEE",
+                    ReferenceId = dispute.Id,
+                    Description = $"Phí nền tảng từ phán quyết khiếu nại ca tư vấn #{booking.BookingCode}",
+                    CreatedAt = nowUtc
+                });
+            }
+
             // Cập nhật Dispute
             dispute.Status = decisionType switch
             {
@@ -662,9 +712,7 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             var wallet = await GetOrCreateWalletAsync(userId, type);
 
-            var transactions = (await _unitOfWork.Repository<WalletTransaction>().FindAsync(t => t.WalletId == wallet.Id))
-                .OrderByDescending(t => t.CreatedAt)
-                .Take(10)
+            var walletTransactions = (await _unitOfWork.Repository<WalletTransaction>().FindAsync(t => t.WalletId == wallet.Id))
                 .Select(t => new WalletTransactionResponse
                 {
                     Id = t.Id,
@@ -678,6 +726,41 @@ namespace TaxKeepVN.Application.Service.Implementations
                     CreatedAt = t.CreatedAt
                 }).ToList();
 
+            decimal pendingReceivable = 0m;
+            var pendingItems = new List<PendingEscrowDetailResponse>();
+
+            if (type == "EXPERT")
+            {
+                var (totalPending, items, detailsList) = await GetExpertPendingEscrowsAsync(userId);
+                pendingReceivable = totalPending;
+                pendingItems = items;
+
+                // Merge các giao dịch Escrow đang tạm giữ vào RecentTransactions
+                foreach (var d in detailsList)
+                {
+                    var isCooling = d.Escrow.EscrowStatus == EscrowStatus.CoolingDown;
+                    walletTransactions.Add(new WalletTransactionResponse
+                    {
+                        Id = d.Escrow.Id,
+                        WalletId = wallet.Id,
+                        Amount = d.Escrow.ExpertReceivable,
+                        BalanceBefore = wallet.AvailableBalance,
+                        BalanceAfter = wallet.AvailableBalance,
+                        TransactionType = isCooling ? "PENDING_COOLING_DOWN" : "PENDING_ESCROW",
+                        ReferenceId = d.Booking.Id,
+                        Description = isCooling
+                            ? $"Tạm giữ Cool-down ca tư vấn #{d.Booking.BookingCode} (Đã xong buổi tư vấn, chờ giải ngân sau 24h)"
+                            : $"Tạm giữ Escrow ca tư vấn #{d.Booking.BookingCode} (Khách đã thanh toán, chờ thực hiện ca)",
+                        CreatedAt = d.Escrow.PaidAt ?? d.Escrow.CreatedAt
+                    });
+                }
+            }
+
+            var recentTransactions = walletTransactions
+                .OrderByDescending(t => t.CreatedAt)
+                .Take(10)
+                .ToList();
+
             return new WalletResponse
             {
                 Id = wallet.Id,
@@ -687,35 +770,94 @@ namespace TaxKeepVN.Application.Service.Implementations
                 FrozenBalance = wallet.FrozenBalance,
                 TotalEarned = wallet.TotalEarned,
                 TotalWithdrawn = wallet.TotalWithdrawn,
+                PendingEscrowReceivable = pendingReceivable,
+                PendingEscrowDetails = pendingItems,
                 UpdatedAt = wallet.UpdatedAt,
-                RecentTransactions = transactions
+                RecentTransactions = recentTransactions
             };
         }
 
-        public async Task<PagedResult<WalletTransactionResponse>> GetMyWalletTransactionsAsync(Guid userId, int page = 1, int size = 10)
+        public async Task<List<PendingEscrowDetailResponse>> GetExpertPendingEscrowDetailsAsync(Guid expertUserId)
         {
-            var transactions = (await _unitOfWork.Repository<WalletTransaction>().FindAsync(t => t.UserId == userId))
-                .OrderByDescending(t => t.CreatedAt).AsQueryable();
+            var (_, items, _) = await GetExpertPendingEscrowsAsync(expertUserId);
+            return items;
+        }
 
-            var totalItems = transactions.Count();
-            var paged = transactions.Skip((page - 1) * size).Take(size).ToList();
+        public async Task<PagedResult<WalletTransactionResponse>> GetMyWalletTransactionsAsync(
+            Guid userId, 
+            int page = 1, 
+            int size = 10, 
+            string? transactionType = null)
+        {
+            var user = await _unitOfWork.Repository<User>().GetByIdAsync(userId)
+                ?? throw new NotFoundException("Không tìm thấy thông tin người dùng.");
 
-            var items = paged.Select(t => new WalletTransactionResponse
+            var isExpert = string.Equals(user.UserRole, "expert", StringComparison.OrdinalIgnoreCase);
+
+            var allTx = (await _unitOfWork.Repository<WalletTransaction>().FindAsync(t => t.UserId == userId))
+                .Select(t => new WalletTransactionResponse
+                {
+                    Id = t.Id,
+                    WalletId = t.WalletId,
+                    Amount = t.Amount,
+                    BalanceBefore = t.BalanceBefore,
+                    BalanceAfter = t.BalanceAfter,
+                    TransactionType = t.TransactionType,
+                    ReferenceId = t.ReferenceId,
+                    Description = t.Description,
+                    CreatedAt = t.CreatedAt
+                }).ToList();
+
+            if (isExpert)
             {
-                Id = t.Id,
-                WalletId = t.WalletId,
-                Amount = t.Amount,
-                BalanceBefore = t.BalanceBefore,
-                BalanceAfter = t.BalanceAfter,
-                TransactionType = t.TransactionType,
-                ReferenceId = t.ReferenceId,
-                Description = t.Description,
-                CreatedAt = t.CreatedAt
-            }).ToList();
+                var expertWallet = await GetOrCreateWalletAsync(userId, "EXPERT");
+                var (_, _, detailsList) = await GetExpertPendingEscrowsAsync(userId);
+
+                foreach (var d in detailsList)
+                {
+                    var isCooling = d.Escrow.EscrowStatus == EscrowStatus.CoolingDown;
+                    allTx.Add(new WalletTransactionResponse
+                    {
+                        Id = d.Escrow.Id,
+                        WalletId = expertWallet.Id,
+                        Amount = d.Escrow.ExpertReceivable,
+                        BalanceBefore = expertWallet.AvailableBalance,
+                        BalanceAfter = expertWallet.AvailableBalance,
+                        TransactionType = isCooling ? "PENDING_COOLING_DOWN" : "PENDING_ESCROW",
+                        ReferenceId = d.Booking.Id,
+                        Description = isCooling
+                            ? $"Tạm giữ Cool-down ca tư vấn #{d.Booking.BookingCode} (Đã xong buổi tư vấn, chờ giải ngân sau 24h)"
+                            : $"Tạm giữ Escrow ca tư vấn #{d.Booking.BookingCode} (Khách đã thanh toán, chờ thực hiện ca)",
+                        CreatedAt = d.Escrow.PaidAt ?? d.Escrow.CreatedAt
+                    });
+                }
+            }
+
+            IEnumerable<WalletTransactionResponse> query = allTx;
+            if (!string.IsNullOrWhiteSpace(transactionType))
+            {
+                var filter = transactionType.Trim().ToUpperInvariant();
+                if (filter == "PENDING_ESCROW")
+                {
+                    query = query.Where(t => t.TransactionType == "PENDING_ESCROW" || t.TransactionType == "PENDING_COOLING_DOWN");
+                }
+                else if (filter == "WITHDRAWAL")
+                {
+                    query = query.Where(t => t.TransactionType == "WITHDRAWAL" || t.TransactionType == "WITHDRAWAL_REFUND");
+                }
+                else
+                {
+                    query = query.Where(t => string.Equals(t.TransactionType, filter, StringComparison.OrdinalIgnoreCase));
+                }
+            }
+
+            var sorted = query.OrderByDescending(t => t.CreatedAt).ToList();
+            var totalItems = sorted.Count;
+            var paged = sorted.Skip((page - 1) * size).Take(size).ToList();
 
             return new PagedResult<WalletTransactionResponse>
             {
-                Items = items,
+                Items = paged,
                 Pagination = new PaginationMeta
                 {
                     Page = page,
@@ -724,6 +866,104 @@ namespace TaxKeepVN.Application.Service.Implementations
                     TotalPages = (int)Math.Ceiling(totalItems / (double)size)
                 }
             };
+        }
+
+        private async Task<(decimal totalPending, List<PendingEscrowDetailResponse> items, List<(EscrowTransaction Escrow, Booking Booking, string TaxpayerName, DateTimeOffset? ConsultationTime, DateTimeOffset? EstRelease)> details)> GetExpertPendingEscrowsAsync(Guid expertUserId)
+        {
+            var profiles = await _unitOfWork.Repository<ExpertProfile>().FindAsync(p => p.UserId == expertUserId);
+            var profile = profiles.FirstOrDefault();
+            if (profile == null)
+            {
+                return (0m, new List<PendingEscrowDetailResponse>(), new ());
+            }
+
+            var slots = (await _unitOfWork.Repository<ExpertSlot>().FindAsync(s => s.ExpertProfileId == profile.Id)).ToList();
+            var slotMap = slots.ToDictionary(s => s.Id);
+            var slotIds = slotMap.Keys.ToHashSet();
+
+            if (!slotIds.Any())
+            {
+                return (0m, new List<PendingEscrowDetailResponse>(), new ());
+            }
+
+            var bookings = (await _unitOfWork.Repository<Booking>().FindAsync(b => slotIds.Contains(b.ExpertSlotId))).ToList();
+            var bookingMap = bookings.ToDictionary(b => b.Id);
+            var bookingIds = bookingMap.Keys.ToHashSet();
+
+            if (!bookingIds.Any())
+            {
+                return (0m, new List<PendingEscrowDetailResponse>(), new ());
+            }
+
+            var escrows = (await _unitOfWork.Repository<EscrowTransaction>().FindAsync(e => 
+                bookingIds.Contains(e.BookingId) &&
+                (e.EscrowStatus == EscrowStatus.HeldInEscrow || e.EscrowStatus == EscrowStatus.CoolingDown)
+            )).OrderByDescending(e => e.CreatedAt).ToList();
+
+            var policy = await BookingHelper.GetPlatformPolicyAsync(_unitOfWork);
+            var cooldownHours = policy.EscrowCooldownHours > 0 ? policy.EscrowCooldownHours : 24;
+
+            var taxpayerIds = bookings.Select(b => b.UserId).Distinct().ToList();
+            var taxpayers = (await _unitOfWork.Repository<User>().FindAsync(u => taxpayerIds.Contains(u.UserId)))
+                .ToDictionary(u => u.UserId, u => u.FullName);
+
+            var items = new List<PendingEscrowDetailResponse>();
+            var detailsList = new List<(EscrowTransaction Escrow, Booking Booking, string TaxpayerName, DateTimeOffset? ConsultationTime, DateTimeOffset? EstRelease)>();
+
+            foreach (var e in escrows)
+            {
+                bookingMap.TryGetValue(e.BookingId, out var b);
+                if (b == null) continue;
+
+                taxpayers.TryGetValue(b.UserId, out var taxpayerName);
+                slotMap.TryGetValue(b.ExpertSlotId, out var slot);
+
+                DateTimeOffset? consultationTime = slot != null
+                    ? BookingHelper.ConvertSlotToUtc(slot.SlotDate, slot.StartTime)
+                    : null;
+
+                DateTimeOffset? estRelease = null;
+                string statusDesc = string.Empty;
+
+                if (e.EscrowStatus == EscrowStatus.CoolingDown)
+                {
+                    var completedAt = b.CompletedAt ?? b.UpdatedAt;
+                    estRelease = completedAt.AddHours(cooldownHours);
+                    statusDesc = "Đang trong thời gian bảo chứng Cool-down 24h (Chờ tự động giải ngân)";
+                }
+                else // HeldInEscrow
+                {
+                    if (slot != null)
+                    {
+                        var slotEndUtc = BookingHelper.ConvertSlotToUtc(slot.SlotDate, slot.EndTime);
+                        estRelease = slotEndUtc.AddHours(cooldownHours);
+                    }
+                    statusDesc = "Đang tạm giữ trong quỹ Escrow bảo chứng (Chờ thực hiện ca tư vấn)";
+                }
+
+                var item = new PendingEscrowDetailResponse
+                {
+                    EscrowId = e.Id,
+                    BookingId = b.Id,
+                    BookingCode = b.BookingCode,
+                    TaxpayerName = taxpayerName ?? "Khách hàng",
+                    TotalAmount = e.Amount,
+                    CommissionRate = e.CommissionRate,
+                    CommissionAmount = e.CommissionAmount,
+                    ExpertReceivable = e.ExpertReceivable,
+                    EscrowStatus = e.EscrowStatus.ToString(),
+                    EscrowStatusDescription = statusDesc,
+                    PaidAt = e.PaidAt,
+                    ConsultationTime = consultationTime,
+                    EstimatedReleaseAt = estRelease
+                };
+
+                items.Add(item);
+                detailsList.Add((e, b, taxpayerName ?? "Khách hàng", consultationTime, estRelease));
+            }
+
+            var totalPending = items.Sum(i => i.ExpertReceivable);
+            return (totalPending, items, detailsList);
         }
 
         public async Task<WithdrawalResponse> RequestWithdrawalAsync(Guid expertUserId, CreateWithdrawalRequest request)

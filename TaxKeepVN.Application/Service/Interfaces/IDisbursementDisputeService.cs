@@ -70,9 +70,14 @@ namespace TaxKeepVN.Application.Service.Interfaces
         Task<WalletResponse> GetMyWalletAsync(Guid userId, string? walletType = null);
 
         /// <summary>
-        /// Lấy lịch sử biến động số dư ví (phân trang)
+        /// Chuyên gia xem danh sách chi tiết các ca tư vấn đang tạm giữ tiền trong quỹ Escrow
         /// </summary>
-        Task<PagedResult<WalletTransactionResponse>> GetMyWalletTransactionsAsync(Guid userId, int page = 1, int size = 10);
+        Task<List<PendingEscrowDetailResponse>> GetExpertPendingEscrowDetailsAsync(Guid expertUserId);
+
+        /// <summary>
+        /// Lấy lịch sử biến động số dư ví (phân trang, hỗ trợ lọc theo loại giao dịch)
+        /// </summary>
+        Task<PagedResult<WalletTransactionResponse>> GetMyWalletTransactionsAsync(Guid userId, int page = 1, int size = 10, string? transactionType = null);
 
         /// <summary>
         /// Chuyên gia tạo lệnh rút tiền từ Ví thu nhập về tài khoản ngân hàng cá nhân

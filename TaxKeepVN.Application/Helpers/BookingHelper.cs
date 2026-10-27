@@ -56,6 +56,70 @@ namespace TaxKeepVN.Application.Helpers
                 "Lỗi cấu hình hệ thống: Không tìm thấy chính sách sàn tư vấn trong bảng consultation_platform_policies. Vui lòng kiểm tra dữ liệu cấu hình.");
         }
 
+        /// <summary>
+        /// Lấy hoặc khởi tạo ví doanh thu nền tảng (Platform Wallet) dùng chung cho toàn bộ Quản trị viên (Admin).
+        /// Tất cả tiền hoa hồng sàn từ các ca tư vấn và phí phạt/khiếu nại được ghi nhận vào ví này.
+        /// </summary>
+        public static async Task<UserWallet> GetOrCreatePlatformWalletAsync(IUnitOfWork unitOfWork, Guid? fallbackAdminId = null)
+        {
+            var wallets = await unitOfWork.Repository<UserWallet>().FindAsync(w => w.WalletType == "PLATFORM");
+            var wallet = wallets.FirstOrDefault();
+
+            if (wallet == null)
+            {
+                var admins = (await unitOfWork.Repository<User>().FindAsync(u => u.UserRole == "admin")).ToList();
+                var adminUser = admins.OrderBy(u => u.CreatedAt).FirstOrDefault();
+                var adminId = adminUser?.UserId ?? fallbackAdminId ?? Guid.Empty;
+
+                if (adminId == Guid.Empty)
+                {
+                    var anyUser = (await unitOfWork.Repository<User>().GetAllAsync()).FirstOrDefault();
+                    if (anyUser != null) adminId = anyUser.UserId;
+                }
+
+                wallet = new UserWallet
+                {
+                    Id = Guid.NewGuid(),
+                    UserId = adminId,
+                    WalletType = "PLATFORM",
+                    AvailableBalance = 0m,
+                    FrozenBalance = 0m,
+                    TotalEarned = 0m,
+                    TotalWithdrawn = 0m,
+                    CreatedAt = DateTimeOffset.UtcNow,
+                    UpdatedAt = DateTimeOffset.UtcNow
+                };
+
+                // Đồng bộ doanh thu từ các đơn đã Settled trong quá khứ nếu có
+                var settledEscrows = (await unitOfWork.Repository<EscrowTransaction>().FindAsync(e => e.EscrowStatus == EscrowStatus.Settled)).ToList();
+                var sumHistoricalCommission = settledEscrows.Sum(e => e.CommissionAmount);
+                if (sumHistoricalCommission > 0)
+                {
+                    wallet.AvailableBalance = sumHistoricalCommission;
+                    wallet.TotalEarned = sumHistoricalCommission;
+                }
+
+                await unitOfWork.Repository<UserWallet>().AddAsync(wallet);
+                await unitOfWork.SaveChangesAsync();
+            }
+            else if (wallet.TotalEarned == 0m)
+            {
+                // Kiểm tra nếu ví tồn tại nhưng chưa sync lịch sử
+                var settledEscrows = (await unitOfWork.Repository<EscrowTransaction>().FindAsync(e => e.EscrowStatus == EscrowStatus.Settled)).ToList();
+                var sumHistoricalCommission = settledEscrows.Sum(e => e.CommissionAmount);
+                if (sumHistoricalCommission > 0)
+                {
+                    wallet.AvailableBalance = Math.Max(0m, sumHistoricalCommission - wallet.TotalWithdrawn);
+                    wallet.TotalEarned = sumHistoricalCommission;
+                    wallet.UpdatedAt = DateTimeOffset.UtcNow;
+                    unitOfWork.Repository<UserWallet>().Update(wallet);
+                    await unitOfWork.SaveChangesAsync();
+                }
+            }
+
+            return wallet;
+        }
+
 
         /// <summary>
         /// Sinh mã định danh đặt lịch thân thiện với người dùng theo định dạng: BK-YYYYMMDD-XXXXXX
