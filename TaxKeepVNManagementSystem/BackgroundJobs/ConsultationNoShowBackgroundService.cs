@@ -68,6 +68,7 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
             // 2. Tìm các ca CONFIRMED có khung giờ đã bắt đầu quá noShowMinutes
             var confirmedBookings = await dbContext.Bookings
                 .Include(b => b.ExpertSlot)
+                    .ThenInclude(s => s!.ExpertProfile)
                 .Include(b => b.EscrowTransaction)
                 .Where(b => b.Status == BookingStatus.CONFIRMED)
                 .ToListAsync();
@@ -178,7 +179,36 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
                     slot.HoldUserId = null;
                     slot.UpdatedAt = nowUtc;
 
-                    _logger.LogWarning("Phát hiện EXPERT NO-SHOW ca {BookingCode}. Tự động hoàn tiền 100% cho khách hàng.", booking.BookingCode);
+                    // Gửi thông báo hoàn tiền cho Khách hàng
+                    await dbContext.SystemNotifications.AddAsync(new SystemNotification
+                    {
+                        NotificationId = Guid.NewGuid(),
+                        UserId = booking.UserId,
+                        Title = "Hoàn tiền do Chuyên gia vắng mặt",
+                        Message = $"Chuyên gia đã không có mặt trong ca tư vấn #{booking.BookingCode} sau {noShowMinutes} phút. Hệ thống đã tự động hủy ca và hoàn trả 100% tiền cọc ({(booking.EscrowTransaction?.Amount ?? booking.Fee):N0} đ) vào ví của bạn.",
+                        NotificationType = "EXPERT_NO_SHOW_REFUND",
+                        IsRead = false,
+                        TargetActionUrl = $"/consultation/bookings/{booking.Id}",
+                        CreatedAt = nowUtc.DateTime
+                    });
+
+                    // Gửi cảnh báo vi phạm cho Chuyên gia
+                    if (slot.ExpertProfile != null)
+                    {
+                        await dbContext.SystemNotifications.AddAsync(new SystemNotification
+                        {
+                            NotificationId = Guid.NewGuid(),
+                            UserId = slot.ExpertProfile.UserId,
+                            Title = "Cảnh báo vắng mặt phiên tư vấn đã nhận",
+                            Message = $"Bạn đã không tham gia ca tư vấn #{booking.BookingCode} sau {noShowMinutes} phút kể từ giờ hẹn. Hệ thống đã tự động hủy ca và hoàn tiền 100% cho khách hàng.",
+                            NotificationType = "EXPERT_NO_SHOW_PENALTY",
+                            IsRead = false,
+                            TargetActionUrl = $"/expert/bookings/{booking.Id}",
+                            CreatedAt = nowUtc.DateTime
+                        });
+                    }
+
+                    _logger.LogWarning("Phát hiện EXPERT NO-SHOW ca {BookingCode}. Tự động hoàn tiền 100% cho khách hàng và gửi thông báo.", booking.BookingCode);
                 }
                 // TRƯỜNG HỢP B: Chuyên gia có mặt, Khách hàng vắng mặt -> Đóng ca và giải ngân cho chuyên gia
                 else if (expertCheckedIn && !userCheckedIn)
@@ -198,7 +228,36 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
                         booking.EscrowTransaction.UpdatedAt = nowUtc;
                     }
 
-                    _logger.LogInformation("Phát hiện USER NO-SHOW ca {BookingCode}. Tự động đóng ca và giữ tiền Escrow cho chuyên gia.", booking.BookingCode);
+                    // Gửi thông báo vắng mặt cho Khách hàng
+                    await dbContext.SystemNotifications.AddAsync(new SystemNotification
+                    {
+                        NotificationId = Guid.NewGuid(),
+                        UserId = booking.UserId,
+                        Title = "Thông báo vắng mặt phiên tư vấn trực tuyến",
+                        Message = $"Bạn đã không tham gia phiên tư vấn #{booking.BookingCode} (vắng mặt quá {noShowMinutes} phút kể từ giờ hẹn). Ca tư vấn đã tự động kết thúc và thù lao được quyết toán cho Chuyên gia theo chính sách bảo vệ thời gian của Chuyên gia.",
+                        NotificationType = "USER_NO_SHOW",
+                        IsRead = false,
+                        TargetActionUrl = $"/consultation/bookings/{booking.Id}",
+                        CreatedAt = nowUtc.DateTime
+                    });
+
+                    // Gửi thông báo cho Chuyên gia biết thù lao đã được bảo vệ
+                    if (slot.ExpertProfile != null)
+                    {
+                        await dbContext.SystemNotifications.AddAsync(new SystemNotification
+                        {
+                            NotificationId = Guid.NewGuid(),
+                            UserId = slot.ExpertProfile.UserId,
+                            Title = "Khách hàng vắng mặt phiên tư vấn",
+                            Message = $"Khách hàng đã không có mặt trong ca tư vấn #{booking.BookingCode} sau {noShowMinutes} phút. Hệ thống đã tự động đóng ca và bảo vệ thù lao của bạn trong trạng thái chờ giải ngân.",
+                            NotificationType = "USER_NO_SHOW_EXPERT_NOTIFIED",
+                            IsRead = false,
+                            TargetActionUrl = $"/expert/bookings/{booking.Id}",
+                            CreatedAt = nowUtc.DateTime
+                        });
+                    }
+
+                    _logger.LogInformation("Phát hiện USER NO-SHOW ca {BookingCode}. Tự động đóng ca, giữ tiền Escrow cho chuyên gia và gửi thông báo.", booking.BookingCode);
                 }
             }
 
