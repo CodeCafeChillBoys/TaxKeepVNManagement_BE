@@ -20,7 +20,8 @@ namespace TaxKeepVN.Application.Mappers
             ExpertSlot slot,
             Specialization spec,
             User? expertUser,
-            ExpertApplication? app)
+            ExpertApplication? app,
+            ConsultationSession? session = null)
         {
             if (booking == null) return null!;
             var nowUtc = DateTimeOffset.UtcNow;
@@ -34,15 +35,14 @@ namespace TaxKeepVN.Application.Mappers
                 Id = booking.Id,
                 BookingCode = booking.BookingCode,
                 UserId = booking.UserId,
-
-                UserFullName = clientUser?.FullName ?? "Khách hàng",
-                UserEmail = clientUser?.Email ?? string.Empty,
-                UserPhoneNumber = clientUser?.PhoneNumber,
+                UserFullName = clientUser.FullName,
+                UserEmail = clientUser.Email,
+                UserPhoneNumber = clientUser.PhoneNumber,
 
                 ExpertProfileId = expertProfile.Id,
                 ExpertFullName = app?.FullName ?? expertUser?.FullName ?? "Chuyên gia",
                 ExpertAvatarUrl = app?.AvatarUrl,
-                ExpertJobTitle = expertProfile.JobTitle,
+                ExpertJobTitle = app?.JobTitle ?? "Chuyên gia tư vấn",
 
                 ExpertSlotId = slot.Id,
                 SlotDate = slot.SlotDate,
@@ -52,8 +52,8 @@ namespace TaxKeepVN.Application.Mappers
                 DurationMinutes = booking.DurationMinutes,
                 Fee = booking.Fee,
 
-                SpecializationId = spec?.Id ?? 0,
-                SpecializationName = spec?.Name ?? string.Empty,
+                SpecializationId = spec.Id,
+                SpecializationName = spec.Name,
                 TopicTitle = booking.TopicTitle,
                 ProblemDescription = booking.ProblemDescription,
 
@@ -76,7 +76,10 @@ namespace TaxKeepVN.Application.Mappers
                 CancellationReason = booking.CancellationReason,
                 CancelledBy = booking.CancelledBy,
 
-                CreatedAt = booking.CreatedAt
+                CreatedAt = booking.CreatedAt,
+
+                NoShowType = session?.NoShowType ?? "NONE",
+                SessionSharedNotes = session?.SharedNotes
             };
         }
 
@@ -87,8 +90,9 @@ namespace TaxKeepVN.Application.Mappers
             ExpertSlot slot,
             Specialization spec,
             User? expertUser,
-            ExpertApplication? app)
-            => MapToDetailResponse(booking, clientUser, expertProfile, slot, spec, expertUser, app);
+            ExpertApplication? app,
+            ConsultationSession? session = null)
+            => MapToDetailResponse(booking, clientUser, expertProfile, slot, spec, expertUser, app, session);
 
         /// <summary>
         /// Chuyển đổi một Booking entity sang BookingListItemResponse
@@ -100,7 +104,8 @@ namespace TaxKeepVN.Application.Mappers
             ExpertSlot? slot,
             Specialization? spec,
             User? expertUser,
-            ExpertApplication? app)
+            ExpertApplication? app,
+            string noShowType = "NONE")
         {
             if (booking == null) return null!;
 
@@ -124,7 +129,8 @@ namespace TaxKeepVN.Application.Mappers
                 Status = booking.Status,
                 HoldExpiresAt = booking.HoldExpiresAt,
                 ApprovalDeadline = booking.ApprovalDeadline,
-                CreatedAt = booking.CreatedAt
+                CreatedAt = booking.CreatedAt,
+                NoShowType = noShowType
             };
         }
 
@@ -135,8 +141,9 @@ namespace TaxKeepVN.Application.Mappers
             ExpertSlot? slot,
             Specialization? spec,
             User? expertUser,
-            ExpertApplication? app)
-            => MapToListItemResponse(booking, clientUser, profile, slot, spec, expertUser, app);
+            ExpertApplication? app,
+            string noShowType = "NONE")
+            => MapToListItemResponse(booking, clientUser, profile, slot, spec, expertUser, app, noShowType);
 
         /// <summary>
         /// Nạp các quan hệ dữ liệu liên quan và chuyển danh sách Booking entity sang BookingListItemResponse DTO
@@ -171,6 +178,10 @@ namespace TaxKeepVN.Application.Mappers
             var specs = (await unitOfWork.Repository<Specialization>().FindAsync(s => specIds.Contains(s.Id)))
                 .ToDictionary(s => s.Id);
 
+            var bookingIds = bookings.Select(b => b.Id).ToList();
+            var sessions = (await unitOfWork.Repository<ConsultationSession>().FindAsync(s => bookingIds.Contains(s.BookingId)))
+                .ToDictionary(s => s.BookingId);
+
             return bookings.Select(b =>
             {
                 users.TryGetValue(b.UserId, out var clientUser);
@@ -190,7 +201,10 @@ namespace TaxKeepVN.Application.Mappers
                     apps.TryGetValue(profile.LatestApplicationId, out app);
                 }
 
-                return MapToListItemResponse(b, clientUser, profile, slot, spec, expertUser, app);
+                sessions.TryGetValue(b.Id, out var sess);
+                var noShowType = sess?.NoShowType ?? "NONE";
+
+                return MapToListItemResponse(b, clientUser, profile, slot, spec, expertUser, app, noShowType);
             }).ToList();
         }
     }

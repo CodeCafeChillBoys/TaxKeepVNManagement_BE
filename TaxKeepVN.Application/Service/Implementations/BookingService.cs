@@ -328,7 +328,8 @@ namespace TaxKeepVN.Application.Service.Implementations
             var spec = (await _unitOfWork.Repository<Specialization>().FindAsync(s => s.Id == booking.SpecializationId)).FirstOrDefault();
             var expertUser = await _unitOfWork.Repository<User>().GetByIdAsync(profile.UserId);
             var app = await _unitOfWork.Repository<ExpertApplication>().GetByIdAsync(profile.LatestApplicationId);
-            return BookingMapper.MapToDetailResponse(booking, user!, profile, slot!, spec!, expertUser, app);
+            var session = (await _unitOfWork.Repository<ConsultationSession>().FindAsync(s => s.BookingId == booking.Id)).FirstOrDefault();
+            return BookingMapper.MapToDetailResponse(booking, user!, profile, slot!, spec!, expertUser, app, session);
         }
 
         // ── 5. LẤY DANH SÁCH LỊCH HẸN CỦA KHÁCH HÀNG (MY BOOKINGS) ──────────────────
