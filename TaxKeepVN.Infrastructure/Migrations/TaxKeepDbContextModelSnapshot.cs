@@ -3236,6 +3236,15 @@ namespace TaxKeepVN.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("TaxKeepVN.Domain.Entities.Dependent", b =>
+                {
+                    b.HasOne("TaxKeepVN.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("TaxpayerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.DependentDocument", b =>
                 {
                     b.HasOne("TaxKeepVN.Domain.Entities.Dependent", "Dependent")
@@ -3441,6 +3450,15 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("TaxKeepVN.Domain.Entities.TaxSettlementDossier", b =>
+                {
+                    b.HasOne("TaxKeepVN.Domain.Entities.User", null)
+                        .WithMany()
+                        .HasForeignKey("TaxpayerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.TaxSettlementIncomeItem", b =>
