@@ -1,0 +1,31 @@
+name: .NET 8 CI Pipeline
+
+on:
+  push:
+    branches: [ "main", "Develop" ]
+  pull_request:
+    branches: [ "main", "Develop" ]
+  workflow_dispatch: # Cho phép trigger thủ công từ GitHub UI
+
+jobs:
+  build:
+    name: Build & Verify Solution
+    runs-on: ubuntu-latest
+  
+    steps:
+      - name: 1. Checkout source code
+        uses: actions/checkout@v4
+
+      - name: 2. Cài đặt .NET 8 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: 3. Restore các NuGet packages
+        run: dotnet restore TaxKeepVNManagement.sln
+
+      - name: 4. Build dự án (Release mode)
+        run: dotnet build TaxKeepVNManagement.sln --configuration Release --no-restore
+
+      - name: 5. Chạy Unit Test (nếu có)
+        run: dotnet test TaxKeepVNManagement.sln --configuration Release --no-build --verbosity normal

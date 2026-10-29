@@ -1,0 +1,1206 @@
+using Microsoft.EntityFrameworkCore;
+using TaxKeepVN.Domain.Entities;
+using TaxKeepVN.Domain.Enums;
+
+namespace TaxKeepVN.Infrastructure.Contexts
+{
+    public class TaxKeepDbContext : DbContext
+    {
+        public TaxKeepDbContext(DbContextOptions<TaxKeepDbContext> options) : base(options)
+        {
+        }
+
+        public DbSet<User> Users { get; set; }
+        public DbSet<RevokedToken> RevokedTokens { get; set; }
+        public DbSet<Dependent> Dependents { get; set; }
+        public DbSet<DependentDocument> DependentDocuments { get; set; }
+        public DbSet<SystemNotification> SystemNotifications { get; set; }
+        public DbSet<IncomeSource> IncomeSources { get; set; }
+        public DbSet<DependentDocumentRule> DependentDocumentRules { get; set; }
+        public DbSet<TaxPeriod> TaxPeriods { get; set; }
+        public DbSet<TaxDocumentType> DocumentTypes { get; set; }
+        public DbSet<Document> Documents { get; set; }
+        public DbSet<DocumentItem> DocumentItems { get; set; }
+        public DbSet<Income> Incomes { get; set; }
+
+        // Tax Settlement & Domain-Specific Configurations
+        public DbSet<SystemConfig> SystemConfigs { get; set; }
+        public DbSet<TaxBracket> TaxBrackets { get; set; }
+        public DbSet<TaxDeductionPolicy> TaxDeductionPolicies { get; set; }
+        public DbSet<ConsultationPlatformPolicy> ConsultationPlatformPolicies { get; set; }
+        public DbSet<TaxSettlementSchedule> TaxSettlementSchedules { get; set; }
+        public DbSet<TaxSettlementDossier> TaxSettlementDossiers { get; set; }
+        public DbSet<TaxSettlementIncomeItem> TaxSettlementIncomeItems { get; set; }
+
+        // RBAC Roles
+        public DbSet<Role> Roles { get; set; }
+
+        // Expert Registration & Management
+        public DbSet<Specialization> Specializations { get; set; }
+        public DbSet<ExpertCertificateConfiguration> ExpertCertificateConfigurations { get; set; }
+        public DbSet<ExpertSearchConfiguration> ExpertSearchConfigurations { get; set; }
+        public DbSet<ConsultationFeeConfiguration> ConsultationFeeConfigurations { get; set; }
+        public DbSet<ExpertApplication> ExpertApplications { get; set; }
+        public DbSet<ExpertApplicationSpecialization> ExpertApplicationSpecializations { get; set; }
+        public DbSet<ExpertApplicationCertificate> ExpertApplicationCertificates { get; set; }
+        public DbSet<ExpertApplicationFeeProposal> ExpertApplicationFeeProposals { get; set; }
+        public DbSet<ExpertApplicationAudit> ExpertApplicationAudits { get; set; }
+        public DbSet<ExpertProfile> ExpertProfiles { get; set; }
+        public DbSet<ExpertSlot> ExpertSlots { get; set; }
+        public DbSet<ExpertReview> ExpertReviews { get; set; }
+        public DbSet<Booking> Bookings { get; set; }
+        public DbSet<EscrowTransaction> EscrowTransactions { get; set; }
+        public DbSet<ConsultationSession> ConsultationSessions { get; set; }
+        public DbSet<UserWallet> UserWallets { get; set; }
+        public DbSet<WalletTransaction> WalletTransactions { get; set; }
+        public DbSet<WithdrawalRequest> WithdrawalRequests { get; set; }
+        public DbSet<BookingDispute> BookingDisputes { get; set; }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder)
+        {
+            base.OnModelCreating(modelBuilder);
+
+            // ── User ────────────────────────────────────────────────────────────
+            modelBuilder.Entity<User>(entity =>
+            {
+                entity.ToTable("users");
+                entity.HasKey(u => u.UserId);
+
+                entity.Property(u => u.UserId).HasColumnName("user_id");
+                entity.Property(u => u.TaxIdNumber).HasColumnName("tax_id_number");
+                entity.Property(u => u.CitizenId).HasColumnName("citizen_id").IsRequired();
+                entity.Property(u => u.FullName).HasColumnName("full_name").IsRequired();
+                entity.Property(u => u.Email).HasColumnName("email").IsRequired();
+                entity.Property(u => u.PhoneNumber).HasColumnName("phone_number");
+                entity.Property(u => u.PasswordHash).HasColumnName("password_hash").IsRequired();
+                entity.Property(u => u.RoleId).HasColumnName("role_id").HasDefaultValue(1);
+                entity.Property(u => u.UserRole).HasColumnName("user_role").HasDefaultValue("taxpayer");
+                entity.Property(u => u.IsVerified).HasColumnName("is_verified").HasDefaultValue(false);
+                entity.Property(u => u.CreatedAt).HasColumnName("created_at");
+                entity.Property(u => u.UpdatedAt).HasColumnName("updated_at");
+                entity.Property(u => u.DateOfBirth).HasColumnName("date_of_birth");
+                entity.Property(u => u.Address).HasColumnName("address");
+                entity.Property(u => u.Status).HasColumnName("status").HasDefaultValue("active");
+
+                entity.HasOne(u => u.Role)
+                    .WithMany(r => r.Users)
+                    .HasForeignKey(u => u.RoleId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasIndex(u => u.RoleId).HasDatabaseName("idx_users_role_id");
+
+                // Unique indexes
+                entity.HasIndex(u => u.CitizenId).IsUnique().HasDatabaseName("idx_users_citizen_id");
+                entity.HasIndex(u => u.Email).IsUnique().HasDatabaseName("idx_users_email");
+            });
+
+            // ── Role ────────────────────────────────────────────────────────────
+            modelBuilder.Entity<Role>(entity =>
+            {
+                entity.ToTable("roles");
+                entity.HasKey(r => r.Id);
+
+                entity.Property(r => r.Id).HasColumnName("id").UseIdentityByDefaultColumn();
+                entity.Property(r => r.Code).HasColumnName("code").HasMaxLength(50).IsRequired();
+                entity.Property(r => r.Name).HasColumnName("name").HasMaxLength(100).IsRequired();
+                entity.Property(r => r.Description).HasColumnName("description");
+                entity.Property(r => r.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+                entity.Property(r => r.CreatedAt).HasColumnName("created_at");
+
+                entity.HasIndex(r => r.Code).IsUnique().HasDatabaseName("idx_roles_code");
+
+                entity.HasData(
+                    new Role { Id = 1, Code = "taxpayer", Name = "Người nộp thuế", Description = "Người dùng cá nhân thực hiện quyết toán, kê khai thuế", IsActive = true, CreatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero) },
+                    new Role { Id = 2, Code = "admin", Name = "Quản trị viên hệ thống", Description = "Quản trị viên quản lý toàn bộ hệ thống, thẩm định hồ sơ", IsActive = true, CreatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero) },
+                    new Role { Id = 3, Code = "expert", Name = "Chuyên gia tư vấn thuế", Description = "Chuyên gia đã được phê duyệt, cung cấp dịch vụ tư vấn thuế", IsActive = true, CreatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero) }
+                );
+            });
+
+            // ── RevokedToken ─────────────────────────────────────────────────────
+            modelBuilder.Entity<RevokedToken>(entity =>
+            {
+                entity.ToTable("revoked_tokens");
+                entity.HasKey(t => t.Id);
+                entity.Property(t => t.Jti).HasColumnName("jti").IsRequired();
+                entity.Property(t => t.ExpiresAt).HasColumnName("expires_at");
+                entity.Property(t => t.RevokedAt).HasColumnName("revoked_at");
+
+                // Index để truy vấn nhanh theo JTI
+                entity.HasIndex(t => t.Jti).HasDatabaseName("idx_revoked_tokens_jti");
+            });
+
+            // ── Dependent ────────────────────────────────────────────────────────
+            modelBuilder.Entity<Dependent>(entity =>
+            {
+                entity.ToTable("dependents");
+                entity.HasKey(d => d.Id);
+
+                entity.Property(d => d.Id).HasColumnName("id");
+                entity.Property(d => d.TaxpayerId).HasColumnName("taxpayer_id");
+                entity.Property(d => d.FullName).HasColumnName("full_name").IsRequired();
+                entity.Property(d => d.Relationship).HasColumnName("relationship")
+                    .HasConversion<string>().IsRequired();
+                entity.Property(d => d.CitizenId).HasColumnName("citizen_id");
+                entity.Property(d => d.BirthCertNumber).HasColumnName("birth_cert_number");
+                entity.Property(d => d.TaxIdNumber).HasColumnName("tax_id_number");
+                entity.Property(d => d.EffectiveFromMonth).HasColumnName("effective_from_month").IsRequired();
+                entity.Property(d => d.EffectiveToMonth).HasColumnName("effective_to_month").IsRequired();
+                entity.Property(d => d.Note).HasColumnName("note");
+                entity.Property(d => d.Status).HasColumnName("status")
+                    .HasConversion<string>().HasDefaultValue(TaxKeepVN.Domain.Enums.DependentStatus.PENDING_DOCUMENTS);
+                entity.Property(d => d.CreatedAt).HasColumnName("created_at");
+                entity.Property(d => d.UpdatedAt).HasColumnName("updated_at");
+
+                // Cột trong database PostgreSQL sử dụng quy ước snake_case
+                entity.Property(d => d.CurrentGroup).HasColumnName("current_group")
+                    .HasConversion<string>();
+                entity.Property(d => d.BirthDate).HasColumnName("birth_date");
+                entity.Property(d => d.IsDeleted).HasColumnName("is_deleted").HasDefaultValue(false);
+                entity.Property(d => d.IsProfileComplete).HasColumnName("is_profile_complete").HasDefaultValue(false);
+
+                // Index để query overlap nhanh theo CitizenId và BirthCertNumber
+                entity.HasIndex(d => d.CitizenId).HasDatabaseName("idx_dependents_citizen_id");
+                entity.HasIndex(d => d.BirthCertNumber).HasDatabaseName("idx_dependents_birth_cert");
+                entity.HasIndex(d => d.TaxpayerId).HasDatabaseName("idx_dependents_taxpayer_id");
+            });
+
+            // ── DependentDocument ────────────────────────────────────────────────
+            modelBuilder.Entity<DependentDocument>(entity =>
+            {
+                entity.ToTable("dependent_documents");
+                entity.HasKey(d => d.Id);
+
+                entity.Property(d => d.Id).HasColumnName("id");
+                entity.Property(d => d.DependentId).HasColumnName("dependent_id").IsRequired();
+                entity.Property(d => d.DocType).HasColumnName("doc_type").HasConversion<string>().IsRequired();
+                entity.Property(d => d.FileMimeType).HasColumnName("file_mime_type").IsRequired();
+                entity.Property(d => d.FileUrl).HasColumnName("file_url").IsRequired();
+                entity.Property(d => d.IsReadable).HasColumnName("is_readable");
+                entity.Property(d => d.UploadedAt).HasColumnName("uploaded_at");
+
+                entity.HasOne(d => d.Dependent)
+                    .WithMany(d => d.Documents)
+                    .HasForeignKey(d => d.DependentId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(d => d.DependentId).HasDatabaseName("idx_dependent_documents_dependent_id");
+            });
+
+            // ── DependentDocumentRule ────────────────────────────────────────────
+            modelBuilder.Entity<DependentDocumentRule>(entity =>
+            {
+                entity.ToTable("dependent_document_rules");
+                entity.HasKey(r => r.RuleId);
+
+                entity.Property(r => r.RuleId).HasColumnName("rule_id");
+                entity.Property(r => r.TargetGroup).HasColumnName("target_group").HasMaxLength(50).IsRequired();
+                entity.Property(r => r.DocType).HasColumnName("doc_type").HasMaxLength(50).IsRequired();
+                entity.Property(r => r.IsMandatory).HasColumnName("is_mandatory").HasDefaultValue(true);
+                entity.Property(r => r.Description).HasColumnName("description");
+                entity.Property(r => r.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+                entity.Property(r => r.CreatedAt).HasColumnName("created_at");
+                entity.Property(r => r.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasIndex(r => new { r.TargetGroup, r.DocType })
+                    .IsUnique()
+                    .HasDatabaseName("uq_group_doc_rule");
+            });
+
+            // ── TaxPeriod ────────────────────────────────────────────────────────
+            modelBuilder.Entity<TaxPeriod>(entity =>
+            {
+                entity.ToTable("tax_periods");
+                entity.HasKey(p => p.Id);
+
+                entity.Property(p => p.Id).HasColumnName("id");
+                entity.Property(p => p.UserId).HasColumnName("user_id").IsRequired();
+                entity.Property(p => p.TaxYear).HasColumnName("tax_year").IsRequired();
+                entity.Property(p => p.Status).HasColumnName("status").HasMaxLength(50).HasDefaultValue("DRAFT").IsRequired();
+                entity.Property(p => p.CreatedAt).HasColumnName("created_at");
+                entity.Property(p => p.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasOne(p => p.User)
+                    .WithMany(u => u.TaxPeriods)
+                    .HasForeignKey(p => p.UserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasIndex(p => p.UserId).HasDatabaseName("idx_tax_periods_user_id");
+                entity.HasIndex(p => new { p.UserId, p.TaxYear })
+                    .IsUnique()
+                    .HasDatabaseName("uq_tax_periods_user_year");
+            });
+
+            // ── TaxDocumentType ──────────────────────────────────────────────────
+            modelBuilder.Entity<TaxDocumentType>(entity =>
+            {
+                entity.ToTable("document_types");
+                entity.HasKey(t => t.Code);
+
+                entity.Property(t => t.Code).HasColumnName("code").HasMaxLength(50);
+                entity.Property(t => t.Name).HasColumnName("name").HasMaxLength(255).IsRequired();
+                entity.Property(t => t.IsTaxEligible).HasColumnName("is_tax_eligible").HasDefaultValue(true);
+                entity.Property(t => t.Description).HasColumnName("description");
+
+            });
+
+            // ── Document ─────────────────────────────────────────────────────────
+            // Trong method OnModelCreating:
+            modelBuilder.Entity<Document>(entity =>
+            {
+                entity.ToTable("documents");
+                entity.HasKey(d => d.Id);
+
+                entity.Property(d => d.Id).HasColumnName("id");
+                entity.Property(d => d.PeriodId).HasColumnName("period_id").IsRequired();
+                entity.Property(d => d.DocTypeCode).HasColumnName("doc_type_code").HasMaxLength(50).IsRequired(false);
+                entity.Property(d => d.FileUrl).HasColumnName("file_url").IsRequired();
+                entity.Property(d => d.OriginalFilename).HasColumnName("original_filename").HasMaxLength(255);
+                entity.Property(d => d.InvoiceSeries).HasColumnName("invoice_series").HasMaxLength(50);
+                entity.Property(d => d.InvoiceNumber).HasColumnName("invoice_number").HasMaxLength(50);
+                entity.Property(d => d.InvoiceDate).HasColumnName("invoice_date");
+                entity.Property(d => d.SellerName).HasColumnName("seller_name").HasMaxLength(255);
+                entity.Property(d => d.SellerTaxCode).HasColumnName("seller_tax_code").HasMaxLength(50);
+                entity.Property(d => d.SellerAddress).HasColumnName("seller_address");
+                entity.Property(d => d.SellerPhone).HasColumnName("seller_phone").HasMaxLength(50);
+                entity.Property(d => d.BuyerName).HasColumnName("buyer_name").HasMaxLength(255);
+                entity.Property(d => d.BuyerTaxCode).HasColumnName("buyer_tax_code").HasMaxLength(50);
+                entity.Property(d => d.BuyerIdCard).HasColumnName("buyer_id_card").HasMaxLength(50);
+                entity.Property(d => d.BuyerAddress).HasColumnName("buyer_address");
+                entity.Property(d => d.PaymentMethod).HasColumnName("payment_method").HasMaxLength(100);
+                entity.Property(d => d.TotalAmount).HasColumnName("total_amount").HasColumnType("numeric(18,2)");
+                entity.Property(d => d.TotalIncome).HasColumnName("total_income").HasColumnType("numeric(18,2)");
+                entity.Property(d => d.TaxWithheld).HasColumnName("tax_withheld").HasColumnType("numeric(18,2)");
+                entity.Property(d => d.InsuranceDeducted).HasColumnName("insurance_deducted").HasColumnType("numeric(18,2)");
+                entity.Property(d => d.TotalAmountInWords).HasColumnName("total_amount_in_words");
+                entity.Property(d => d.LookupUrl).HasColumnName("lookup_url");
+                entity.Property(d => d.LookupCode).HasColumnName("lookup_code").HasMaxLength(100);
+                entity.Property(d => d.ExtractedYear).HasColumnName("extracted_year");
+                entity.Property(d => d.IncomeYear).HasColumnName("income_year");
+                entity.Property(d => d.IsYearValid).HasColumnName("is_year_valid");
+                entity.Property(d => d.IsIdentityValid).HasColumnName("is_identity_valid");
+                entity.Property(d => d.IsNotReimbursed).HasColumnName("is_not_reimbursed").HasDefaultValue(false);
+                entity.Property(d => d.Status).HasColumnName("status").HasMaxLength(50).HasDefaultValue("UPLOADED").IsRequired();
+                entity.Property(d => d.CreatedAt).HasColumnName("created_at");
+
+                entity.HasOne(d => d.Period)
+                    .WithMany(p => p.Documents)
+                    .HasForeignKey(d => d.PeriodId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(d => d.DocType)
+                    .WithMany(t => t.Documents)
+                    .HasForeignKey(d => d.DocTypeCode)
+                    .IsRequired(false)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasIndex(d => d.PeriodId).HasDatabaseName("idx_documents_period_id");
+                entity.HasIndex(d => d.DocTypeCode).HasDatabaseName("idx_documents_doc_type_code");
+            });
+
+            // ── Income ───────────────────────────────────────────────────────────
+            modelBuilder.Entity<Income>(entity =>
+            {
+                entity.ToTable("incomes");
+                entity.HasKey(i => i.Id);
+                entity.HasIndex(i => i.UserId).HasDatabaseName("idx_incomes_user_id");
+            });
+
+            // ── DocumentItem ─────────────────────────────────────────────────────
+            modelBuilder.Entity<DocumentItem>(entity =>
+            {
+                entity.ToTable("document_items");
+                entity.HasKey(i => i.Id);
+
+                entity.Property(i => i.Id).HasColumnName("id").UseIdentityByDefaultColumn();
+                entity.Property(i => i.DocumentId).HasColumnName("document_id").IsRequired();
+                entity.Property(i => i.ItemOrder).HasColumnName("item_order").IsRequired();
+                entity.Property(i => i.ItemName).HasColumnName("item_name").HasMaxLength(500).IsRequired();
+                entity.Property(i => i.Unit).HasColumnName("unit").HasMaxLength(50);
+                entity.Property(i => i.Quantity).HasColumnName("quantity").HasColumnType("numeric(18,4)").HasDefaultValue(0m);
+                entity.Property(i => i.UnitPrice).HasColumnName("unit_price").HasColumnType("numeric(18,2)").HasDefaultValue(0m);
+                entity.Property(i => i.TotalPrice).HasColumnName("total_price").HasColumnType("numeric(18,2)").HasDefaultValue(0m);
+
+                entity.HasOne(i => i.Document)
+                    .WithMany(d => d.Items)
+                    .HasForeignKey(i => i.DocumentId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(i => i.DocumentId).HasDatabaseName("idx_document_items_document_id");
+            });
+
+            // ── SystemConfig ─────────────────────────────────────────────────────
+            modelBuilder.Entity<SystemConfig>(entity =>
+            {
+                entity.ToTable("system_configs");
+                entity.HasKey(c => c.ConfigId);
+                entity.Property(c => c.ConfigId).HasColumnName("config_id");
+                entity.Property(c => c.ConfigKey).HasColumnName("config_key").HasMaxLength(100).IsRequired();
+                entity.Property(c => c.ConfigValue).HasColumnName("config_value").IsRequired();
+                entity.Property(c => c.Description).HasColumnName("description");
+                entity.Property(c => c.AppliesFromYear).HasColumnName("applies_from_year").IsRequired(false);
+                entity.Property(c => c.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+                entity.Property(c => c.CreatedAt).HasColumnName("created_at");
+                entity.Property(c => c.UpdatedAt).HasColumnName("updated_at");
+                // Unique: (config_key, applies_from_year) — cho phép cùng key tồn tại nhiều năm khác nhau
+                entity.HasIndex(c => new { c.ConfigKey, c.AppliesFromYear })
+                      .IsUnique()
+                      .HasDatabaseName("uq_system_configs_key_year");
+
+                var seedTime = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero);
+                entity.HasData(
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000001"), ConfigKey = "EXPERT_MIN_FEE_VND", ConfigValue = "100000", Description = "Mức phí tư vấn sàn tối thiểu cho 1 phiên (VNĐ)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000002"), ConfigKey = "EXPERT_MAX_FEE_VND", ConfigValue = "2000000", Description = "Mức phí tư vấn trần tối đa cho 1 phiên (VNĐ)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000003"), ConfigKey = "BOOKING_SLOT_HOLD_MINUTES", ConfigValue = "10", Description = "Thời gian tạm khóa slot chờ người nộp thuế hoàn tất thanh toán (Phút)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000004"), ConfigKey = "BOOKING_MIN_LEAD_TIME_HOURS", ConfigValue = "4", Description = "Thời gian tối thiểu phải đặt lịch trước giờ hẹn (Giờ)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000005"), ConfigKey = "EXPERT_CONFIRM_TIMEOUT_HOURS", ConfigValue = "2", Description = "Thời hạn tối đa để Chuyên gia Chấp nhận/Từ chối yêu cầu đặt lịch (Giờ)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000006"), ConfigKey = "PLATFORM_COMMISSION_RATE_PERCENT", ConfigValue = "20", Description = "Tỷ lệ phí hoa hồng nền tảng (A%) trích từ giá trị ca tư vấn (%)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000007"), ConfigKey = "SESSION_OPEN_BEFORE_MINUTES", ConfigValue = "10", Description = "Thời gian mở phòng tư vấn trước giờ hẹn chính thức (Phút)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000008"), ConfigKey = "SESSION_NO_SHOW_MINUTES", ConfigValue = "15", Description = "Ngưỡng thời gian xác định vắng mặt không phép No-Show (Phút)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000009"), ConfigKey = "RATING_WINDOW_DAYS", ConfigValue = "7", Description = "Thời hạn cho phép người nộp thuế gửi đánh giá sau khi kết thúc phiên (Ngày)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000010"), ConfigKey = "ESCROW_COOLDOWN_HOURS", ConfigValue = "24", Description = "Thời gian tạm giữ tiền chờ khiếu nại trước khi tự động giải ngân (Giờ)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000011"), ConfigKey = "CANCEL_FULL_REFUND_HOURS", ConfigValue = "24", Description = "Mốc hủy lịch sớm được hoàn tiền 100% trước giờ hẹn (Giờ)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000012"), ConfigKey = "CANCEL_PARTIAL_REFUND_HOURS", ConfigValue = "4", Description = "Mốc hủy lịch cận giờ được hoàn một phần trước giờ hẹn (Giờ)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000013"), ConfigKey = "CANCEL_PARTIAL_REFUND_PERCENT", ConfigValue = "50", Description = "Tỷ lệ phần trăm tiền hoàn lại khi hủy lịch cận giờ (%)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000014"), ConfigKey = "EXPERT_MAX_DAILY_SLOTS", ConfigValue = "6", Description = "Số lượng ca tư vấn tối đa Chuyên gia được mở trong 1 ngày (Ca/ngày)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000015"), ConfigKey = "EXPERT_MIN_WITHDRAWAL_VND", ConfigValue = "500000", Description = "Số tiền tối thiểu cho mỗi lệnh rút tiền từ Ví thu nhập chuyên gia (VNĐ)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000016"), ConfigKey = "DISPUTE_WINDOW_HOURS", ConfigValue = "24", Description = "Thời hạn cho phép người nộp thuế gửi khiếu nại sau khi kết thúc ca (Giờ)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000017"), ConfigKey = "DISPUTE_EXPERT_REPLY_HOURS", ConfigValue = "24", Description = "Thời hạn Chuyên gia phải gửi phản biện khiếu nại (Giờ)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000018"), ConfigKey = "EXPERT_LATE_CANCEL_HOURS", ConfigValue = "12", Description = "Mốc thời gian hủy sát giờ của Chuyên gia bị ghi nhận vi phạm/phạt (Giờ)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000019"), ConfigKey = "EXPERT_LATE_CANCEL_PENALTY_VND", ConfigValue = "100000", Description = "Mức tiền phạt Chuyên gia khi hủy lịch sát giờ hẹn (VNĐ)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime }
+                );
+            });
+
+            // ── TaxBracket ────────────────────────────────────────────────────────
+            modelBuilder.Entity<TaxBracket>(entity =>
+            {
+                entity.ToTable("tax_brackets");
+                entity.HasKey(b => b.Id);
+                entity.Property(b => b.Id).HasColumnName("id");
+                entity.Property(b => b.BracketNo).HasColumnName("bracket_no").IsRequired();
+                entity.Property(b => b.FromMonthly).HasColumnName("from_monthly").HasPrecision(15, 2).IsRequired();
+                entity.Property(b => b.ToMonthly).HasColumnName("to_monthly").HasPrecision(15, 2).IsRequired(false);
+                entity.Property(b => b.Rate).HasColumnName("rate").HasPrecision(5, 4).IsRequired();
+                entity.Property(b => b.QuickDeduct).HasColumnName("quick_deduct").HasPrecision(15, 2).IsRequired();
+                entity.Property(b => b.AppliesFromYear).HasColumnName("applies_from_year").IsRequired();
+                entity.Property(b => b.Description).HasColumnName("description");
+                entity.Property(b => b.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+                entity.Property(b => b.CreatedAt).HasColumnName("created_at");
+                entity.Property(b => b.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasIndex(b => new { b.BracketNo, b.AppliesFromYear })
+                      .IsUnique()
+                      .HasDatabaseName("uq_tax_brackets_no_year");
+            });
+
+            // ── TaxDeductionPolicy ────────────────────────────────────────────────
+            modelBuilder.Entity<TaxDeductionPolicy>(entity =>
+            {
+                entity.ToTable("tax_deduction_policies");
+                entity.HasKey(p => p.Id);
+                entity.Property(p => p.Id).HasColumnName("id");
+                entity.Property(p => p.AppliesFromYear).HasColumnName("applies_from_year").IsRequired();
+                entity.Property(p => p.LawName).HasColumnName("law_name").HasMaxLength(150).IsRequired();
+                entity.Property(p => p.PersonalMonthly).HasColumnName("personal_monthly").HasPrecision(15, 2).IsRequired();
+                entity.Property(p => p.DependentMonthly).HasColumnName("dependent_monthly").HasPrecision(15, 2).IsRequired();
+                entity.Property(p => p.BhxhRate).HasColumnName("bhxh_rate").HasPrecision(5, 4).IsRequired();
+                entity.Property(p => p.BhytRate).HasColumnName("bhyt_rate").HasPrecision(5, 4).IsRequired();
+                entity.Property(p => p.BhtnRate).HasColumnName("bhtn_rate").HasPrecision(5, 4).IsRequired();
+                entity.Property(p => p.SmallAmountExemption).HasColumnName("small_amount_exemption").HasPrecision(15, 2).IsRequired();
+                entity.Property(p => p.MedicalMaxYearly).HasColumnName("medical_max_yearly").HasPrecision(15, 2).IsRequired();
+                entity.Property(p => p.EducationMaxYearly).HasColumnName("education_max_yearly").HasPrecision(15, 2).IsRequired();
+                entity.Property(p => p.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+                entity.Property(p => p.CreatedAt).HasColumnName("created_at");
+                entity.Property(p => p.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasIndex(p => p.AppliesFromYear)
+                      .IsUnique()
+                      .HasDatabaseName("uq_tax_deduction_policies_year");
+            });
+
+            // ── ConsultationPlatformPolicy ────────────────────────────────────────
+            modelBuilder.Entity<ConsultationPlatformPolicy>(entity =>
+            {
+                entity.ToTable("consultation_platform_policies");
+                entity.HasKey(p => p.Id);
+                entity.Property(p => p.Id).HasColumnName("id");
+                entity.Property(p => p.ExpertMinFeeVnd).HasColumnName("expert_min_fee_vnd").HasPrecision(18, 2).IsRequired();
+                entity.Property(p => p.ExpertMaxFeeVnd).HasColumnName("expert_max_fee_vnd").HasPrecision(18, 2).IsRequired();
+                entity.Property(p => p.BookingSlotHoldMinutes).HasColumnName("booking_slot_hold_minutes").IsRequired();
+                entity.Property(p => p.BookingMinLeadTimeHours).HasColumnName("booking_min_lead_time_hours").IsRequired();
+                entity.Property(p => p.ExpertConfirmTimeoutHours).HasColumnName("expert_confirm_timeout_hours").IsRequired();
+                entity.Property(p => p.PlatformCommissionRatePercent).HasColumnName("platform_commission_rate_percent").HasPrecision(5, 2).IsRequired();
+                entity.Property(p => p.SessionOpenBeforeMinutes).HasColumnName("session_open_before_minutes").IsRequired();
+                entity.Property(p => p.SessionNoShowMinutes).HasColumnName("session_no_show_minutes").IsRequired();
+                entity.Property(p => p.RatingWindowDays).HasColumnName("rating_window_days").IsRequired();
+                entity.Property(p => p.EscrowCooldownHours).HasColumnName("escrow_cooldown_hours").IsRequired();
+                entity.Property(p => p.CancelFullRefundHours).HasColumnName("cancel_full_refund_hours").IsRequired();
+                entity.Property(p => p.CancelPartialRefundHours).HasColumnName("cancel_partial_refund_hours").IsRequired();
+                entity.Property(p => p.CancelPartialRefundPercent).HasColumnName("cancel_partial_refund_percent").HasPrecision(5, 2).IsRequired();
+                entity.Property(p => p.ExpertMaxDailySlots).HasColumnName("expert_max_daily_slots").IsRequired();
+                entity.Property(p => p.ExpertMinWithdrawalVnd).HasColumnName("expert_min_withdrawal_vnd").HasPrecision(18, 2).IsRequired();
+                entity.Property(p => p.ExpertLateCancelHours).HasColumnName("expert_late_cancel_hours").IsRequired();
+                entity.Property(p => p.ExpertLateCancelPenaltyVnd).HasColumnName("expert_late_cancel_penalty_vnd").HasPrecision(18, 2).IsRequired();
+                entity.Property(p => p.DisputeWindowHours).HasColumnName("dispute_window_hours").IsRequired();
+                entity.Property(p => p.DisputeExpertReplyHours).HasColumnName("dispute_expert_reply_hours").IsRequired();
+                entity.Property(p => p.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+                entity.Property(p => p.CreatedAt).HasColumnName("created_at");
+                entity.Property(p => p.UpdatedAt).HasColumnName("updated_at");
+            });
+
+            // ── TaxSettlementSchedule ─────────────────────────────────────────────
+            modelBuilder.Entity<TaxSettlementSchedule>(entity =>
+            {
+                entity.ToTable("tax_settlement_schedules");
+                entity.HasKey(s => s.Id);
+                entity.Property(s => s.Id).HasColumnName("id");
+                entity.Property(s => s.TaxYear).HasColumnName("tax_year").IsRequired(false);
+                entity.Property(s => s.DeadlineMonth).HasColumnName("deadline_month").IsRequired();
+                entity.Property(s => s.DeadlineDay).HasColumnName("deadline_day").IsRequired();
+                entity.Property(s => s.ReminderDays).HasColumnName("reminder_days").HasMaxLength(100).IsRequired();
+                entity.Property(s => s.Description).HasColumnName("description");
+                entity.Property(s => s.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+                entity.Property(s => s.CreatedAt).HasColumnName("created_at");
+                entity.Property(s => s.UpdatedAt).HasColumnName("updated_at");
+            });
+
+            // ── TaxSettlementDossier ─────────────────────────────────────────────
+            modelBuilder.Entity<TaxSettlementDossier>(entity =>
+            {
+                entity.ToTable("tax_settlement_dossiers");
+                entity.HasKey(d => d.Id);
+                entity.HasMany(d => d.IncomeItems)
+                    .WithOne(i => i.Dossier)
+                    .HasForeignKey(i => i.DossierId)
+                    .OnDelete(DeleteBehavior.Cascade);
+                entity.HasIndex(d => new { d.TaxpayerId, d.TaxYear })
+                    .HasDatabaseName("idx_settlement_taxpayer_year");
+            });
+
+            // ── TaxSettlementIncomeItem ──────────────────────────────────────────
+            modelBuilder.Entity<TaxSettlementIncomeItem>(entity =>
+            {
+                entity.ToTable("tax_settlement_income_items");
+                entity.HasKey(i => i.Id);
+                entity.Property(i => i.IsSelected).HasDefaultValue(true);
+            });
+
+            // ── Specialization (Chuẩn hóa 100% theo phạm vi Thuế TNCN Tiền lương) ──
+            modelBuilder.Entity<Specialization>(entity =>
+            {
+                entity.ToTable("specializations");
+                entity.HasKey(s => s.Id);
+
+                entity.Property(s => s.Id).HasColumnName("id").UseIdentityByDefaultColumn();
+                entity.Property(s => s.Code).HasColumnName("code").HasMaxLength(50).IsRequired();
+                entity.Property(s => s.Name).HasColumnName("name").HasMaxLength(150).IsRequired();
+                entity.Property(s => s.Description).HasColumnName("description");
+                entity.Property(s => s.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+
+                entity.HasIndex(s => s.Code).IsUnique().HasDatabaseName("idx_specializations_code");
+
+                entity.HasData(
+                    new Specialization { Id = 1, Code = "MULTI_SOURCE_SALARY_PIT", Name = "Quyết toán thuế TNCN đa nguồn thu nhập", Description = "Tư vấn quyết toán thuế TNCN từ tiền lương, tiền công tại nhiều nơi chi trả trong năm", IsActive = true },
+                    new Specialization { Id = 2, Code = "DEPENDENT_DEDUCTION_TT87", Name = "Tối ưu giảm trừ gia cảnh & Hồ sơ Người phụ thuộc (Thông tư 87/2026/TT-BTC)", Description = "Rà soát điều kiện và bộ chứng từ chứng minh người phụ thuộc hợp lệ", IsActive = true },
+                    new Specialization { Id = 3, Code = "MEDICAL_EDUCATION_DEDUCTION", Name = "Thẩm định chứng từ giảm trừ Y tế & Giáo dục (Luật 109/2025/QH15 & NĐ 253/2026)", Description = "Kiểm tra tính hợp pháp của hóa đơn viện phí, bảng kê Bộ Y tế và học phí", IsActive = true },
+                    new Specialization { Id = 4, Code = "TAX_EXEMPT_OVERTIME_ALLOWANCE", Name = "Tư vấn bóc tách thu nhập miễn thuế (Lương làm thêm giờ OT, làm đêm, phụ cấp)", Description = "Bóc tách phần chênh lệch lương làm thêm giờ, làm đêm được miễn thuế TNCN", IsActive = true },
+                    new Specialization { Id = 5, Code = "PIT_REFUND_EXPLANATION", Name = "Thủ tục Hoàn thuế TNCN nộp thừa & Giải trình cơ quan thuế", Description = "Hướng dẫn lập hồ sơ hoàn thuế Mẫu 02/QTT-TNCN và giải trình số liệu với cơ quan thuế", IsActive = true }
+                );
+            });
+
+            // ── ConsultationFeeConfiguration ────────────────────────────────────
+            modelBuilder.Entity<ConsultationFeeConfiguration>(entity =>
+            {
+                entity.ToTable("consultation_fee_configurations");
+                entity.HasKey(c => c.Id);
+
+                entity.Property(c => c.Id).HasColumnName("id").UseIdentityByDefaultColumn();
+                entity.Property(c => c.SessionType)
+                    .HasColumnName("session_type")
+                    .HasMaxLength(50)
+                    .HasConversion<string>()
+                    .IsRequired();
+                entity.Property(c => c.DurationMinutes).HasColumnName("duration_minutes").IsRequired();
+                entity.Property(c => c.MinFee).HasColumnName("min_fee").HasColumnType("numeric(18,2)").IsRequired();
+                entity.Property(c => c.MaxFee).HasColumnName("max_fee").HasColumnType("numeric(18,2)").IsRequired();
+                entity.Property(c => c.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+
+                entity.HasIndex(c => new { c.SessionType, c.DurationMinutes })
+                    .IsUnique()
+                    .HasDatabaseName("uq_consultation_fee_type_duration");
+
+                entity.HasData(
+                    new ConsultationFeeConfiguration { Id = 1, SessionType = SessionType.ONLINE_MEETING, DurationMinutes = 30, MinFee = 100000m, MaxFee = 1000000m, IsActive = true },
+                    new ConsultationFeeConfiguration { Id = 2, SessionType = SessionType.ONLINE_MEETING, DurationMinutes = 60, MinFee = 200000m, MaxFee = 2000000m, IsActive = true }
+                );
+            });
+
+            // ── ExpertCertificateConfiguration ──────────────────────────────────
+            modelBuilder.Entity<ExpertCertificateConfiguration>(entity =>
+            {
+                entity.ToTable("expert_certificate_configurations");
+                entity.HasKey(c => c.Id);
+
+                entity.Property(c => c.Id).HasColumnName("id").UseIdentityByDefaultColumn();
+                entity.Property(c => c.Code).HasColumnName("code").HasMaxLength(50).IsRequired();
+                entity.Property(c => c.Name).HasColumnName("name").HasMaxLength(255).IsRequired();
+                entity.Property(c => c.Description).HasColumnName("description").HasMaxLength(500);
+                entity.Property(c => c.DefaultIssuingAuthority).HasColumnName("default_issuing_authority").HasMaxLength(255);
+                entity.Property(c => c.RequiresExpiryDate).HasColumnName("requires_expiry_date").HasDefaultValue(false);
+                entity.Property(c => c.AiKeywords).HasColumnName("ai_keywords").HasMaxLength(500);
+                entity.Property(c => c.DisplayOrder).HasColumnName("display_order").HasDefaultValue(0);
+                entity.Property(c => c.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+                entity.Property(c => c.CreatedAt).HasColumnName("created_at");
+                entity.Property(c => c.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasIndex(c => c.Code)
+                    .IsUnique()
+                    .HasDatabaseName("uq_expert_certificate_code");
+
+                entity.HasData(
+                    new ExpertCertificateConfiguration
+                    {
+                        Id = 1,
+                        Code = "TAX_AGENT",
+                        Name = "Chứng chỉ hành nghề dịch vụ làm thủ tục về thuế (Đại lý thuế)",
+                        DefaultIssuingAuthority = "Tổng cục Thuế",
+                        RequiresExpiryDate = false,
+                        AiKeywords = "đại lý thuế, tax agent, làm thủ tục về thuế, chứng chỉ hành nghề dịch vụ làm thủ tục về thuế",
+                        Description = "Chứng chỉ do Tổng cục Thuế cấp cho cá nhân đủ điều kiện hành nghề dịch vụ thuế.",
+                        DisplayOrder = 1,
+                        IsActive = true,
+                        CreatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
+                        UpdatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)
+                    },
+                    new ExpertCertificateConfiguration
+                    {
+                        Id = 2,
+                        Code = "CPA",
+                        Name = "Chứng chỉ Kiểm toán viên (CPA Việt Nam)",
+                        DefaultIssuingAuthority = "Bộ Tài chính",
+                        RequiresExpiryDate = false,
+                        AiKeywords = "kiểm toán viên, cpa, certified public accountant, bộ tài chính",
+                        Description = "Chứng chỉ kiểm toán viên do Bộ Tài chính cấp.",
+                        DisplayOrder = 2,
+                        IsActive = true,
+                        CreatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
+                        UpdatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)
+                    },
+                    new ExpertCertificateConfiguration
+                    {
+                        Id = 3,
+                        Code = "ACCOUNTANT",
+                        Name = "Chứng chỉ hành nghề Kế toán",
+                        DefaultIssuingAuthority = "Bộ Tài chính",
+                        RequiresExpiryDate = false,
+                        AiKeywords = "hành nghề kế toán, kế toán viên, chứng chỉ kế toán",
+                        Description = "Chứng chỉ hành nghề kế toán do Bộ Tài chính cấp theo quy định Luật Kế toán.",
+                        DisplayOrder = 3,
+                        IsActive = true,
+                        CreatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
+                        UpdatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)
+                    },
+                    new ExpertCertificateConfiguration
+                    {
+                        Id = 4,
+                        Code = "CHIEF_ACCOUNTANT",
+                        Name = "Chứng chỉ bồi dưỡng Kế toán trưởng",
+                        DefaultIssuingAuthority = "Bộ Tài chính",
+                        RequiresExpiryDate = true,
+                        AiKeywords = "kế toán trưởng, bồi dưỡng kế toán trưởng",
+                        Description = "Chứng chỉ bồi dưỡng nghiệp vụ kế toán trưởng, có thời hạn hiệu lực 5 năm theo quy định.",
+                        DisplayOrder = 4,
+                        IsActive = true,
+                        CreatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero),
+                        UpdatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)
+                    }
+                );
+            });
+
+            // ── ExpertSearchConfiguration ─────────────────────────────────────────
+            modelBuilder.Entity<ExpertSearchConfiguration>(entity =>
+            {
+                entity.ToTable("expert_search_configurations");
+                entity.HasKey(c => c.Id);
+
+                entity.Property(c => c.Id).HasColumnName("id").UseIdentityByDefaultColumn();
+                entity.Property(c => c.DefaultSortBy).HasColumnName("default_sort_by").HasConversion<string>().HasMaxLength(50);
+                entity.Property(c => c.RequireVerifiedCertificate).HasColumnName("require_verified_certificate");
+                entity.Property(c => c.SearchInFullName).HasColumnName("search_in_full_name");
+                entity.Property(c => c.SearchInJobTitle).HasColumnName("search_in_job_title");
+                entity.Property(c => c.SearchInCompanyName).HasColumnName("search_in_company_name");
+                entity.Property(c => c.SearchInBio).HasColumnName("search_in_bio");
+                entity.Property(c => c.SearchInSpecializations).HasColumnName("search_in_specializations");
+                entity.Property(c => c.SearchInCertificates).HasColumnName("search_in_certificates");
+                entity.Property(c => c.RatingWeight).HasColumnName("rating_weight");
+                entity.Property(c => c.CompletedConsultationsWeight).HasColumnName("completed_consultations_weight");
+                entity.Property(c => c.ReviewsCountWeight).HasColumnName("reviews_count_weight");
+                entity.Property(c => c.SlotAvailabilityWeight).HasColumnName("slot_availability_weight");
+                entity.Property(c => c.VerifiedCertificateWeight).HasColumnName("verified_certificate_weight");
+                entity.Property(c => c.FeaturedSpecializationIds).HasColumnName("featured_specialization_ids").HasColumnType("text");
+                entity.Property(c => c.AllowedSortOptions).HasColumnName("allowed_sort_options").HasColumnType("text");
+                entity.Property(c => c.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasData(
+                    new ExpertSearchConfiguration
+                    {
+                        Id = 1,
+                        DefaultSortBy = ExpertSortBy.Recommended,
+                        RequireVerifiedCertificate = false,
+                        SearchInFullName = true,
+                        SearchInJobTitle = true,
+                        SearchInCompanyName = true,
+                        SearchInBio = true,
+                        SearchInSpecializations = true,
+                        SearchInCertificates = true,
+                        RatingWeight = 0.35,
+                        CompletedConsultationsWeight = 0.25,
+                        ReviewsCountWeight = 0.15,
+                        SlotAvailabilityWeight = 0.15,
+                        VerifiedCertificateWeight = 0.10,
+                        FeaturedSpecializationIds = "[]",
+                        AllowedSortOptions = "[\"Recommended\",\"RatingDesc\",\"CompletedSessionsDesc\",\"FeeAsc\",\"FeeDesc\",\"ExperienceDesc\"]",
+                        UpdatedAt = new DateTimeOffset(2026, 1, 1, 0, 0, 0, TimeSpan.Zero)
+                    }
+                );
+            });
+
+            // ── ExpertApplication ───────────────────────────────────────────────
+            modelBuilder.Entity<ExpertApplication>(entity =>
+            {
+                entity.ToTable("expert_applications");
+                entity.HasKey(a => a.Id);
+
+                entity.Property(a => a.Id).HasColumnName("id");
+                entity.Property(a => a.UserId).HasColumnName("user_id").IsRequired();
+                entity.Property(a => a.ApplicationNumber).HasColumnName("application_number").HasMaxLength(30).IsRequired();
+                entity.Property(a => a.FullName).HasColumnName("full_name").HasMaxLength(255).IsRequired();
+                entity.Property(a => a.AvatarUrl).HasColumnName("avatar_url").HasMaxLength(500);
+                entity.Property(a => a.JobTitle).HasColumnName("job_title").HasMaxLength(255).IsRequired();
+                entity.Property(a => a.CompanyName).HasColumnName("company_name").HasMaxLength(255);
+                entity.Property(a => a.Bio).HasColumnName("bio");
+                entity.Property(a => a.YearsOfExperience).HasColumnName("years_of_experience").HasDefaultValue(0);
+                entity.Property(a => a.CurrentPosition).HasColumnName("current_position").HasMaxLength(255);
+                entity.Property(a => a.ExperienceDescription).HasColumnName("experience_description").IsRequired();
+                entity.Property(a => a.Status).HasColumnName("status").HasMaxLength(30)
+                    .HasConversion<string>()
+                    .HasDefaultValue(ExpertApplicationStatus.Draft)
+                    .IsRequired();
+                entity.Property(a => a.SubmittedAt).HasColumnName("submitted_at");
+                entity.Property(a => a.ReviewedBy).HasColumnName("reviewed_by");
+                entity.Property(a => a.ReviewedAt).HasColumnName("reviewed_at");
+                entity.Property(a => a.RejectionReason).HasColumnName("rejection_reason");
+                entity.Property(a => a.SupplementRequestReason).HasColumnName("supplement_request_reason");
+                entity.Property(a => a.CreatedAt).HasColumnName("created_at");
+                entity.Property(a => a.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasOne(a => a.User)
+                    .WithMany(u => u.ExpertApplications)
+                    .HasForeignKey(a => a.UserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(a => a.Reviewer)
+                    .WithMany()
+                    .HasForeignKey(a => a.ReviewedBy)
+                    .IsRequired(false)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasIndex(a => a.ApplicationNumber).IsUnique().HasDatabaseName("uq_expert_applications_number");
+                entity.HasIndex(a => a.UserId).HasDatabaseName("idx_expert_applications_user_id");
+                entity.HasIndex(a => a.Status).HasDatabaseName("idx_expert_applications_status");
+
+                // BR-02: Partial unique index đảm bảo mỗi user chỉ có tối đa 1 hồ sơ PendingReview hoặc NeedSupplement
+                entity.HasIndex(a => a.UserId)
+                    .HasFilter("status IN ('PendingReview', 'NeedSupplement')")
+                    .IsUnique()
+                    .HasDatabaseName("uq_user_active_pending_application");
+            });
+
+            // ── ExpertApplicationSpecialization ─────────────────────────────────
+            modelBuilder.Entity<ExpertApplicationSpecialization>(entity =>
+            {
+                entity.ToTable("expert_application_specializations");
+                entity.HasKey(s => new { s.ApplicationId, s.SpecializationId });
+
+                entity.Property(s => s.ApplicationId).HasColumnName("application_id");
+                entity.Property(s => s.SpecializationId).HasColumnName("specialization_id");
+
+                entity.HasOne(s => s.Application)
+                    .WithMany(a => a.ApplicationSpecializations)
+                    .HasForeignKey(s => s.ApplicationId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(s => s.Specialization)
+                    .WithMany(sp => sp.ApplicationSpecializations)
+                    .HasForeignKey(s => s.SpecializationId)
+                    .OnDelete(DeleteBehavior.Restrict);
+            });
+
+            // ── ExpertApplicationCertificate ────────────────────────────────────
+            modelBuilder.Entity<ExpertApplicationCertificate>(entity =>
+            {
+                entity.ToTable("expert_application_certificates");
+                entity.HasKey(c => c.Id);
+
+                entity.Property(c => c.Id).HasColumnName("id");
+                entity.Property(c => c.ApplicationId).HasColumnName("application_id").IsRequired();
+                entity.Property(c => c.CertificateType).HasColumnName("certificate_type").HasMaxLength(50).IsRequired();
+                entity.Property(c => c.CertificateName).HasColumnName("certificate_name").HasMaxLength(255).IsRequired();
+                entity.Property(c => c.CertificateNumber).HasColumnName("certificate_number").HasMaxLength(100).IsRequired();
+                entity.Property(c => c.IssuingAuthority).HasColumnName("issuing_authority").HasMaxLength(255).IsRequired();
+                entity.Property(c => c.IssueDate).HasColumnName("issue_date").IsRequired();
+                entity.Property(c => c.ExpiryDate).HasColumnName("expiry_date");
+                entity.Property(c => c.HasExpiry).HasColumnName("has_expiry").HasDefaultValue(false);
+                entity.Property(c => c.FileUrl).HasColumnName("file_url").HasMaxLength(500).IsRequired();
+                entity.Property(c => c.FileName).HasColumnName("file_name").HasMaxLength(255);
+                entity.Property(c => c.FileMimeType).HasColumnName("file_mime_type").HasMaxLength(100);
+                entity.Property(c => c.VerificationStatus).HasColumnName("verification_status").HasMaxLength(30)
+                    .HasConversion<string>()
+                    .HasDefaultValue(CertificateVerificationStatus.PendingVerification)
+                    .IsRequired();
+                entity.Property(c => c.VerificationSource).HasColumnName("verification_source").HasMaxLength(255);
+                entity.Property(c => c.VerificationNote).HasColumnName("verification_note");
+                entity.Property(c => c.VerifiedBy).HasColumnName("verified_by");
+                entity.Property(c => c.VerifiedAt).HasColumnName("verified_at");
+                entity.Property(c => c.CreatedAt).HasColumnName("created_at");
+
+                entity.HasOne(c => c.Application)
+                    .WithMany(a => a.Certificates)
+                    .HasForeignKey(c => c.ApplicationId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(c => c.Verifier)
+                    .WithMany()
+                    .HasForeignKey(c => c.VerifiedBy)
+                    .IsRequired(false)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasIndex(c => c.ApplicationId).HasDatabaseName("idx_expert_certs_application_id");
+            });
+
+            // ── ExpertApplicationFeeProposal ────────────────────────────────────
+            modelBuilder.Entity<ExpertApplicationFeeProposal>(entity =>
+            {
+                entity.ToTable("expert_application_fee_proposals");
+                entity.HasKey(f => f.Id);
+
+                entity.Property(f => f.Id).HasColumnName("id");
+                entity.Property(f => f.ApplicationId).HasColumnName("application_id").IsRequired();
+                entity.Property(f => f.SessionType)
+                    .HasColumnName("session_type")
+                    .HasMaxLength(50)
+                    .HasConversion<string>()
+                    .IsRequired();
+                entity.Property(f => f.DurationMinutes).HasColumnName("duration_minutes").IsRequired();
+                entity.Property(f => f.ProposedFee).HasColumnName("proposed_fee").HasColumnType("numeric(18,2)").IsRequired();
+
+                entity.HasOne(f => f.Application)
+                    .WithMany(a => a.FeeProposals)
+                    .HasForeignKey(f => f.ApplicationId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(f => new { f.ApplicationId, f.SessionType, f.DurationMinutes })
+                    .IsUnique()
+                    .HasDatabaseName("uq_application_fee_proposal");
+            });
+
+            // ── ExpertApplicationAudit ──────────────────────────────────────────
+            modelBuilder.Entity<ExpertApplicationAudit>(entity =>
+            {
+                entity.ToTable("expert_application_audits");
+                entity.HasKey(a => a.Id);
+
+                entity.Property(a => a.Id).HasColumnName("id");
+                entity.Property(a => a.ApplicationId).HasColumnName("application_id").IsRequired();
+                entity.Property(a => a.ActorId).HasColumnName("actor_id").IsRequired();
+                entity.Property(a => a.Action).HasColumnName("action").HasMaxLength(50)
+                    .HasConversion<string>()
+                    .IsRequired();
+                entity.Property(a => a.FromStatus).HasColumnName("from_status").HasMaxLength(30)
+                    .HasConversion<string>();
+                entity.Property(a => a.ToStatus).HasColumnName("to_status").HasMaxLength(30)
+                    .HasConversion<string>()
+                    .IsRequired();
+                entity.Property(a => a.Notes).HasColumnName("notes");
+                entity.Property(a => a.CreatedAt).HasColumnName("created_at");
+
+                entity.HasOne(a => a.Application)
+                    .WithMany(app => app.Audits)
+                    .HasForeignKey(a => a.ApplicationId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(a => a.Actor)
+                    .WithMany()
+                    .HasForeignKey(a => a.ActorId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasIndex(a => a.ApplicationId).HasDatabaseName("idx_expert_audits_application_id");
+            });
+
+            // ── ExpertProfile ───────────────────────────────────────────────────
+            modelBuilder.Entity<ExpertProfile>(entity =>
+            {
+                entity.ToTable("expert_profiles");
+                entity.HasKey(p => p.Id);
+
+                entity.Property(p => p.Id).HasColumnName("id");
+                entity.Property(p => p.UserId).HasColumnName("user_id").IsRequired();
+                entity.Property(p => p.LatestApplicationId).HasColumnName("latest_application_id").IsRequired();
+                entity.Property(p => p.JobTitle).HasColumnName("job_title").HasMaxLength(255).IsRequired();
+                entity.Property(p => p.CompanyName).HasColumnName("company_name").HasMaxLength(255);
+                entity.Property(p => p.Bio).HasColumnName("bio");
+                entity.Property(p => p.YearsOfExperience).HasColumnName("years_of_experience").HasDefaultValue(0);
+                entity.Property(p => p.Rating).HasColumnName("rating").HasColumnType("numeric(3,2)").HasDefaultValue(0m);
+                entity.Property(p => p.TotalReviews).HasColumnName("total_reviews").HasDefaultValue(0);
+                entity.Property(p => p.CompletedConsultationsCount).HasColumnName("completed_consultations_count").HasDefaultValue(0);
+                entity.Property(p => p.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+                entity.Property(p => p.ApprovedAt).HasColumnName("approved_at");
+                entity.Property(p => p.CreatedAt).HasColumnName("created_at");
+                entity.Property(p => p.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasOne(p => p.User)
+                    .WithOne(u => u.ExpertProfile)
+                    .HasForeignKey<ExpertProfile>(p => p.UserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(p => p.LatestApplication)
+                    .WithMany()
+                    .HasForeignKey(p => p.LatestApplicationId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasIndex(p => p.UserId).IsUnique().HasDatabaseName("uq_expert_profiles_user_id");
+            });
+
+            // ── ExpertSlot ──────────────────────────────────────────────────────
+            modelBuilder.Entity<ExpertSlot>(entity =>
+            {
+                entity.ToTable("expert_slots");
+                entity.HasKey(s => s.Id);
+
+                entity.Property(s => s.Id).HasColumnName("id");
+                entity.Property(s => s.ExpertProfileId).HasColumnName("expert_profile_id").IsRequired();
+                entity.Property(s => s.SlotDate).HasColumnName("slot_date").IsRequired();
+                entity.Property(s => s.StartTime).HasColumnName("start_time").IsRequired();
+                entity.Property(s => s.EndTime).HasColumnName("end_time").IsRequired();
+                entity.Property(s => s.SessionType)
+                    .HasColumnName("session_type")
+                    .HasMaxLength(50)
+                    .HasConversion<string>()
+                    .HasDefaultValue(SessionType.ONLINE_MEETING)
+                    .IsRequired();
+                entity.Property(s => s.IsBooked).HasColumnName("is_booked").HasDefaultValue(false);
+                entity.Property(s => s.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+                entity.Property(s => s.HoldExpiresAt).HasColumnName("hold_expires_at");
+                entity.Property(s => s.HoldUserId).HasColumnName("hold_user_id");
+                entity.Property(s => s.CreatedAt).HasColumnName("created_at");
+                entity.Property(s => s.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasOne(s => s.ExpertProfile)
+                    .WithMany(p => p.Slots)
+                    .HasForeignKey(s => s.ExpertProfileId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(s => s.ExpertProfileId).HasDatabaseName("idx_expert_slots_profile_id");
+                entity.HasIndex(s => s.SlotDate).HasDatabaseName("idx_expert_slots_slot_date");
+                entity.HasIndex(s => new { s.ExpertProfileId, s.SlotDate, s.StartTime }).IsUnique().HasDatabaseName("uq_expert_slots_profile_datetime");
+            });
+
+            // ── ExpertReview ────────────────────────────────────────────────────
+            modelBuilder.Entity<ExpertReview>(entity =>
+            {
+                entity.ToTable("expert_reviews");
+                entity.HasKey(r => r.Id);
+
+                entity.Property(r => r.Id).HasColumnName("id");
+                entity.Property(r => r.ExpertProfileId).HasColumnName("expert_profile_id").IsRequired();
+                entity.Property(r => r.UserId).HasColumnName("user_id").IsRequired();
+                entity.Property(r => r.BookingId).HasColumnName("booking_id");
+                entity.Property(r => r.Rating).HasColumnName("rating").IsRequired();
+                entity.Property(r => r.Comment).HasColumnName("comment");
+                entity.Property(r => r.DetailScoresJson).HasColumnName("detail_scores_json");
+                entity.Property(r => r.IsAnonymous).HasColumnName("is_anonymous").HasDefaultValue(false);
+                entity.Property(r => r.IsPublished).HasColumnName("is_published").HasDefaultValue(true);
+                entity.Property(r => r.IsFlaggedForReview).HasColumnName("is_flagged_for_review").HasDefaultValue(false);
+                entity.Property(r => r.ExpertReply).HasColumnName("expert_reply");
+                entity.Property(r => r.ExpertRepliedAt).HasColumnName("expert_replied_at");
+                entity.Property(r => r.CreatedAt).HasColumnName("created_at");
+                entity.Property(r => r.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasOne(r => r.ExpertProfile)
+                    .WithMany(p => p.Reviews)
+                    .HasForeignKey(r => r.ExpertProfileId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(r => r.User)
+                    .WithMany(u => u.ExpertReviews)
+                    .HasForeignKey(r => r.UserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasIndex(r => r.ExpertProfileId).HasDatabaseName("idx_expert_reviews_profile_id");
+                entity.HasIndex(r => r.UserId).HasDatabaseName("idx_expert_reviews_user_id");
+                // Ràng buộc: mỗi Booking chỉ có đúng 1 review của User (Business Rule - chỉ review 1 lần)
+                entity.HasIndex(r => r.BookingId).IsUnique().HasDatabaseName("uq_expert_reviews_booking_id")
+                    .HasFilter("booking_id IS NOT NULL");
+            });
+
+            // ── Booking ─────────────────────────────────────────────────────────
+            modelBuilder.Entity<Booking>(entity =>
+            {
+                entity.ToTable("bookings");
+                entity.HasKey(b => b.Id);
+
+                entity.Property(b => b.Id).HasColumnName("id");
+                entity.Property(b => b.BookingCode).HasColumnName("booking_code").HasMaxLength(50).IsRequired();
+                entity.Property(b => b.UserId).HasColumnName("user_id").IsRequired();
+                entity.Property(b => b.ExpertSlotId).HasColumnName("expert_slot_id").IsRequired();
+                entity.Property(b => b.SpecializationId).HasColumnName("specialization_id").IsRequired();
+
+                entity.Property(b => b.SessionType)
+                    .HasColumnName("session_type")
+                    .HasMaxLength(50)
+                    .HasConversion<string>()
+                    .IsRequired();
+
+                entity.Property(b => b.DurationMinutes).HasColumnName("duration_minutes").IsRequired();
+                entity.Property(b => b.Fee).HasColumnName("fee").HasPrecision(15, 2).IsRequired();
+                entity.Property(b => b.TopicTitle).HasColumnName("topic_title").HasMaxLength(255).IsRequired();
+                entity.Property(b => b.ProblemDescription).HasColumnName("problem_description").IsRequired();
+
+                entity.Property(b => b.Status)
+                    .HasColumnName("status")
+                    .HasMaxLength(50)
+                    .HasConversion<string>()
+                    .HasDefaultValue(BookingStatus.PENDING_PAYMENT)
+                    .IsRequired();
+
+                entity.Property(b => b.HoldExpiresAt).HasColumnName("hold_expires_at").IsRequired();
+                entity.Property(b => b.ApprovalDeadline).HasColumnName("approval_deadline");
+                entity.Property(b => b.ApprovedAt).HasColumnName("approved_at");
+                entity.Property(b => b.RejectedAt).HasColumnName("rejected_at");
+                entity.Property(b => b.RejectionReason).HasColumnName("rejection_reason");
+
+                entity.Property(b => b.PaidAt).HasColumnName("paid_at");
+                entity.Property(b => b.PaymentReference).HasColumnName("payment_reference").HasMaxLength(100);
+                entity.Property(b => b.RefundStatus).HasColumnName("refund_status").HasMaxLength(50).HasDefaultValue("NONE");
+                entity.Property(b => b.RefundedAt).HasColumnName("refunded_at");
+
+                entity.Property(b => b.CompletedAt).HasColumnName("completed_at");
+                entity.Property(b => b.ReviewDeadline).HasColumnName("review_deadline");
+
+                entity.Property(b => b.CancelledAt).HasColumnName("cancelled_at");
+                entity.Property(b => b.CancellationReason).HasColumnName("cancellation_reason");
+                entity.Property(b => b.CancelledBy).HasColumnName("cancelled_by").HasMaxLength(50);
+
+                entity.Property(b => b.CreatedAt).HasColumnName("created_at");
+                entity.Property(b => b.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasOne(b => b.User)
+                    .WithMany(u => u.Bookings)
+                    .HasForeignKey(b => b.UserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(b => b.ExpertSlot)
+                    .WithMany(s => s.Bookings)
+                    .HasForeignKey(b => b.ExpertSlotId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(b => b.Specialization)
+                    .WithMany(s => s.Bookings)
+                    .HasForeignKey(b => b.SpecializationId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasIndex(b => b.BookingCode).IsUnique().HasDatabaseName("uq_bookings_booking_code");
+                entity.HasIndex(b => b.UserId).HasDatabaseName("idx_bookings_user_id");
+                entity.HasIndex(b => b.ExpertSlotId).HasDatabaseName("idx_bookings_slot_id");
+                entity.HasIndex(b => new { b.Status, b.HoldExpiresAt }).HasDatabaseName("idx_bookings_status_hold");
+            });
+
+            // ── EscrowTransaction (Đặc tả 4 & 7) ────────────────────────────────
+            modelBuilder.Entity<EscrowTransaction>(entity =>
+            {
+                entity.ToTable("escrow_transactions");
+                entity.HasKey(e => e.Id);
+
+                entity.Property(e => e.Id).HasColumnName("id");
+                entity.Property(e => e.BookingId).HasColumnName("booking_id").IsRequired();
+                entity.Property(e => e.OrderCode).HasColumnName("order_code").IsRequired();
+                entity.Property(e => e.Amount).HasColumnName("amount").HasColumnType("numeric(18,2)").IsRequired();
+                entity.Property(e => e.CommissionRate).HasColumnName("commission_rate").HasColumnType("numeric(5,2)").IsRequired();
+                entity.Property(e => e.CommissionAmount).HasColumnName("commission_amount").HasColumnType("numeric(18,2)").IsRequired();
+                entity.Property(e => e.ExpertReceivable).HasColumnName("expert_receivable").HasColumnType("numeric(18,2)").IsRequired();
+
+                entity.Property(e => e.EscrowStatus)
+                    .HasColumnName("escrow_status")
+                    .HasMaxLength(50)
+                    .HasConversion<string>()
+                    .HasDefaultValue(EscrowStatus.PendingPayment)
+                    .IsRequired();
+
+                entity.Property(e => e.PaymentGateway).HasColumnName("payment_gateway").HasMaxLength(50).HasDefaultValue("VNPAY").IsRequired();
+                entity.Property(e => e.PaymentReference).HasColumnName("payment_reference").HasMaxLength(100);
+                entity.Property(e => e.PaymentLinkId).HasColumnName("payment_link_id").HasMaxLength(100);
+                entity.Property(e => e.CheckoutUrl).HasColumnName("checkout_url");
+                entity.Property(e => e.QrCode).HasColumnName("qr_code");
+                entity.Property(e => e.RefundAmount).HasColumnName("refund_amount").HasColumnType("numeric(18,2)").HasDefaultValue(0m);
+                entity.Property(e => e.RefundReason).HasColumnName("refund_reason");
+                entity.Property(e => e.PaidAt).HasColumnName("paid_at");
+                entity.Property(e => e.SettledAt).HasColumnName("settled_at");
+                entity.Property(e => e.RefundedAt).HasColumnName("refunded_at");
+                entity.Property(e => e.CreatedAt).HasColumnName("created_at");
+                entity.Property(e => e.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasOne(e => e.Booking)
+                    .WithOne(b => b.EscrowTransaction)
+                    .HasForeignKey<EscrowTransaction>(e => e.BookingId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(e => e.BookingId).IsUnique().HasDatabaseName("uq_escrow_transactions_booking_id");
+                entity.HasIndex(e => e.OrderCode).IsUnique().HasDatabaseName("uq_escrow_transactions_order_code");
+                entity.HasIndex(e => e.EscrowStatus).HasDatabaseName("idx_escrow_transactions_status");
+            });
+
+            // ── ConsultationSession (Đặc tả 5) ──────────────────────────────────
+            modelBuilder.Entity<ConsultationSession>(entity =>
+            {
+                entity.ToTable("consultation_sessions");
+                entity.HasKey(s => s.Id);
+
+                entity.Property(s => s.Id).HasColumnName("id");
+                entity.Property(s => s.BookingId).HasColumnName("booking_id").IsRequired();
+                entity.Property(s => s.RoomName).HasColumnName("room_name").HasMaxLength(150).IsRequired();
+                entity.Property(s => s.RoomUrl).HasColumnName("room_url").HasMaxLength(500).IsRequired();
+                entity.Property(s => s.UserCheckInAt).HasColumnName("user_check_in_at");
+                entity.Property(s => s.ExpertCheckInAt).HasColumnName("expert_check_in_at");
+                entity.Property(s => s.StartedAt).HasColumnName("started_at");
+                entity.Property(s => s.EndedAt).HasColumnName("ended_at");
+                entity.Property(s => s.ActualDurationMinutes).HasColumnName("actual_duration_minutes");
+                entity.Property(s => s.SharedNotes).HasColumnName("shared_notes");
+                entity.Property(s => s.NoShowType).HasColumnName("no_show_type").HasMaxLength(50).HasDefaultValue("NONE").IsRequired();
+                entity.Property(s => s.NoShowReportedBy).HasColumnName("no_show_reported_by").HasMaxLength(50);
+                entity.Property(s => s.NoShowReportedAt).HasColumnName("no_show_reported_at");
+                entity.Property(s => s.CreatedAt).HasColumnName("created_at");
+                entity.Property(s => s.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasIndex(s => s.BookingId).IsUnique().HasDatabaseName("uq_consultation_sessions_booking_id");
+            });
+
+            // ── UserWallet (Đặc tả 7) ───────────────────────────────────────────
+            modelBuilder.Entity<UserWallet>(entity =>
+            {
+                entity.ToTable("user_wallets");
+                entity.HasKey(w => w.Id);
+
+                entity.Property(w => w.Id).HasColumnName("id");
+                entity.Property(w => w.UserId).HasColumnName("user_id").IsRequired();
+                entity.Property(w => w.WalletType).HasColumnName("wallet_type").HasMaxLength(20).HasDefaultValue("USER").IsRequired();
+                entity.Property(w => w.AvailableBalance).HasColumnName("available_balance").HasPrecision(18, 2).HasDefaultValue(0m);
+                entity.Property(w => w.FrozenBalance).HasColumnName("frozen_balance").HasPrecision(18, 2).HasDefaultValue(0m);
+                entity.Property(w => w.TotalEarned).HasColumnName("total_earned").HasPrecision(18, 2).HasDefaultValue(0m);
+                entity.Property(w => w.TotalWithdrawn).HasColumnName("total_withdrawn").HasPrecision(18, 2).HasDefaultValue(0m);
+                entity.Property(w => w.CreatedAt).HasColumnName("created_at");
+                entity.Property(w => w.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasOne(w => w.User)
+                    .WithMany()
+                    .HasForeignKey(w => w.UserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasIndex(w => new { w.UserId, w.WalletType }).IsUnique().HasDatabaseName("uq_user_wallets_user_type");
+            });
+
+            // ── WalletTransaction (Đặc tả 7) ────────────────────────────────────
+            modelBuilder.Entity<WalletTransaction>(entity =>
+            {
+                entity.ToTable("wallet_transactions");
+                entity.HasKey(t => t.Id);
+
+                entity.Property(t => t.Id).HasColumnName("id");
+                entity.Property(t => t.WalletId).HasColumnName("wallet_id").IsRequired();
+                entity.Property(t => t.UserId).HasColumnName("user_id").IsRequired();
+                entity.Property(t => t.Amount).HasColumnName("amount").HasPrecision(18, 2).IsRequired();
+                entity.Property(t => t.BalanceBefore).HasColumnName("balance_before").HasPrecision(18, 2).IsRequired();
+                entity.Property(t => t.BalanceAfter).HasColumnName("balance_after").HasPrecision(18, 2).IsRequired();
+                entity.Property(t => t.TransactionType).HasColumnName("transaction_type").HasMaxLength(50).IsRequired();
+                entity.Property(t => t.ReferenceId).HasColumnName("reference_id");
+                entity.Property(t => t.Description).HasColumnName("description").HasMaxLength(500);
+                entity.Property(t => t.CreatedAt).HasColumnName("created_at");
+
+                entity.HasOne(t => t.Wallet)
+                    .WithMany(w => w.Transactions)
+                    .HasForeignKey(t => t.WalletId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(t => t.UserId).HasDatabaseName("idx_wallet_transactions_user_id");
+                entity.HasIndex(t => t.WalletId).HasDatabaseName("idx_wallet_transactions_wallet_id");
+            });
+
+            // ── WithdrawalRequest (Đặc tả 7) ────────────────────────────────────
+            modelBuilder.Entity<WithdrawalRequest>(entity =>
+            {
+                entity.ToTable("withdrawal_requests");
+                entity.HasKey(r => r.Id);
+
+                entity.Property(r => r.Id).HasColumnName("id");
+                entity.Property(r => r.UserId).HasColumnName("user_id").IsRequired();
+                entity.Property(r => r.Amount).HasColumnName("amount").HasPrecision(18, 2).IsRequired();
+                entity.Property(r => r.BankName).HasColumnName("bank_name").HasMaxLength(100).IsRequired();
+                entity.Property(r => r.AccountNumber).HasColumnName("account_number").HasMaxLength(50).IsRequired();
+                entity.Property(r => r.AccountName).HasColumnName("account_name").HasMaxLength(150).IsRequired();
+                entity.Property(r => r.Status).HasColumnName("status").HasMaxLength(50).HasDefaultValue("PENDING").IsRequired();
+                entity.Property(r => r.RejectionReason).HasColumnName("rejection_reason").HasMaxLength(500);
+                entity.Property(r => r.TransactionReference).HasColumnName("transaction_reference").HasMaxLength(100);
+                entity.Property(r => r.AdminNotes).HasColumnName("admin_notes").HasMaxLength(500);
+                entity.Property(r => r.ProcessedBy).HasColumnName("processed_by");
+                entity.Property(r => r.ProcessedAt).HasColumnName("processed_at");
+                entity.Property(r => r.CreatedAt).HasColumnName("created_at");
+                entity.Property(r => r.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasOne(r => r.User)
+                    .WithMany()
+                    .HasForeignKey(r => r.UserId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasIndex(r => r.UserId).HasDatabaseName("idx_withdrawal_requests_user_id");
+                entity.HasIndex(r => r.Status).HasDatabaseName("idx_withdrawal_requests_status");
+            });
+
+            // ── BookingDispute (Đặc tả 7) ───────────────────────────────────────
+            modelBuilder.Entity<BookingDispute>(entity =>
+            {
+                entity.ToTable("booking_disputes");
+                entity.HasKey(d => d.Id);
+
+                entity.Property(d => d.Id).HasColumnName("id");
+                entity.Property(d => d.BookingId).HasColumnName("booking_id").IsRequired();
+                entity.Property(d => d.UserId).HasColumnName("user_id").IsRequired();
+                entity.Property(d => d.ExpertUserId).HasColumnName("expert_user_id").IsRequired();
+                entity.Property(d => d.Reason).HasColumnName("reason").HasMaxLength(100).IsRequired();
+                entity.Property(d => d.Description).HasColumnName("description").IsRequired();
+                entity.Property(d => d.EvidenceUrlsJson).HasColumnName("evidence_urls_json");
+                entity.Property(d => d.Status).HasColumnName("status").HasMaxLength(50).HasDefaultValue("PENDING_EXPERT_RESPONSE").IsRequired();
+                entity.Property(d => d.ExpertResponse).HasColumnName("expert_response");
+                entity.Property(d => d.ExpertEvidenceUrlsJson).HasColumnName("expert_evidence_urls_json");
+                entity.Property(d => d.ExpertRespondedAt).HasColumnName("expert_responded_at");
+                entity.Property(d => d.ExpertResponseDeadline).HasColumnName("expert_response_deadline");
+                entity.Property(d => d.AdminDecisionType).HasColumnName("admin_decision_type").HasMaxLength(50);
+                entity.Property(d => d.AdminResolution).HasColumnName("admin_resolution");
+                entity.Property(d => d.RefundRatePercent).HasColumnName("refund_rate_percent").HasPrecision(5, 2);
+                entity.Property(d => d.UserRefundAmount).HasColumnName("user_refund_amount").HasPrecision(18, 2).HasDefaultValue(0m);
+                entity.Property(d => d.ExpertSettlementAmount).HasColumnName("expert_settlement_amount").HasPrecision(18, 2).HasDefaultValue(0m);
+                entity.Property(d => d.PlatformFeeAmount).HasColumnName("platform_fee_amount").HasPrecision(18, 2).HasDefaultValue(0m);
+                entity.Property(d => d.AdminNotes).HasColumnName("admin_notes");
+                entity.Property(d => d.ResolvedBy).HasColumnName("resolved_by");
+                entity.Property(d => d.ResolvedAt).HasColumnName("resolved_at");
+                entity.Property(d => d.CreatedAt).HasColumnName("created_at");
+                entity.Property(d => d.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasOne(d => d.Booking)
+                    .WithMany()
+                    .HasForeignKey(d => d.BookingId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(d => d.BookingId).IsUnique().HasDatabaseName("uq_booking_disputes_booking_id");
+                entity.HasIndex(d => d.Status).HasDatabaseName("idx_booking_disputes_status");
+            });
+        }
+    }
+}
