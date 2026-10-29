@@ -235,7 +235,7 @@ QuestPDF.Settings.ThrowOnMissingFontFamilies = false;
 var app = builder.Build();
 
 // ── Middleware Pipeline ──────────────────────────────────────────────────────
-if (app.Environment.IsDevelopment())
+if (app.Environment.IsDevelopment() || app.Environment.IsEnvironment("Staging"))
 {
     app.UseSwagger();
     app.UseSwaggerUI();
@@ -247,7 +247,7 @@ app.UseMiddleware<GlobalExceptionMiddleware>();
 app.UseCors("AllowAll");
 
 // Chỉ chuyển hướng HTTPS khi production để không làm gián đoạn HTTP từ Android Emulator (10.0.2.2:5023)
-if (!app.Environment.IsDevelopment())
+if (app.Environment.IsProduction())
 {
     app.UseHttpsRedirection();
 }
