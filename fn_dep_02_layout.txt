@@ -1,0 +1,48 @@
+Row 1: 
+Row 2: Function Code |  | FN_DEP_02 |  |  | Function Name |  |  |  |  |  | UpdateGroupAsync
+Row 3: Created By |  | Võ Văn Cường |  |  | Executed By |  |  |  |  |  | Võ Văn Cường
+Row 4: Lines  of code |  | 100 |  |  | Lack of test cases |  |  |  |  |  | -5
+Row 5: Test requirement |  | <Brief description about requirements which are tested in this function>
+Row 6: Passed |  | Failed |  |  | Untested |  |  |  |  |  | N/A/B |  |  | Total Test Cases
+Row 7: 0 |  | 0 |  |  | 15 |  |  |  |  |  | 0 | 0 | 0 | 15
+Row 8: 
+Row 9:  |  |  |  |  | UTCID01 | UTCID02 | UTCID02 | UTCID02 | UTCID02 | UTCID02 | UTCID07 | UTCID08 | UTCID09 | UTCID10 | UTCID11 | UTCID12
+Row 10: Condition | Precondition 
+Row 11: 
+Row 12: 
+Row 13: 
+Row 14: 
+Row 15: 
+Row 16: 
+Row 17: 
+Row 18: 
+Row 19: 
+Row 20: 
+Row 21: 
+Row 22: 
+Row 23: 
+Row 24: 
+Row 25: 
+Row 26: 
+Row 27: 
+Row 28: 
+Row 29: 
+Row 30: 
+Row 31: 
+Row 32: 
+Row 33: Confirm | Return
+Row 34: 
+Row 35: 
+Row 36: 
+Row 37: 
+Row 38: 
+Row 39: 
+Row 40:  | Exception
+Row 41: 
+Row 42:  | Log message
+Row 43: 
+Row 44: 
+Row 45: Result | Type(N : Normal, A : Abnormal, B : Boundary) |  |  |  | A | N | N | N | N | N | B
+Row 46:  | Passed/Failed
+Row 47:  | Executed Date |  |  |  | 02/26 | 02/26 | 02/26 | 02/26 | 02/26 | 02/26 | 03/03
+Row 48:  | Defect ID

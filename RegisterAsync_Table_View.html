@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>FN_AUTH_01: RegisterAsync - Unit Test Matrix</title>
+<style>
+  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 20px; background-color: #f8f9fa; }
+  h2 { color: #1a237e; margin-bottom: 5px; }
+  .info-table { border-collapse: collapse; width: 100%; max-width: 1200px; margin-bottom: 20px; background: white; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+  .info-table td, .info-table th { border: 1px solid #c5cae9; padding: 6px 12px; font-size: 13px; }
+  .info-header { background-color: #e8eaf6; font-weight: bold; width: 15%; color: #1a237e; }
+  
+  .matrix-wrapper { overflow-x: auto; max-width: 100%; box-shadow: 0 2px 5px rgba(0,0,0,0.15); border-radius: 4px; background: white; }
+  .matrix-table { border-collapse: collapse; width: 100%; font-size: 12px; }
+  .matrix-table th, .matrix-table td { border: 1px solid #b0bec5; padding: 6px 8px; text-align: left; }
+  
+  .th-header { background-color: #1a237e; color: white; text-align: center !important; font-weight: 600; }
+  .th-utc { background-color: #283593; color: white; text-align: center !important; font-weight: bold; width: 35px; min-width: 35px; }
+  
+  .cat-header { background-color: #e3f2fd; font-weight: bold; color: #0d47a1; }
+  .sub-header { background-color: #f5f5f5; font-weight: 500; }
+  .cell-o { text-align: center !important; font-weight: bold; color: #1b5e20; background-color: #e8f5e9; }
+  .cell-empty { text-align: center !important; color: #bdbdbd; }
+  
+  .res-n { text-align: center !important; font-weight: bold; color: #0d47a1; background-color: #e3f2fd; }
+  .res-a { text-align: center !important; font-weight: bold; color: #b71c1c; background-color: #ffebee; }
+  .res-b { text-align: center !important; font-weight: bold; color: #e65100; background-color: #fff3e0; }
+  .res-p { text-align: center !important; font-weight: bold; color: #1b5e20; background-color: #e8f5e9; }
+  
+  .section-divider { border-top: 2px solid #1a237e !important; }
+</style>
+</head>
+<body>
+
+<h2>Unit Test Specification & Decision Table</h2>
+<p style="color: #666; margin-top: 0;">Function: <b>RegisterAsync</b> | Code: <b>FN_AUTH_01</b> | Author: <b>Võ Văn Cường</b></p>
+
+<!-- Header Info Table -->
+<table class="info-table">
+  <tr>
+    <td class="info-header">Function Code</td>
+    <td style="font-weight: bold; color: #0d47a1;">FN_AUTH_01</td>
+    <td class="info-header">Function Name</td>
+    <td style="font-weight: bold; color: #0d47a1;">RegisterAsync</td>
+  </tr>
+  <tr>
+    <td class="info-header">Created By</td>
+    <td>Võ Văn Cường</td>
+    <td class="info-header">Executed By</td>
+    <td>Võ Văn Cường</td>
+  </tr>
+  <tr>
+    <td class="info-header">Lines of code</td>
+    <td>48</td>
+    <td class="info-header">Lack of test cases</td>
+    <td>0</td>
+  </tr>
+  <tr>
+    <td class="info-header">Test requirement</td>
+    <td colspan="3">Verify taxpayer account registration logic, ensuring new user records and wallets are initialized for valid inputs, while throwing BadRequestException for duplicate CitizenId, duplicate Email, and invalid formats.</td>
+  </tr>
+  <tr>
+    <td class="info-header" style="background: #e8f5e9; color: #1b5e20;">Passed</td>
+    <td style="background: #e8f5e9; font-weight: bold; color: #1b5e20;">15</td>
+    <td class="info-header" style="background: #ffebee; color: #b71c1c;">Failed / Untested</td>
+    <td style="background: #ffebee; font-weight: bold; color: #b71c1c;">0 / 0</td>
+  </tr>
+  <tr>
+    <td class="info-header">N / A / B</td>
+    <td style="font-weight: bold;">4 / 8 / 3</td>
+    <td class="info-header">Total Test Cases</td>
+    <td style="font-weight: bold; color: #1a237e;">15</td>
+  </tr>
+</table>
+
+<!-- Matrix Table -->
+<div class="matrix-wrapper">
+<table class="matrix-table">
+  <thead>
+    <tr>
+      <th class="th-header" style="width: 100px;">Category</th>
+      <th class="th-header" style="width: 130px;">Input / Parameter</th>
+      <th class="th-header" style="width: 200px;">Specific Condition Value</th>
+      <th class="th-utc">01</th>
+      <th class="th-utc">02</th>
+      <th class="th-utc">03</th>
+      <th class="th-utc">04</th>
+      <th class="th-utc">05</th>
+      <th class="th-utc">06</th>
+      <th class="th-utc">07</th>
+      <th class="th-utc">08</th>
+      <th class="th-utc">09</th>
+      <th class="th-utc">10</th>
+      <th class="th-utc">11</th>
+      <th class="th-utc">12</th>
+      <th class="th-utc">13</th>
+      <th class="th-utc">14</th>
+      <th class="th-utc">15</th>
+    </tr>
+  </thead>
+  <tbody>
+    <!-- Precondition -->
+    <tr class="sub-header">
+      <td rowspan="1" class="cat-header">Precondition</td>
+      <td>Server / DB Connection</td>
+      <td>Can connect with database</td>
+      <td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td>
+    </tr>
+
+    <!-- CitizenId -->
+    <tr>
+      <td rowspan="6" class="cat-header">Condition<br>(Inputs)</td>
+      <td rowspan="6"><b>CitizenId</b></td>
+      <td>Valid & Unique (12 digits)</td>
+      <td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-o">O</td>
+    </tr>
+    <tr>
+      <td>Duplicate in DB</td>
+      <td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-o">O</td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td>
+    </tr>
+    <tr>
+      <td>Empty / Null</td>
+      <td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-o">O</td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td>
+    </tr>
+    <tr>
+      <td>Contains letters / Non-digit</td>
+      <td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-o">O</td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td>
+    </tr>
+    <tr>
+      <td>Length = 11 digits (Boundary)</td>
+      <td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-o">O</td><td class="cell-empty"></td><td class="cell-empty"></td>
+    </tr>
+    <tr>
+      <td>Length = 13 digits (Boundary)</td>
+      <td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-o">O</td><td class="cell-empty"></td>
+    </tr>
+
+    <!-- Email -->
+    <tr>
+      <td rowspan="4" class="cat-header"></td>
+      <td rowspan="4"><b>Email</b></td>
+      <td>Valid & Unique</td>
+      <td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-empty"></td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td>
+    </tr>
+    <tr>
+      <td>Duplicate in DB</td>
+      <td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-o">O</td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td>
+    </tr>
+    <tr>
+      <td>Empty / Null</td>
+      <td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-o">O</td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td>
+    </tr>
+    <tr>
+      <td>Invalid format (Missing @)</td>
+      <td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-o">O</td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td>
+    </tr>
+
+    <!-- Password -->
+    <tr>
+      <td rowspan="3" class="cat-header"></td>
+      <td rowspan="3"><b>Password</b></td>
+      <td>Valid strong password</td>
+      <td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-empty"></td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-empty"></td>
+    </tr>
+    <tr>
+      <td>Empty / Null</td>
+      <td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-o">O</td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td>
+    </tr>
+    <tr>
+      <td>Min boundary (Exactly 6 chars)</td>
+      <td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-o">O</td>
+    </tr>
+
+    <!-- FullName -->
+    <tr>
+      <td rowspan="2" class="cat-header"></td>
+      <td rowspan="2"><b>FullName</b></td>
+      <td>Valid string</td>
+      <td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-empty"></td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td>
+    </tr>
+    <tr>
+      <td>Empty / Null</td>
+      <td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-o">O</td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td>
+    </tr>
+
+    <!-- PhoneNumber -->
+    <tr>
+      <td rowspan="1" class="cat-header"></td>
+      <td><b>PhoneNumber</b></td>
+      <td>Valid 10 digits</td>
+      <td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td>
+    </tr>
+
+    <!-- Confirm: Return -->
+    <tr class="section-divider">
+      <td rowspan="2" class="cat-header" style="background-color: #fff9c4; color: #f57f17;">Confirm</td>
+      <td rowspan="2"><b>Return</b></td>
+      <td>T (RegisterResponse)</td>
+      <td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-o">O</td>
+    </tr>
+    <tr>
+      <td>F</td>
+      <td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-empty"></td>
+    </tr>
+
+    <!-- Confirm: Exception -->
+    <tr>
+      <td rowspan="4" class="cat-header" style="background-color: #fff9c4; color: #f57f17;"></td>
+      <td rowspan="4"><b>Exception</b></td>
+      <td>None (Success)</td>
+      <td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-o">O</td>
+    </tr>
+    <tr>
+      <td>"CITIZEN_ID_ALREADY_EXISTS"</td>
+      <td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-o">O</td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td>
+    </tr>
+    <tr>
+      <td>"EMAIL_ALREADY_EXISTS"</td>
+      <td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-o">O</td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td>
+    </tr>
+    <tr>
+      <td>"INVALID_INPUT"</td>
+      <td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-empty"></td>
+    </tr>
+
+    <!-- Confirm: Log Message -->
+    <tr>
+      <td rowspan="4" class="cat-header" style="background-color: #fff9c4; color: #f57f17;"></td>
+      <td rowspan="4"><b>Log message</b></td>
+      <td>"User registered successfully"</td>
+      <td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-o">O</td>
+    </tr>
+    <tr>
+      <td>"Citizen ID already registered"</td>
+      <td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-o">O</td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td>
+    </tr>
+    <tr>
+      <td>"Email address already exists"</td>
+      <td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-o">O</td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td>
+    </tr>
+    <tr>
+      <td>"Input validation failed"</td>
+      <td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-empty"></td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-o">O</td><td class="cell-empty"></td>
+    </tr>
+
+    <!-- Results -->
+    <tr class="section-divider">
+      <td rowspan="4" class="cat-header" style="background-color: #ede7f6; color: #4a148c;">Result</td>
+      <td colspan="2"><b>Type (N : Normal, A : Abnormal, B : Boundary)</b></td>
+      <td class="res-n">N</td><td class="res-n">N</td><td class="res-n">N</td><td class="res-n">N</td><td class="res-a">A</td><td class="res-a">A</td><td class="res-a">A</td><td class="res-a">A</td><td class="res-a">A</td><td class="res-a">A</td><td class="res-a">A</td><td class="res-a">A</td><td class="res-b">B</td><td class="res-b">B</td><td class="res-b">B</td>
+    </tr>
+    <tr>
+      <td colspan="2"><b>Passed / Failed</b></td>
+      <td class="res-p">P</td><td class="res-p">P</td><td class="res-p">P</td><td class="res-p">P</td><td class="res-p">P</td><td class="res-p">P</td><td class="res-p">P</td><td class="res-p">P</td><td class="res-p">P</td><td class="res-p">P</td><td class="res-p">P</td><td class="res-p">P</td><td class="res-p">P</td><td class="res-p">P</td><td class="res-p">P</td>
+    </tr>
+    <tr>
+      <td colspan="2"><b>Executed Date</b></td>
+      <td style="text-align: center;">10/30</td><td style="text-align: center;">10/30</td><td style="text-align: center;">10/30</td><td style="text-align: center;">10/30</td><td style="text-align: center;">10/30</td><td style="text-align: center;">10/30</td><td style="text-align: center;">10/30</td><td style="text-align: center;">10/30</td><td style="text-align: center;">10/30</td><td style="text-align: center;">10/30</td><td style="text-align: center;">10/30</td><td style="text-align: center;">10/30</td><td style="text-align: center;">10/30</td><td style="text-align: center;">10/30</td><td style="text-align: center;">10/30</td>
+    </tr>
+    <tr>
+      <td colspan="2"><b>Defect ID</b></td>
+      <td style="text-align: center;">-</td><td style="text-align: center;">-</td><td style="text-align: center;">-</td><td style="text-align: center;">-</td><td style="text-align: center;">-</td><td style="text-align: center;">-</td><td style="text-align: center;">-</td><td style="text-align: center;">-</td><td style="text-align: center;">-</td><td style="text-align: center;">-</td><td style="text-align: center;">-</td><td style="text-align: center;">-</td><td style="text-align: center;">-</td><td style="text-align: center;">-</td><td style="text-align: center;">-</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+</body>
+</html>
