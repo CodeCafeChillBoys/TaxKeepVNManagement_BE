@@ -1,9 +1,10 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace TaxKeepVN.Application.DTOs.TaxAI
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class TaxRuleDetailFromAiDto
     {
         [JsonPropertyName("message")]
@@ -12,6 +13,7 @@ namespace TaxKeepVN.Application.DTOs.TaxAI
         [JsonPropertyName("data")]
         public TaxRuleExtractionDataFromAiDto? Data { get; set; }
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class TaxRuleExtractionDataFromAiDto
     {
@@ -21,6 +23,7 @@ namespace TaxKeepVN.Application.DTOs.TaxAI
         [JsonPropertyName("dependentRules")]
         public List<DependentRuleFromAiDto>? DependentRules { get; set; }
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class TaxRuleSetFromAiDto
     {
@@ -36,6 +39,7 @@ namespace TaxKeepVN.Application.DTOs.TaxAI
         [JsonPropertyName("status")]
         public string? Status { get; set; }
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class DependentRuleFromAiDto
     {
@@ -72,6 +76,7 @@ namespace TaxKeepVN.Application.DTOs.TaxAI
         [JsonPropertyName("status")]
         public string? Status { get; set; }
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class RequiredDocumentFromAiDto
     {

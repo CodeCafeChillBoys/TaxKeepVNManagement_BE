@@ -1,7 +1,8 @@
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 
 namespace TaxKeepVN.Application.DTOs.OcrAI
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class DependentOcrResponseDto
     {
         [JsonPropertyName("documentType")]

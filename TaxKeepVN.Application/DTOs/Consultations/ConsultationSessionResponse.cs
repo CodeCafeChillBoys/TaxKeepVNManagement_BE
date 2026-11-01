@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using TaxKeepVN.Domain.Enums;
 
 namespace TaxKeepVN.Application.DTOs.Consultations
@@ -6,6 +6,7 @@ namespace TaxKeepVN.Application.DTOs.Consultations
     /// <summary>
     /// Thông tin chi tiết phiên tư vấn trực tuyến 1-1 (Live Consultation Session) (Đặc tả 5)
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class ConsultationSessionResponse
     {
         public Guid Id { get; set; }
@@ -44,6 +45,7 @@ namespace TaxKeepVN.Application.DTOs.Consultations
     /// <summary>
     /// Kết quả phản hồi khi Khách hàng hoặc Chuyên gia điểm danh vào phòng tư vấn Jitsi Meet
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class JoinConsultationResponse
     {
         public Guid SessionId { get; set; }

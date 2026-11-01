@@ -1,7 +1,8 @@
-using System;
+﻿using System;
 
 namespace TaxKeepVN.Application.DTOs.Responses.Profile
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class UserProfileResponse
     {
         public Guid UserId { get; set; }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
@@ -7,6 +7,7 @@ namespace TaxKeepVN.Application.DTOs.TaxAI
     /// <summary>
     /// Response trả về khi Review (GET) hoặc Edit (PUT) toàn bộ nội dung bộ quy tắc thuế từ AI Service
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class TaxRuleDetailResponse
     {
         [JsonPropertyName("message")]
@@ -18,6 +19,7 @@ namespace TaxKeepVN.Application.DTOs.TaxAI
         [JsonPropertyName("data")]
         public TaxRuleExtractionDataResponse Data { get; set; } = new();
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class TaxRuleExtractionDataResponse
     {
@@ -36,6 +38,7 @@ namespace TaxKeepVN.Application.DTOs.TaxAI
         [JsonPropertyName("warning")]
         public string? Warning { get; set; }
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class TaxRuleSetResponse
     {
@@ -66,6 +69,7 @@ namespace TaxKeepVN.Application.DTOs.TaxAI
         [JsonPropertyName("approvedAt")]
         public DateTime? ApprovedAt { get; set; }
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class TaxRuleItemResponse
     {
@@ -111,6 +115,7 @@ namespace TaxKeepVN.Application.DTOs.TaxAI
         [JsonPropertyName("status")]
         public string Status { get; set; } = "Draft";
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class DependentRuleResponse
     {

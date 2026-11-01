@@ -1,8 +1,9 @@
-namespace TaxKeepVN.Application.DTOs.ExpertApplications
+﻿namespace TaxKeepVN.Application.DTOs.ExpertApplications
 {
     /// <summary>
     /// Thông tin tóm tắt lĩnh vực chuyên môn trong hồ sơ
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class SpecializationDtoItem
     {
         public int Id { get; set; }

@@ -1,7 +1,8 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 namespace TaxKeepVN.Application.DTOs.IncomeSources
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class IncomeSourceCrossCheckRequestDto
     {
         public string CompanyName { get; set; } = string.Empty;
@@ -10,6 +11,7 @@ namespace TaxKeepVN.Application.DTOs.IncomeSources
         public decimal CertificateTaxWithheld { get; set; }
         public decimal CertificateInsuranceDeducted { get; set; }
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class IncomeSourceCrossCheckResponseDto
     {

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using TaxKeepVN.Domain.Enums;
 
 namespace TaxKeepVN.Application.DTOs.Experts
@@ -6,6 +6,7 @@ namespace TaxKeepVN.Application.DTOs.Experts
     /// <summary>
     /// Khung thời gian rảnh khả dụng của chuyên gia
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class ExpertAvailableSlotDto
     {
         public Guid Id { get; set; }

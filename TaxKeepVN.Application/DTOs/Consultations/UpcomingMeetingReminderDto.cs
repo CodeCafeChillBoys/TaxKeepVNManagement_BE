@@ -1,10 +1,11 @@
-using System;
+﻿using System;
 
 namespace TaxKeepVN.Application.DTOs.Consultations
 {
     /// <summary>
     /// Thông tin nhắc nhở lịch hẹn meeting trực tuyến sắp tới dành cho User và Expert (Dashboard & Banner)
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class UpcomingMeetingReminderDto
     {
         public bool HasUpcomingMeeting { get; set; }

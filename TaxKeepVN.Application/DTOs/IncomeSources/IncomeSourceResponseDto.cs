@@ -1,8 +1,9 @@
-using System;
+﻿using System;
 using System.Text.Json.Serialization;
 
 namespace TaxKeepVN.Application.DTOs.IncomeSources
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class IncomeSourceResponseDto
     {
         public Guid Id { get; set; }

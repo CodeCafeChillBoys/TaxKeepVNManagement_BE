@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace TaxKeepVN.Application.DTOs.Experts
@@ -6,6 +6,7 @@ namespace TaxKeepVN.Application.DTOs.Experts
     /// <summary>
     /// Thông tin chuyên gia hiển thị trong danh sách tìm kiếm (dạng Card - Đặc tả 2)
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class ExpertListItemResponse
     {
         public Guid Id { get; set; }

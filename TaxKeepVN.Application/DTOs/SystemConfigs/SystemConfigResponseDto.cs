@@ -1,7 +1,8 @@
-using System;
+﻿using System;
 
 namespace TaxKeepVN.Application.DTOs.SystemConfigs
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class SystemConfigResponseDto
     {
         public Guid ConfigId { get; set; }

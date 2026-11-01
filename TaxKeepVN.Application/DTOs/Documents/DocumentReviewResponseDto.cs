@@ -1,8 +1,9 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace TaxKeepVN.Application.DTOs.Documents
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class DocumentReviewResponseDto
     {
         public Guid Id { get; set; }
@@ -42,6 +43,7 @@ namespace TaxKeepVN.Application.DTOs.Documents
         public decimal? TaxWithheld { get; set; }
         public decimal? InsuranceDeducted { get; set; }
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class DocumentItemResponseDto
     {

@@ -4,6 +4,7 @@ using TaxKeepVN.Domain.Entities;
 
 namespace TaxKeepVN.Application.DTOs
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class UploadDocumentResultDto
     {
         public DependentDocument Document { get; set; } = null!;

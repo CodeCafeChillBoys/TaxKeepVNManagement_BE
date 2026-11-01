@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace TaxKeepVN.Application.DTOs.Reviews
@@ -7,6 +7,7 @@ namespace TaxKeepVN.Application.DTOs.Reviews
     /// Điểm đánh giá chi tiết theo từng tiêu chí. Giá trị từ 1 đến 5.
     /// Giải thích tiêu chí để FE hiển thị label phù hợp.
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class ReviewDetailScoresDto
     {
         /// <summary>Độ am hiểu chuyên môn (Expertise)</summary>
@@ -29,6 +30,7 @@ namespace TaxKeepVN.Application.DTOs.Reviews
     /// <summary>
     /// Request body khi khách hàng gửi đánh giá sau phiên tư vấn.
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class CreateReviewRequest
     {
         /// <summary>Số sao tổng quan (1–5)</summary>
@@ -47,6 +49,7 @@ namespace TaxKeepVN.Application.DTOs.Reviews
     /// <summary>
     /// Request body khi chuyên gia phản hồi lại đánh giá (chỉ 1 lần).
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class ExpertReplyRequest
     {
         /// <summary>Nội dung phản hồi của chuyên gia</summary>
@@ -56,6 +59,7 @@ namespace TaxKeepVN.Application.DTOs.Reviews
     /// <summary>
     /// DTO phản hồi một đánh giá đầy đủ (dùng cho client/expert/admin).
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class ReviewDetailResponse
     {
         public System.Guid Id { get; set; }
@@ -84,6 +88,7 @@ namespace TaxKeepVN.Application.DTOs.Reviews
     /// <summary>
     /// DTO phản hồi gọn (hiển thị trong danh sách công khai trên trang chuyên gia).
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class ReviewListItemResponse
     {
         public System.Guid Id { get; set; }
@@ -99,6 +104,7 @@ namespace TaxKeepVN.Application.DTOs.Reviews
     /// <summary>
     /// Kết quả check xem booking có thể đánh giá không (cho FE hiển thị/ẩn nút Đánh giá).
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class ReviewEligibilityResponse
     {
         public bool CanReview { get; set; }

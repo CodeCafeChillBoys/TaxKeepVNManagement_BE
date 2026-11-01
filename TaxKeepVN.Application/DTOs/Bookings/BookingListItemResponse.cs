@@ -1,10 +1,11 @@
-using TaxKeepVN.Domain.Enums;
+﻿using TaxKeepVN.Domain.Enums;
 
 namespace TaxKeepVN.Application.DTOs.Bookings
 {
     /// <summary>
     /// Thông tin tóm tắt một ca tư vấn hiển thị trong danh sách (My Bookings hoặc Expert Pending Bookings)
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class BookingListItemResponse
     {
         public Guid Id { get; set; }

@@ -1,8 +1,9 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
 namespace TaxKeepVN.Application.DTOs.IncomeSources
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class IncomeSourceUpdateDto
     {
         [Required(ErrorMessage = "Tên tổ chức chi trả thu nhập không được để trống.")]

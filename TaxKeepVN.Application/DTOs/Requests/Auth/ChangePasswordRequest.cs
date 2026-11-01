@@ -1,7 +1,8 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace TaxKeepVN.Application.DTOs.Requests.Auth
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class ChangePasswordRequest
     {
         [Required(ErrorMessage = "Mật khẩu hiện tại không được để trống.")]

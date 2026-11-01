@@ -1,8 +1,9 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using TaxKeepVN.Domain.Enums;
 
 namespace TaxKeepVN.Application.DTOs.ConsultationFeeConfigurations
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class UpdateConsultationFeeConfigDto
     {
         [Required(ErrorMessage = "Loại phiên tư vấn không được để trống.")]

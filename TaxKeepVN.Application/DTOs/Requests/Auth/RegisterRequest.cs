@@ -1,8 +1,9 @@
-using System;
+﻿using System;
 using System.ComponentModel.DataAnnotations;
 
 namespace TaxKeepVN.Application.DTOs.Requests.Auth
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class RegisterRequest
     {
         /// <summary>Số căn cước công dân (12 chữ số)</summary>

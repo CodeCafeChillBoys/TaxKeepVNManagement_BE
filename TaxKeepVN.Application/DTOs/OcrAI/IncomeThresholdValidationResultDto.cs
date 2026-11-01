@@ -1,8 +1,9 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace TaxKeepVN.Application.DTOs.OcrAI
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class IncomeThresholdValidationResultDto
     {
         [JsonPropertyName("appliedThreshold")]

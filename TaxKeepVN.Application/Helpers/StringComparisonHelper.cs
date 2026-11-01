@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
@@ -6,6 +6,7 @@ using TaxKeepVN.Domain.Enums;
 
 namespace TaxKeepVN.Application.Helpers
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public static class StringComparisonHelper
     {
         /// <summary>

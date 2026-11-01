@@ -3,6 +3,7 @@ using System.Collections.Generic;
 
 namespace TaxKeepVN.Application.DTOs
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class AgeReminderItemDto
     {
         public Guid DependentId { get; set; }
@@ -16,6 +17,7 @@ namespace TaxKeepVN.Application.DTOs
         public string Message { get; set; } = string.Empty;
         public string RequiredAction { get; set; } = string.Empty;
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class DependentAgeReminderResponseDto
     {

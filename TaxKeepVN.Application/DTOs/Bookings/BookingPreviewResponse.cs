@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using TaxKeepVN.Domain.Enums;
 
 namespace TaxKeepVN.Application.DTOs.Bookings
@@ -6,6 +6,7 @@ namespace TaxKeepVN.Application.DTOs.Bookings
     /// <summary>
     /// Thông tin tóm tắt buổi hẹn trước khi xác nhận đặt (Đặc tả 3 - Mục 5 Luồng chính)
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class BookingPreviewResponse
     {
         public Guid ExpertSlotId { get; set; }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace TaxKeepVN.Application.DTOs.Responses.Dependent
@@ -7,6 +7,7 @@ namespace TaxKeepVN.Application.DTOs.Responses.Dependent
     /// Response trả về sau khi chuyển nhóm người phụ thuộc thành công.
     /// Toàn bộ thông tin định danh là read-only — FE không cần người dùng nhập lại.
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class UpdateDependentGroupResponse
     {
         // ── Thông tin định danh (read-only, không thể chỉnh sửa) ─────────────────

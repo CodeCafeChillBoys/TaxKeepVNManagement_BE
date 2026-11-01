@@ -1,10 +1,11 @@
-using System.Text.Json.Serialization;
+﻿using System.Text.Json.Serialization;
 
 namespace TaxKeepVN.Application.DTOs.Payments
 {
     /// <summary>
     /// Phản hồi chuẩn trả về cho VNPay khi tiếp nhận Webhook IPN (Đặc tả 4)
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class VnPayIpnResponse
     {
         [JsonPropertyName("RspCode")]

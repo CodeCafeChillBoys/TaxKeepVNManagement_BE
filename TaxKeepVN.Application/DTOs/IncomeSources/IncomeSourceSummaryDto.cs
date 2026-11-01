@@ -1,5 +1,6 @@
-namespace TaxKeepVN.Application.DTOs.IncomeSources
+﻿namespace TaxKeepVN.Application.DTOs.IncomeSources
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class IncomeSourceSummaryDto
     {
         public int TaxYear { get; set; }

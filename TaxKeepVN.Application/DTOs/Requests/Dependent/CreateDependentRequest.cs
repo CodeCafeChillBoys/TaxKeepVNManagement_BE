@@ -1,8 +1,9 @@
-using System;
+﻿using System;
 using System.ComponentModel.DataAnnotations;
 
 namespace TaxKeepVN.Application.DTOs.Requests.Dependent
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class CreateDependentRequest
     {
         [Required(ErrorMessage = "Họ tên người phụ thuộc không được để trống.")]

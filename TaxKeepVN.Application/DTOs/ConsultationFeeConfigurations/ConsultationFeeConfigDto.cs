@@ -1,7 +1,8 @@
-using TaxKeepVN.Domain.Enums;
+﻿using TaxKeepVN.Domain.Enums;
 
 namespace TaxKeepVN.Application.DTOs.ConsultationFeeConfigurations
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class ConsultationFeeConfigDto
     {
         public int Id { get; set; }

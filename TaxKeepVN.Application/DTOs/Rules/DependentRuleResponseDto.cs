@@ -1,7 +1,8 @@
-using System;
+﻿using System;
 
 namespace TaxKeepVN.Application.DTOs.Rules
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class DependentRuleResponseDto
     {
         public Guid RuleId { get; set; }

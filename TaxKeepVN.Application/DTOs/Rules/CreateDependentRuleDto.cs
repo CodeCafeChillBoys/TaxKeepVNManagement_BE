@@ -1,7 +1,8 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace TaxKeepVN.Application.DTOs.Rules
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class CreateDependentRuleDto
     {
         [Required(ErrorMessage = "Nhóm đối tượng áp dụng (target_group) không được để trống.")]

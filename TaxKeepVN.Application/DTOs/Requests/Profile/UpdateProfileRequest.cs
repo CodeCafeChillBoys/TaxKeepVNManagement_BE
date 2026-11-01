@@ -1,8 +1,9 @@
-using System;
+﻿using System;
 using System.ComponentModel.DataAnnotations;
 
 namespace TaxKeepVN.Application.DTOs.Requests.Profile
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class UpdateProfileRequest
     {
         [Required(ErrorMessage = "Họ tên không được để trống.")]

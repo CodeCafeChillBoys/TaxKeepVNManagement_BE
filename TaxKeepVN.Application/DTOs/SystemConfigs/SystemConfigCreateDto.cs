@@ -1,7 +1,8 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace TaxKeepVN.Application.DTOs.SystemConfigs
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class SystemConfigCreateDto
     {
         [Required(ErrorMessage = "ConfigKey không được để trống")]

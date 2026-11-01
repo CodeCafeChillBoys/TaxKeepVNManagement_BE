@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using TaxKeepVN.Domain.Enums;
 
@@ -7,6 +7,7 @@ namespace TaxKeepVN.Application.DTOs.Experts
     /// <summary>
     /// Request tạo 1 khung giờ rảnh mới của chuyên gia
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class CreateExpertSlotRequest
     {
         /// <summary>Ngày rảnh (VD: 2026-10-15)</summary>
@@ -26,6 +27,7 @@ namespace TaxKeepVN.Application.DTOs.Experts
     /// <summary>
     /// Request cập nhật khung giờ rảnh
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class UpdateExpertSlotRequest
     {
         /// <summary>Ngày rảnh (VD: 2026-10-15)</summary>
@@ -47,6 +49,7 @@ namespace TaxKeepVN.Application.DTOs.Experts
     /// <summary>
     /// Bộ lọc tìm kiếm danh sách khung giờ của chuyên gia
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class ExpertSlotFilterParameters
     {
         /// <summary>Từ ngày</summary>
@@ -68,6 +71,7 @@ namespace TaxKeepVN.Application.DTOs.Experts
     /// <summary>
     /// Chi tiết khung giờ làm việc của chuyên gia
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class ExpertSlotDetailResponse
     {
         public Guid Id { get; set; }
@@ -88,6 +92,7 @@ namespace TaxKeepVN.Application.DTOs.Experts
     /// <summary>
     /// Khung giờ mẫu theo thứ trong tuần
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class WeeklySlotItemDto
     {
         /// <summary>Thứ trong tuần (Sunday = 0, Monday = 1, Tuesday = 2, ..., Saturday = 6)</summary>
@@ -106,6 +111,7 @@ namespace TaxKeepVN.Application.DTOs.Experts
     /// <summary>
     /// Request tạo hàng loạt khung giờ làm việc theo tuần cho nhiều tuần liên tiếp
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class CreateRecurringSlotRequest
     {
         /// <summary>Ngày bắt đầu áp dụng (VD: 2026-10-20)</summary>
@@ -121,6 +127,7 @@ namespace TaxKeepVN.Application.DTOs.Experts
     /// <summary>
     /// Kết quả trả về sau khi tạo hàng loạt khung giờ làm việc
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class RecurringSlotBatchResultResponse
     {
         public int TotalCreated { get; set; }
@@ -133,6 +140,7 @@ namespace TaxKeepVN.Application.DTOs.Experts
     /// <summary>
     /// Request hủy slot khẩn cấp
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class EmergencyCancelSlotRequest
     {
         /// <summary>Lý do hủy khẩn cấp (bắt buộc, tối thiểu 10 ký tự)</summary>
@@ -141,6 +149,7 @@ namespace TaxKeepVN.Application.DTOs.Experts
     /// <summary>
     /// Kết quả trả về sau khi hủy khẩn cấp
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class EmergencyCancelSlotResponse
     {
         public Guid SlotId { get; set; }

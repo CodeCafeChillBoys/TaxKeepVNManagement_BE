@@ -1,4 +1,4 @@
-using TaxKeepVN.Application.DTOs.Experts;
+﻿using TaxKeepVN.Application.DTOs.Experts;
 using TaxKeepVN.Application.DTOs.SearchConfigs;
 using TaxKeepVN.Domain.Entities;
 using TaxKeepVN.Domain.Enums;
@@ -8,6 +8,7 @@ namespace TaxKeepVN.Application.Helpers
     /// <summary>
     /// Các phương thức trợ giúp xử lý nghiệp vụ cho tính năng Tìm kiếm và Xếp hạng chuyên gia (Đặc tả 2)
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public static class ExpertSearchHelper
     {
         /// <summary>

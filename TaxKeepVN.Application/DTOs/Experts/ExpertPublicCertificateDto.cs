@@ -1,10 +1,11 @@
-using System;
+﻿using System;
 
 namespace TaxKeepVN.Application.DTOs.Experts
 {
     /// <summary>
     /// Chứng chỉ hiển thị cho người dùng (che mờ số chứng chỉ để bảo mật thông tin cá nhân - BR-03)
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class ExpertPublicCertificateDto
     {
         public Guid Id { get; set; }

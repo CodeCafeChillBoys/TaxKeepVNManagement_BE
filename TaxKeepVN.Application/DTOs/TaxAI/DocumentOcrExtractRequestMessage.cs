@@ -1,9 +1,10 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace TaxKeepVN.Application.DTOs.TaxAI
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class CategoryItemDto
     {
         [JsonPropertyName("code")]
@@ -15,6 +16,7 @@ namespace TaxKeepVN.Application.DTOs.TaxAI
         [JsonPropertyName("description")]
         public string Description { get; set; } = string.Empty;
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class DocumentOcrExtractRequestMessage
     {

@@ -2,6 +2,7 @@
 
 namespace TaxKeepVN.Application.Exceptions
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class BadRequestException : Exception
     {
         public string ErrorCode { get; }

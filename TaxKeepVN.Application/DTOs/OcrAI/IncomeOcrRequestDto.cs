@@ -1,7 +1,8 @@
-using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Http;
 
 namespace TaxKeepVN.Application.DTOs.OcrAI
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class IncomeOcrRequestDto
     {
         public IFormFile File { get; set; } = null!;

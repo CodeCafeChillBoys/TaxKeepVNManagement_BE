@@ -1,10 +1,11 @@
-using System;
+﻿using System;
 
 namespace TaxKeepVN.Application.DTOs.Responses.Dependent
 {
     /// <summary>
     /// DTO rút gọn dùng trong danh sách NPT — không bao gồm Documents để giảm payload.
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class DependentListItemResponse
     {
         public Guid DependentId { get; set; }

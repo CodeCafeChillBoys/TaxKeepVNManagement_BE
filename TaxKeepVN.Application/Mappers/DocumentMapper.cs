@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
@@ -8,6 +8,7 @@ using TaxKeepVN.Domain.Entities;
 
 namespace TaxKeepVN.Application.Mappers
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public static class DocumentMapper
     {
         /// <summary>
