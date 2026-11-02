@@ -162,6 +162,11 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.HasIndex(d => d.CitizenId).HasDatabaseName("idx_dependents_citizen_id");
                 entity.HasIndex(d => d.BirthCertNumber).HasDatabaseName("idx_dependents_birth_cert");
                 entity.HasIndex(d => d.TaxpayerId).HasDatabaseName("idx_dependents_taxpayer_id");
+
+                entity.HasOne<User>()
+                    .WithMany()
+                    .HasForeignKey(d => d.TaxpayerId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             // ── DependentDocument ────────────────────────────────────────────────
@@ -474,6 +479,11 @@ namespace TaxKeepVN.Infrastructure.Contexts
                     .OnDelete(DeleteBehavior.Cascade);
                 entity.HasIndex(d => new { d.TaxpayerId, d.TaxYear })
                     .HasDatabaseName("idx_settlement_taxpayer_year");
+
+                entity.HasOne<User>()
+                    .WithMany()
+                    .HasForeignKey(d => d.TaxpayerId)
+                    .OnDelete(DeleteBehavior.Cascade);
             });
 
             // ── TaxSettlementIncomeItem ──────────────────────────────────────────
