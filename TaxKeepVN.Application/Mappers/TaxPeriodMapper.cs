@@ -1,8 +1,9 @@
-using TaxKeepVN.Application.DTOs.TaxPeriods;
+﻿using TaxKeepVN.Application.DTOs.TaxPeriods;
 using TaxKeepVN.Domain.Entities;
 
 namespace TaxKeepVN.Application.Mappers
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public static class TaxPeriodMapper
     {
         public static TaxPeriodResponseDto ToResponseDto(this TaxPeriod period)

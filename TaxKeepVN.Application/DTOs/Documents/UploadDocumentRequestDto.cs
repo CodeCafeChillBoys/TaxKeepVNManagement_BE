@@ -1,8 +1,9 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Http;
 
 namespace TaxKeepVN.Application.DTOs.Documents
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class UploadDocumentRequestDto
     {
         [Required(ErrorMessage = "Loại giấy tờ không được để trống.")]

@@ -1,10 +1,11 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace TaxKeepVN.Application.DTOs.Consultations
 {
     /// <summary>
     /// Yêu cầu cập nhật bản nháp/ghi chú kết luận tư vấn (Chuyên gia)
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class UpdateConsultationNotesRequest
     {
         [Required(ErrorMessage = "Nội dung ghi chú tư vấn không được để trống.")]
@@ -15,6 +16,7 @@ namespace TaxKeepVN.Application.DTOs.Consultations
     /// <summary>
     /// Yêu cầu kết thúc phiên tư vấn trực tuyến (Bắt buộc nhập biên bản tóm tắt kết luận theo BR-5.3)
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class CompleteConsultationRequest
     {
         [Required(ErrorMessage = "Bắt buộc nhập biên bản tóm tắt giải pháp tư vấn trước khi kết thúc ca (Quy định BR-5.3).")]
@@ -26,6 +28,7 @@ namespace TaxKeepVN.Application.DTOs.Consultations
     /// <summary>
     /// Yêu cầu báo cáo đối phương vắng mặt (No-Show quá 15 phút)
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class ReportNoShowRequest
     {
         [StringLength(500, ErrorMessage = "Lý do không được vượt quá 500 ký tự.")]

@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Http;
+﻿using Microsoft.AspNetCore.Http;
 using System.ComponentModel.DataAnnotations;
 
 namespace TaxKeepVN.Application.DTOs.ExpertApplications
@@ -6,6 +6,7 @@ namespace TaxKeepVN.Application.DTOs.ExpertApplications
     /// <summary>
     /// Request tải lên ảnh đại diện chuyên gia từ Camera hoặc Thư viện ảnh điện thoại (Multipart/form-data)
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class UploadAvatarRequest
     {
         [Required(ErrorMessage = "File ảnh đại diện không được để trống.")]

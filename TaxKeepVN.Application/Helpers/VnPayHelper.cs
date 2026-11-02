@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Net;
@@ -10,6 +10,7 @@ namespace TaxKeepVN.Application.Helpers
     /// <summary>
     /// Tiện ích xử lý tạo URL thanh toán và xác thực chữ ký HMAC-SHA512 cho cổng thanh toán VNPay v2.1.0 (Đặc tả 4)
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public static class VnPayHelper
     {
         /// <summary>

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.ComponentModel.DataAnnotations;
 
 namespace TaxKeepVN.Application.DTOs.PlatformPolicy
@@ -6,6 +6,7 @@ namespace TaxKeepVN.Application.DTOs.PlatformPolicy
     /// <summary>
     /// Thông tin chính sách vận hành sàn tư vấn và quy chế Escrow hiện hành
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class PlatformPolicyResponseDto
     {
         public int Id { get; set; }
@@ -75,6 +76,7 @@ namespace TaxKeepVN.Application.DTOs.PlatformPolicy
     /// <summary>
     /// Yêu cầu cập nhật các tham số vận hành sàn tư vấn và Escrow
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class UpdatePlatformPolicyRequest
     {
         /// <summary>Phí tư vấn sàn tối thiểu chung của hệ thống (VNĐ)</summary>

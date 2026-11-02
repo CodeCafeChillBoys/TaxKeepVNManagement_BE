@@ -1,7 +1,8 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace TaxKeepVN.Application.DTOs.ExpertApplications
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class RejectExpertApplicationRequest
     {
         [Required(ErrorMessage = "Lý do từ chối không được để trống (BR-09).")]

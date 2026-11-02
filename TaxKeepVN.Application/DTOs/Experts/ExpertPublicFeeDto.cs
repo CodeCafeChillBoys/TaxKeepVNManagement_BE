@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using TaxKeepVN.Domain.Enums;
 
 namespace TaxKeepVN.Application.DTOs.Experts
@@ -6,6 +6,7 @@ namespace TaxKeepVN.Application.DTOs.Experts
     /// <summary>
     /// Bảng biểu phí tư vấn chính thức của chuyên gia
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class ExpertPublicFeeDto
     {
         public Guid Id { get; set; }

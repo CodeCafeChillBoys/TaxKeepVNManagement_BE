@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using TaxKeepVN.Domain.Enums;
 
 namespace TaxKeepVN.Application.DTOs.SearchConfigs
@@ -6,6 +6,7 @@ namespace TaxKeepVN.Application.DTOs.SearchConfigs
     /// <summary>
     /// Bộ tiêu chí tìm kiếm & sắp xếp chuyên gia do Admin cấu hình
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class ExpertSearchCriteriaConfigDto
     {
         /// <summary>
@@ -46,6 +47,7 @@ namespace TaxKeepVN.Application.DTOs.SearchConfigs
             ExpertSortBy.ExperienceDesc
         };
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class SearchableFieldsConfig
     {
@@ -56,6 +58,7 @@ namespace TaxKeepVN.Application.DTOs.SearchConfigs
         public bool SearchInSpecializations { get; set; } = true;  // Tên lĩnh vực chuyên môn
         public bool SearchInCertificates { get; set; } = true;     // Tên chứng chỉ hành nghề
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class RankingWeightsConfig
     {

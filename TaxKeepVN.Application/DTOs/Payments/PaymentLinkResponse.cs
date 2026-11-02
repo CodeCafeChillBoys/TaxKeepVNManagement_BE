@@ -1,10 +1,11 @@
-using TaxKeepVN.Domain.Enums;
+﻿using TaxKeepVN.Domain.Enums;
 
 namespace TaxKeepVN.Application.DTOs.Payments
 {
     /// <summary>
     /// Thông tin link thanh toán VietQR / PayOS và chi tiết tạm giữ Escrow trả về cho khách hàng (Đặc tả 4)
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class PaymentLinkResponse
     {
         public Guid BookingId { get; set; }

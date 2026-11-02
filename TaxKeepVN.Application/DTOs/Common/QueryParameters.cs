@@ -1,8 +1,9 @@
-namespace TaxKeepVN.Application.DTOs.Common
+﻿namespace TaxKeepVN.Application.DTOs.Common
 {
     /// <summary>
     /// Query parameters dùng chung cho tất cả List API theo chuẩn API Guidelines.
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class QueryParameters
     {
         private const int MaxPageSize = 100;
@@ -23,6 +24,7 @@ namespace TaxKeepVN.Application.DTOs.Common
     /// <summary>
     /// Query parameters đặc thù cho Notifications — thêm filter theo trạng thái đọc.
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class NotificationQueryParameters : QueryParameters
     {
         /// <summary>Lọc theo trạng thái đọc. null = tất cả, true = đã đọc, false = chưa đọc.</summary>
@@ -32,6 +34,7 @@ namespace TaxKeepVN.Application.DTOs.Common
     /// <summary>
     /// Query parameters đặc thù cho Income Sources — hỗ trợ lọc theo năm tính thuế và trạng thái.
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class IncomeSourceQueryParameters : QueryParameters
     {
         /// <summary>Lọc theo năm tính thuế (ví dụ: 2026)</summary>
@@ -44,6 +47,7 @@ namespace TaxKeepVN.Application.DTOs.Common
     /// <summary>
     /// Query parameters cho Dependent Document Rules — hỗ trợ lọc theo nhóm đối tượng và trạng thái hoạt động.
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class DependentRuleQueryParameters : QueryParameters
     {
         /// <summary>Lọc theo nhóm đối tượng (ví dụ: CHILD_UNDER_18, PARENT_RETIRED)</summary>
@@ -56,6 +60,7 @@ namespace TaxKeepVN.Application.DTOs.Common
     /// <summary>
     /// Query parameters cho Dependent List — hỗ trợ filter theo trạng thái hồ sơ và nhóm quan hệ.
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class DependentQueryParameters : QueryParameters
     {
         /// <summary>
@@ -74,6 +79,7 @@ namespace TaxKeepVN.Application.DTOs.Common
     /// <summary>
     /// Query parameters cho System Configs — hỗ trợ lọc theo trạng thái và năm hiệu lực.
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class SystemConfigQueryParameters : QueryParameters
     {
         /// <summary>Lọc theo trạng thái hoạt động (true/false)</summary>

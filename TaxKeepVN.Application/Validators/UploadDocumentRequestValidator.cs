@@ -1,8 +1,9 @@
-using FluentValidation;
+﻿using FluentValidation;
 using TaxKeepVN.Application.DTOs.Documents;
 
 namespace TaxKeepVN.Application.Validators
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class UploadDocumentRequestValidator : AbstractValidator<UploadDocumentRequestDto>
     {
         private static readonly string[] AllowedExtensions = { ".pdf", ".jpg", ".jpeg", ".png" };

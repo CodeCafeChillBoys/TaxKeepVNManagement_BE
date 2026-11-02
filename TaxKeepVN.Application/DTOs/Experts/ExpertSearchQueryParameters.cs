@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using TaxKeepVN.Domain.Enums;
 
 namespace TaxKeepVN.Application.DTOs.Experts
@@ -6,6 +6,7 @@ namespace TaxKeepVN.Application.DTOs.Experts
     /// <summary>
     /// Tham số tìm kiếm và bộ lọc chuyên gia (Đặc tả 2 - Mục 5)
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class ExpertSearchQueryParameters
     {
         /// <summary>Từ khóa tìm kiếm (họ tên chuyên gia, chức danh, đơn vị công tác)</summary>

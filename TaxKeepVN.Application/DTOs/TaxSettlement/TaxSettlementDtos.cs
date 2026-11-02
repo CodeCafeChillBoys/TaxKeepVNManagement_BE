@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
@@ -6,6 +6,7 @@ using System.Text.Json.Serialization;
 namespace TaxKeepVN.Application.DTOs.TaxSettlement
 {
     /// <summary>Một bậc thuế lũy tiến — đọc từ PIT_BRACKETS_JSON_{year} trong system_configs.</summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class PitBracketConfigDto
     {
         [JsonPropertyName("bracketNo")]
@@ -29,6 +30,7 @@ namespace TaxKeepVN.Application.DTOs.TaxSettlement
     }
 
     /// <summary>Snapshot mức giảm trừ đã dùng khi tính — lưu audit trail.</summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class DeductionConfigSnapshotDto
     {
         [JsonPropertyName("personalMonthly")]
@@ -62,6 +64,7 @@ namespace TaxKeepVN.Application.DTOs.TaxSettlement
     // ── Request DTOs ─────────────────────────────────────────────────────────────
 
     /// <summary>Request xem trước (preview) quyết toán thuế — Bước 1-3 sơ đồ.</summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class TaxSettlementPreviewRequest
     {
         /// <summary>Năm quyết toán. Ví dụ: 2025 hoặc 2026.</summary>
@@ -79,6 +82,7 @@ namespace TaxKeepVN.Application.DTOs.TaxSettlement
 
     /// <summary>Request chốt và xuất hồ sơ quyết toán — Bước 4-5 sơ đồ.</summary>
     /// <summary>Request chốt và xuất hồ sơ quyết toán — Bước 4-5 sơ đồ.</summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class TaxSettlementExportRequest
     {
         public int TaxYear { get; set; }
@@ -97,6 +101,7 @@ namespace TaxKeepVN.Application.DTOs.TaxSettlement
     // ── Response DTOs ─────────────────────────────────────────────────────────────
 
     /// <summary>Thông tin từng chứng từ thu nhập trong hồ sơ quyết toán.</summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class SettlementIncomeItemDto
     {
         public Guid IncomeSourceId { get; set; }
@@ -109,6 +114,7 @@ namespace TaxKeepVN.Application.DTOs.TaxSettlement
     }
 
     /// <summary>Thông tin người phụ thuộc hợp lệ trong năm tính thuế.</summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class SettlementDependentItemDto
     {
         public Guid DependentId { get; set; }
@@ -122,6 +128,7 @@ namespace TaxKeepVN.Application.DTOs.TaxSettlement
     }
 
     /// <summary>Chi tiết tính thuế theo từng bậc lũy tiến (để FE hiển thị "Show your work").</summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class BracketCalculationDetailDto
     {
         public int BracketNo { get; set; }
@@ -136,6 +143,7 @@ namespace TaxKeepVN.Application.DTOs.TaxSettlement
     }
 
     /// <summary>Kết quả xem trước / chi tiết hồ sơ quyết toán thuế TNCN.</summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class TaxSettlementPreviewDto
     {
         public Guid? DossierId { get; set; }
@@ -196,6 +204,7 @@ namespace TaxKeepVN.Application.DTOs.TaxSettlement
     }
 
     /// <summary>Response danh sách hồ sơ đã tạo (rút gọn).</summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class TaxSettlementListItemDto
     {
         public Guid Id { get; set; }
@@ -213,6 +222,7 @@ namespace TaxKeepVN.Application.DTOs.TaxSettlement
     // ── Admin Config DTOs ─────────────────────────────────────────────────────────
 
     /// <summary>Request Admin cập nhật biểu thuế lũy tiến cho một năm nhất định.</summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class UpdatePitBracketsRequest
     {
         /// <summary>Năm luật áp dụng. Ví dụ: 2025 (7 bậc) hoặc 2026 (5 bậc).</summary>
@@ -221,6 +231,7 @@ namespace TaxKeepVN.Application.DTOs.TaxSettlement
     }
 
     /// <summary>Request Admin cập nhật mức giảm trừ cho một năm nhất định.</summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class UpdateDeductionRatesRequest
     {
         public int TaxYear { get; set; }
@@ -233,6 +244,7 @@ namespace TaxKeepVN.Application.DTOs.TaxSettlement
     }
 
     /// <summary>DTO hiển thị cấu hình lịch trình quyết toán thuế TNCN.</summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class TaxSettlementScheduleResponseDto
     {
         public int Id { get; set; }
@@ -248,6 +260,7 @@ namespace TaxKeepVN.Application.DTOs.TaxSettlement
     }
 
     /// <summary>Request cập nhật lịch trình quyết toán thuế TNCN.</summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class UpdateTaxSettlementScheduleRequest
     {
         public int? TaxYear { get; set; }
@@ -274,6 +287,7 @@ namespace TaxKeepVN.Application.DTOs.TaxSettlement
     /// <summary>
     /// DTO đếm ngược hạn chót nộp quyết toán thuế TNCN cho Dashboard khách hàng (Mục 4 Góp ý Hội đồng).
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class TaxSettlementDeadlineCountdownDto
     {
         /// <summary>Năm quyết toán thuế (Ví dụ: 2025 quyết toán vào năm 2026).</summary>
@@ -321,6 +335,7 @@ namespace TaxKeepVN.Application.DTOs.TaxSettlement
     /// <summary>
     /// Request ghi nhận phản hồi / xác nhận đã hiển thị câu hỏi nhắc nhở quyết toán thuế (1 lần duy nhất).
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class AcknowledgeSettlementPromptRequest
     {
         [Required(ErrorMessage = "Năm tính thuế không được để trống.")]

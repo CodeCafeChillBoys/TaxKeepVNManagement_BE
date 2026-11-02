@@ -1,5 +1,6 @@
-namespace TaxKeepVN.Application.DTOs.Rules
+﻿namespace TaxKeepVN.Application.DTOs.Rules
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class UpdateDependentRuleDto
     {
         public bool IsMandatory { get; set; } = true;

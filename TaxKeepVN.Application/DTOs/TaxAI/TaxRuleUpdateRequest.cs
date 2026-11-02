@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
@@ -7,6 +7,7 @@ namespace TaxKeepVN.Application.DTOs.TaxAI
     /// <summary>
     /// Schema đại diện cho dữ liệu yêu cầu chỉnh sửa toàn bộ nội dung của Tax Rule Set
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class TaxRuleUpdateRequest
     {
         [JsonPropertyName("name")]
@@ -34,6 +35,7 @@ namespace TaxKeepVN.Application.DTOs.TaxAI
     /// <summary>
     /// Schema cập nhật cho từng quy tắc thuế con
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class TaxRuleItemUpdateRequest
     {
         [JsonPropertyName("ruleId")]
@@ -85,6 +87,7 @@ namespace TaxKeepVN.Application.DTOs.TaxAI
     /// <summary>
     /// Schema cập nhật cho từng quy tắc người phụ thuộc
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class DependentRuleUpdateRequest
     {
         [JsonPropertyName("id")]

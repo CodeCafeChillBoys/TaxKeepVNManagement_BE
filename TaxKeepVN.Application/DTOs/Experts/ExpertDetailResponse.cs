@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace TaxKeepVN.Application.DTOs.Experts
@@ -7,6 +7,7 @@ namespace TaxKeepVN.Application.DTOs.Experts
     /// Thông tin chi tiết hồ sơ chuyên gia hiển thị công khai (Đặc tả 2 - Mục 5 Luồng chính)
     /// Đã loại bỏ các thông tin nhạy cảm: CCCD, SĐT, Email cá nhân (BR-03)
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class ExpertDetailResponse
     {
         public Guid Id { get; set; }

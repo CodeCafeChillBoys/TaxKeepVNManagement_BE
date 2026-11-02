@@ -1,8 +1,9 @@
-namespace TaxKeepVN.Application.DTOs.Experts
+﻿namespace TaxKeepVN.Application.DTOs.Experts
 {
     /// <summary>
     /// Gợi ý xử lý khi không có kết quả phù hợp (Đặc tả 2 - Mục 6 Luồng ngoại lệ)
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class ExpertSearchSuggestionDto
     {
         public string Message { get; set; } = string.Empty;

@@ -1,8 +1,9 @@
-using TaxKeepVN.Application.DTOs.Common;
+﻿using TaxKeepVN.Application.DTOs.Common;
 using TaxKeepVN.Domain.Enums;
 
 namespace TaxKeepVN.Application.DTOs.ExpertApplications
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class AdminExpertApplicationQueryParameters : QueryParameters
     {
         /// <summary>

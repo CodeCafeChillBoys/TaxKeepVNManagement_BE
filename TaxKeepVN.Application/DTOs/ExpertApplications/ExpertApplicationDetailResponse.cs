@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using TaxKeepVN.Domain.Enums;
 
@@ -7,6 +7,7 @@ namespace TaxKeepVN.Application.DTOs.ExpertApplications
     /// <summary>
     /// Response chi tiết hồ sơ chuyên gia trả về cho Frontend
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class ExpertApplicationDetailResponse
     {
         public Guid Id { get; set; }

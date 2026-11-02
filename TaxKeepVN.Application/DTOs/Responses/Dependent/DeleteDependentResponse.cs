@@ -1,10 +1,11 @@
-using System;
+﻿using System;
 
 namespace TaxKeepVN.Application.DTOs.Responses.Dependent
 {
     /// <summary>
     /// Response trả về sau khi vô hiệu hóa (xóa mềm) người phụ thuộc thành công.
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class DeleteDependentResponse
     {
         /// <summary>ID của người phụ thuộc vừa bị vô hiệu hóa.</summary>

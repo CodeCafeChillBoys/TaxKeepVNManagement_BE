@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json.Serialization;
@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 
 namespace TaxKeepVN.Application.DTOs.SystemConfig
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class SystemConfigResponseDto
     {
         [JsonPropertyName("config_key")]

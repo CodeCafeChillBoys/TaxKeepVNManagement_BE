@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using TaxKeepVN.Application.DTOs.Wallets;
 using TaxKeepVN.Domain.Enums;
@@ -8,6 +8,7 @@ namespace TaxKeepVN.Application.DTOs.Payments
     /// <summary>
     /// Thông tin tổng quan Ví Nền Tảng & Sổ cái tài chính của Admin (Admin Platform Wallet & Escrow Ledger Summary)
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class AdminPlatformWalletResponse
     {
         /// <summary>
@@ -96,6 +97,7 @@ namespace TaxKeepVN.Application.DTOs.Payments
     /// <summary>
     /// Thống kê số lượng giao dịch ký quỹ
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class AdminWalletTransactionStats
     {
         public int TotalTransactions { get; set; }

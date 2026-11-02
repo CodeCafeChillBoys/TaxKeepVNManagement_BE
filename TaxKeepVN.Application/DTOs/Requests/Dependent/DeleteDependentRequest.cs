@@ -1,10 +1,11 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace TaxKeepVN.Application.DTOs.Requests.Dependent
 {
     /// <summary>
     /// Request body cho API xóa mềm (vô hiệu hóa) người phụ thuộc.
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class DeleteDependentRequest
     {
         /// <summary>

@@ -1,8 +1,9 @@
-using Microsoft.AspNetCore.Mvc.ModelBinding;
+﻿using Microsoft.AspNetCore.Mvc.ModelBinding;
 using System.Linq;
 
 namespace TaxKeepVN.Application.DTOs.Responses
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class ApiResponse<T>
     {
         public bool Success { get; set; }

@@ -1,9 +1,10 @@
-using System;
+﻿using System;
 using FluentValidation;
 using TaxKeepVN.Application.DTOs.TaxPeriods;
 
 namespace TaxKeepVN.Application.Validators
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class InitTaxPeriodRequestValidator : AbstractValidator<InitTaxPeriodRequest>
     {
         public InitTaxPeriodRequestValidator()

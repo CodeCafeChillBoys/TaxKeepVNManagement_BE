@@ -1,7 +1,8 @@
-using System;
+﻿using System;
 
 namespace TaxKeepVN.Application.DTOs.Responses.Auth
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class RegisterResponse
     {
         public Guid UserId { get; set; }

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace TaxKeepVN.Application.DTOs.Disputes
@@ -6,6 +6,7 @@ namespace TaxKeepVN.Application.DTOs.Disputes
     /// <summary>
     /// Request gửi khiếu nại dịch vụ tư vấn (Đặc tả 7 - Mục 6.B)
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class CreateDisputeRequest
     {
         /// <summary>
@@ -23,6 +24,7 @@ namespace TaxKeepVN.Application.DTOs.Disputes
     /// <summary>
     /// Request Chuyên gia gửi phản hồi / bằng chứng phản biện khiếu nại (Đặc tả 7 - Mục 6.B Bước 3)
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class ExpertRespondDisputeRequest
     {
         /// <summary>Nội dung giải trình của chuyên gia</summary>
@@ -35,6 +37,7 @@ namespace TaxKeepVN.Application.DTOs.Disputes
     /// <summary>
     /// Request Admin đưa ra phán quyết xử lý tranh chấp (Đặc tả 7 - Mục 6.B Bước 5)
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class AdminResolveDisputeRequest
     {
         /// <summary>
@@ -60,6 +63,7 @@ namespace TaxKeepVN.Application.DTOs.Disputes
     /// <summary>
     /// Response chi tiết một vụ việc khiếu nại tranh chấp
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class DisputeDetailResponse
     {
         public Guid Id { get; set; }
@@ -107,6 +111,7 @@ namespace TaxKeepVN.Application.DTOs.Disputes
     /// <summary>
     /// DTO rút gọn cho danh sách khiếu nại
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class DisputeListItemResponse
     {
         public Guid Id { get; set; }
@@ -124,6 +129,7 @@ namespace TaxKeepVN.Application.DTOs.Disputes
     /// <summary>
     /// Kiểm tra quyền và thời hạn gửi khiếu nại (Eligibility)
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class DisputeEligibilityResponse
     {
         public bool CanDispute { get; set; }

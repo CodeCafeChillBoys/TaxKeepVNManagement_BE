@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace TaxKeepVN.Application.DTOs.Consultations
@@ -6,6 +6,7 @@ namespace TaxKeepVN.Application.DTOs.Consultations
     /// <summary>
     /// Bộ hồ sơ thuế được chia sẻ quyền xem (Read-only) cho Chuyên gia trong phòng tư vấn trực tuyến (Đặc tả 3 & 5)
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class SharedTaxDossierResponse
     {
         public Guid BookingId { get; set; }
@@ -37,6 +38,7 @@ namespace TaxKeepVN.Application.DTOs.Consultations
         public SharedDraftSettlementDto? DraftSettlement { get; set; }
 
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class SharedIncomeSourceDto
     {
@@ -48,6 +50,7 @@ namespace TaxKeepVN.Application.DTOs.Consultations
         public decimal TaxWithheld { get; set; }
         public decimal InsuranceDeducted { get; set; }
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class SharedMonthlyIncomeDto
     {
@@ -61,6 +64,7 @@ namespace TaxKeepVN.Application.DTOs.Consultations
         public decimal TaxAlreadyDeducted { get; set; }
         public string? PayslipFileUrl { get; set; }
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class SharedDependentDto
     {
@@ -73,6 +77,7 @@ namespace TaxKeepVN.Application.DTOs.Consultations
         public string Status { get; set; } = string.Empty;
         public bool IsProfileComplete { get; set; }
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class SharedDocumentDto
     {
@@ -85,6 +90,7 @@ namespace TaxKeepVN.Application.DTOs.Consultations
         public string? SellerTaxCode { get; set; }
         public string FileUrl { get; set; } = string.Empty;
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class SharedDraftSettlementDto
     {

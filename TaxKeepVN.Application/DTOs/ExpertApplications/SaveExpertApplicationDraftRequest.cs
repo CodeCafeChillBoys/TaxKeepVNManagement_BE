@@ -1,4 +1,4 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
 namespace TaxKeepVN.Application.DTOs.ExpertApplications
@@ -6,6 +6,7 @@ namespace TaxKeepVN.Application.DTOs.ExpertApplications
     /// <summary>
     /// Request tạo mới hoặc lưu cập nhật bản nháp hồ sơ chuyên gia (Draft)
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class SaveExpertApplicationDraftRequest
     {
         [Required(ErrorMessage = "Họ và tên không được để trống")]

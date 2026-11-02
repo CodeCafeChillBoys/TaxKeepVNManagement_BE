@@ -1,7 +1,8 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace TaxKeepVN.Application.DTOs.Specializations
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class SpecializationDto
     {
         public int Id { get; set; }
@@ -10,6 +11,7 @@ namespace TaxKeepVN.Application.DTOs.Specializations
         public string? Description { get; set; }
         public bool IsActive { get; set; }
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class CreateSpecializationDto
     {
@@ -26,6 +28,7 @@ namespace TaxKeepVN.Application.DTOs.Specializations
 
         public bool IsActive { get; set; } = true;
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class UpdateSpecializationDto
     {
@@ -37,6 +40,7 @@ namespace TaxKeepVN.Application.DTOs.Specializations
 
         public bool IsActive { get; set; } = true;
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class SpecializationQueryParameters
     {

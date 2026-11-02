@@ -1,7 +1,8 @@
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
 
 namespace TaxKeepVN.Application.DTOs.Responses.Income
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class IncomeGroupedResponseDto
     {
         public string OrganizationName { get; set; } = string.Empty;

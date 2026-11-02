@@ -1,7 +1,8 @@
-using System;
+﻿using System;
 
 namespace TaxKeepVN.Application.Exceptions
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class ForbiddenException : Exception
     {
         public string ErrorCode { get; }

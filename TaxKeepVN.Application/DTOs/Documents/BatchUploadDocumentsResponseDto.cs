@@ -1,14 +1,16 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace TaxKeepVN.Application.DTOs.Documents
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class BatchUploadDocumentsResponseDto
     {
         public Guid PeriodId { get; set; }
         public int TotalUploaded { get; set; }
         public List<UploadedDocumentItemDto> Documents { get; set; } = new();
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class UploadedDocumentItemDto
     {

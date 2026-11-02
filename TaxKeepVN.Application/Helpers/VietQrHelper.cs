@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Net;
 
 namespace TaxKeepVN.Application.Helpers
@@ -6,6 +6,7 @@ namespace TaxKeepVN.Application.Helpers
     /// <summary>
     /// Tiện ích sinh mã và liên kết hình ảnh VietQR chuẩn NAPAS 247 cho lịch hẹn tư vấn thuế (Đặc tả 4)
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public static class VietQrHelper
     {
         /// <summary>

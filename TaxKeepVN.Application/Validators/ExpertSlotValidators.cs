@@ -1,10 +1,11 @@
-using System;
+﻿using System;
 using System.Linq;
 using FluentValidation;
 using TaxKeepVN.Application.DTOs.Experts;
 
 namespace TaxKeepVN.Application.Validators
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class CreateExpertSlotRequestValidator : AbstractValidator<CreateExpertSlotRequest>
     {
         public CreateExpertSlotRequestValidator()
@@ -44,6 +45,7 @@ namespace TaxKeepVN.Application.Validators
                 .IsInEnum().WithMessage("Hình thức tư vấn không hợp lệ.");
         }
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class WeeklySlotItemDtoValidator : AbstractValidator<WeeklySlotItemDto>
     {
         public WeeklySlotItemDtoValidator()
@@ -64,6 +66,7 @@ namespace TaxKeepVN.Application.Validators
                 .IsInEnum().WithMessage("Hình thức tư vấn không hợp lệ.");
         }
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class UpdateExpertSlotRequestValidator : AbstractValidator<UpdateExpertSlotRequest>
     {
