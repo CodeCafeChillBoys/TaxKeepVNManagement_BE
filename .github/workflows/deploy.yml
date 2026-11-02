@@ -2,9 +2,9 @@ name: CI/CD Pipeline - Test, Build & Deploy to AWS EC2
 
 on:
   push:
-    branches: [ "develop", "Develop", "main" ]
+    branches: [ "develop", "Develop" ]
   pull_request:
-    branches: [ "develop", "Develop", "main" ]
+    branches: [ "develop", "Develop" ]
   workflow_dispatch: # Cho phép kích hoạt thủ công từ giao diện GitHub Actions
 
 jobs:
@@ -101,24 +101,33 @@ jobs:
       - name: 2.2. Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: 2.3. Build Docker Images (Backend API & ApiGateway)
-        run: |
-          echo "Đang đóng gói Docker image cho Backend & Gateway..."
-          docker build -t taxkeep-backend:latest -f Dockerfile .
-          docker build -t taxkeep-gateway:latest -f Dockerfile.gateway .
-          docker save taxkeep-backend:latest taxkeep-gateway:latest | gzip > backend_and_gateway.tar.gz
-
-      - name: 2.4. Copy Docker Images sang máy chủ AWS EC2 qua SCP
-        uses: appleboy/scp-action@v0.1.7
+      - name: 2.3. Đăng nhập vào Docker Hub
+        uses: docker/login-action@v3
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          port: ${{ secrets.EC2_PORT || 22 }}
-          source: "backend_and_gateway.tar.gz"
-          target: "~/taxkeep/"
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: 2.5. SSH vào EC2 và khởi động lại dịch vụ qua Docker Compose
+      - name: 2.4. Build và Push Backend API Image lên Docker Hub
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/taxkeep-backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: 2.5. Build và Push ApiGateway Image lên Docker Hub
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.gateway
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/taxkeep-gateway:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: 2.6. SSH vào EC2 và kéo image mới về chạy qua Docker Compose
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -127,9 +136,8 @@ jobs:
           port: ${{ secrets.EC2_PORT || 22 }}
           script: |
             cd ~/taxkeep
-            echo "==> Đang nạp Docker image mới..."
-            docker load < backend_and_gateway.tar.gz
-            rm -f backend_and_gateway.tar.gz
+            echo "==> Đang kéo image mới từ Docker Hub..."
+            docker compose pull backend gateway
 
             echo "==> Khởi động lại các container bằng Docker Compose..."
             docker compose up -d --remove-orphans backend gateway
