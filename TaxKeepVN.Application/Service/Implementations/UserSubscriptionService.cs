@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -334,25 +334,6 @@ namespace TaxKeepVN.Application.Service.Implementations
                 list.Add(MapToResponse(s));
             }
             return list;
-        }
-
-        public async Task<bool> CancelSubscriptionAsync(Guid userId)
-        {
-            var active = await GetOrCreateActiveSubscriptionEntityAsync(userId);
-            if (active.BillingCycle == "free")
-            {
-                throw new BadRequestException("CANNOT_CANCEL_FREE_PLAN", "Bạn đang sử dụng gói Basic miễn phí.");
-            }
-
-            active.Status = "cancelled";
-            active.UpdatedAt = DateTimeOffset.UtcNow;
-            _unitOfWork.Repository<UserSubscription>().Update(active);
-
-            // Gán lại gói Basic ngay lập tức
-            await AutoAssignBasicPlanIfNoneAsync(userId);
-            await _unitOfWork.SaveChangesAsync();
-
-            return true;
         }
 
         private async Task DeactivateCurrentActiveSubscriptionsAsync(Guid userId)

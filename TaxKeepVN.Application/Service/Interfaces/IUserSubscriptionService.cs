@@ -13,7 +13,6 @@ namespace TaxKeepVN.Application.Service.Interfaces
         Task<SubscriptionPurchaseResponse> PurchaseAsync(Guid userId, PurchaseSubscriptionRequest request);
         Task<bool> HandlePaymentCallbackAsync(long orderCode, bool isSuccess);
         Task<List<UserSubscriptionResponse>> GetSubscriptionHistoryAsync(Guid userId);
-        Task<bool> CancelSubscriptionAsync(Guid userId);
         Task<UserSubscription> AutoAssignBasicPlanIfNoneAsync(Guid userId);
     }
 }
