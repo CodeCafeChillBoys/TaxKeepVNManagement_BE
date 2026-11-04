@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Authorization;
+﻿using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -29,6 +29,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         private readonly IDownloadTokenService _downloadTokenService;
         private readonly IWebHostEnvironment _env;
         private readonly IUnitOfWork _unitOfWork;
+        private readonly ISubscriptionQuotaService? _quotaService;
 
         public TaxSettlementController(
             ITaxSettlementService service,
@@ -36,7 +37,8 @@ namespace TaxKeepVNManagementSystem.Controllers
             ITaxSettlementPackageService packageService,
             IDownloadTokenService downloadTokenService,
             IWebHostEnvironment env,
-            IUnitOfWork unitOfWork)
+            IUnitOfWork unitOfWork,
+            ISubscriptionQuotaService? quotaService = null)
         {
             _service = service;
             _configService = configService;
@@ -44,6 +46,7 @@ namespace TaxKeepVNManagementSystem.Controllers
             _downloadTokenService = downloadTokenService;
             _env = env;
             _unitOfWork = unitOfWork;
+            _quotaService = quotaService;
         }
 
         // ══════════════════════════════════════════════════════════════════════════
@@ -429,6 +432,10 @@ namespace TaxKeepVNManagementSystem.Controllers
         public async Task<IActionResult> ExportPdf(Guid id, [FromBody] TaxSettlementExportPdfRequest? request = null)
         {
             var userId = GetUserIdFromToken();
+            if (_quotaService != null)
+            {
+                await _quotaService.CheckCanExportPdfAsync(userId);
+            }
             var (pdfBytes, fileName) = await _packageService.GeneratePdfAsync(id, userId, request);
             return File(pdfBytes, "application/pdf", fileName);
         }
@@ -443,6 +450,10 @@ namespace TaxKeepVNManagementSystem.Controllers
         public async Task<IActionResult> ExportZip(Guid id, [FromBody] TaxSettlementExportZipRequest? request = null)
         {
             var userId = GetUserIdFromToken();
+            if (_quotaService != null)
+            {
+                await _quotaService.CheckCanExportZipAsync(userId);
+            }
             var result = await _packageService.CreateZipPackageAsync(id, userId, request);
             return Ok(ApiResponse<TaxSettlementPackageZipResponse>.Ok(result, result.Message));
         }
