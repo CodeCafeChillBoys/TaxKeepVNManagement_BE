@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
@@ -38,10 +38,16 @@ namespace TaxKeepVN.Application.Service.Implementations
         private const string DocTypeMedical          = "MEDICAL_RECEIPT";
         private const string DocTypeEducation        = "EDUCATION_RECEIPT";
 
-        public TaxSettlementService(IUnitOfWork unitOfWork, ISystemConfigService configService)
+        private readonly ISubscriptionQuotaService? _quotaService;
+
+        public TaxSettlementService(
+            IUnitOfWork unitOfWork,
+            ISystemConfigService configService,
+            ISubscriptionQuotaService? quotaService = null)
         {
             _unitOfWork = unitOfWork;
             _configService = configService;
+            _quotaService = quotaService;
         }
 
         // ══════════════════════════════════════════════════════════════════════════
@@ -73,6 +79,10 @@ namespace TaxKeepVN.Application.Service.Implementations
 
         public async Task<TaxSettlementPreviewDto> ExportAsync(Guid taxpayerId, TaxSettlementExportRequest request)
         {
+            if (_quotaService != null)
+            {
+                await _quotaService.CheckCanExportPdfAsync(taxpayerId);
+            }
             var cutoff = ParseCutoffDate(request.CutoffDate, request.TaxYear);
             var config = await LoadConfigAsync(request.TaxYear);
             var allIncomes = await LoadIncomesAsync(taxpayerId, request.TaxYear, cutoff);

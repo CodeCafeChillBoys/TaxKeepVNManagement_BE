@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace TaxKeepVN.Domain.Entities
 {
@@ -46,6 +46,9 @@ namespace TaxKeepVN.Domain.Entities
         public ExpertProfile? ExpertProfile { get; set; }
         public ICollection<ExpertReview> ExpertReviews { get; set; } = new List<ExpertReview>();
         public ICollection<Booking> Bookings { get; set; } = new List<Booking>();
+
+        // Subscription navigation
+        public ICollection<UserSubscription> Subscriptions { get; set; } = new List<UserSubscription>();
+        public ICollection<SubscriptionQuotaUsage> QuotaUsages { get; set; } = new List<SubscriptionQuotaUsage>();
     }
 }
-
