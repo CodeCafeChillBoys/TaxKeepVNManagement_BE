@@ -106,20 +106,6 @@ namespace TaxKeepVNManagementSystem.Controllers
         }
 
         /// <summary>
-        /// Hủy gói trả phí hiện tại (sẽ hạ về gói Basic)
-        /// POST /api/v1/subscription/cancel
-        /// </summary>
-        [Authorize]
-        [HttpPost("api/v1/subscription/cancel")]
-        [ProducesResponseType(typeof(ApiResponse<bool>), StatusCodes.Status200OK)]
-        public async Task<IActionResult> Cancel()
-        {
-            var userId = GetCurrentUserId();
-            var result = await _userSubService.CancelSubscriptionAsync(userId);
-            return Ok(ApiResponse<bool>.Ok(result, "Hủy gói dịch vụ thành công, tài khoản đã chuyển về gói Basic."));
-        }
-
-        /// <summary>
         /// Webhook / IPN xử lý kết quả thanh toán từ VNPay
         /// GET /api/v1/subscription/payment-return
         /// </summary>

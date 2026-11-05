@@ -156,6 +156,7 @@ builder.Services.AddScoped<IPaymentEscrowService, PaymentEscrowService>();
 builder.Services.AddScoped<ISubscriptionPlanService, SubscriptionPlanService>();
 builder.Services.AddScoped<IUserSubscriptionService, UserSubscriptionService>();
 builder.Services.AddScoped<ISubscriptionQuotaService, SubscriptionQuotaService>();
+builder.Services.AddScoped<IAdminSubscriptionService, AdminSubscriptionService>();
 builder.Services.AddScoped<IConsultationRealtimeNotifier, TaxKeepVNManagementSystem.Services.ConsultationRealtimeNotifier>();
 builder.Services.AddScoped<IConsultationService, ConsultationService>();
 builder.Services.AddScoped<IExpertSlotService, ExpertSlotService>();
