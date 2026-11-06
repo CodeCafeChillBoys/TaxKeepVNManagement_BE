@@ -364,6 +364,74 @@ namespace TaxKeepVN.Application.Service.Implementations
                     return VnPayIpnResponse.Success();
                 }
 
+                // Kiểm tra xem có phải giao dịch mua gói dịch vụ (Subscription) không
+                var subRepo = _unitOfWork.Repository<UserSubscription>();
+                var refStr = orderCode.ToString();
+                var pendingSubs = await subRepo.FindAsync(s => s.PaymentReference == refStr);
+                var pendingSub = pendingSubs.FirstOrDefault();
+                if (pendingSub != null)
+                {
+                    if (pendingSub.Status == "active")
+                    {
+                        return VnPayIpnResponse.OrderAlreadyConfirmed();
+                    }
+
+                    var responseCodeVal = queryParams.TryGetValue("vnp_ResponseCode", out var rspVal) ? rspVal : "99";
+                    var isSuccess = responseCodeVal == "00";
+                    if (isSuccess)
+                    {
+                        var now = DateTimeOffset.UtcNow;
+                        var existingActive = await subRepo.FindAsync(s => s.UserId == pendingSub.UserId && s.Status == "active");
+                        foreach (var s in existingActive)
+                        {
+                            s.Status = "cancelled";
+                            s.UpdatedAt = now;
+                            subRepo.Update(s);
+                        }
+
+                        pendingSub.Status = "active";
+                        pendingSub.PaymentStatus = "paid";
+                        pendingSub.StartsAt = now;
+                        pendingSub.ExpiresAt = pendingSub.BillingCycle == "yearly" ? now.AddYears(1) : now.AddMonths(1);
+                        pendingSub.UpdatedAt = now;
+                        subRepo.Update(pendingSub);
+
+                        if (pendingSub.AmountPaid > 0)
+                        {
+                            var platformWallet = await BookingHelper.GetOrCreatePlatformWalletAsync(_unitOfWork);
+                            var platBefore = platformWallet.AvailableBalance;
+                            platformWallet.AvailableBalance += pendingSub.AmountPaid;
+                            platformWallet.TotalEarned += pendingSub.AmountPaid;
+                            platformWallet.UpdatedAt = now;
+                            _unitOfWork.Repository<UserWallet>().Update(platformWallet);
+
+                            await _unitOfWork.Repository<WalletTransaction>().AddAsync(new WalletTransaction
+                            {
+                                Id = Guid.NewGuid(),
+                                WalletId = platformWallet.Id,
+                                UserId = platformWallet.UserId,
+                                Amount = pendingSub.AmountPaid,
+                                BalanceBefore = platBefore,
+                                BalanceAfter = platformWallet.AvailableBalance,
+                                TransactionType = "SUBSCRIPTION_REVENUE",
+                                ReferenceId = pendingSub.Id,
+                                Description = $"Doanh thu gói qua VNPay đơn #{orderCode}",
+                                CreatedAt = now
+                            });
+                        }
+                    }
+                    else
+                    {
+                        pendingSub.Status = "cancelled";
+                        pendingSub.PaymentStatus = "failed";
+                        pendingSub.UpdatedAt = DateTimeOffset.UtcNow;
+                        subRepo.Update(pendingSub);
+                    }
+
+                    await _unitOfWork.SaveChangesAsync();
+                    return VnPayIpnResponse.Success();
+                }
+
                 return VnPayIpnResponse.OrderNotFound();
             }
 
@@ -471,6 +539,74 @@ namespace TaxKeepVN.Application.Service.Implementations
                         PaymentGateway = "VNPAY",
                         PaymentReference = transactionNoRet,
                         CreatedAt = topUpTx.CreatedAt
+                    };
+                }
+
+                // Kiểm tra xem có phải giao dịch mua gói dịch vụ (Subscription) không
+                var subRepo = _unitOfWork.Repository<UserSubscription>();
+                var refStr = orderCode.ToString();
+                var pendingSubs = await subRepo.FindAsync(s => s.PaymentReference == refStr);
+                var pendingSub = pendingSubs.FirstOrDefault();
+                if (pendingSub != null)
+                {
+                    var responseCodeRet = queryParams.TryGetValue("vnp_ResponseCode", out var subRspVal) ? subRspVal : "99";
+                    var transactionNoRet = queryParams.TryGetValue("vnp_TransactionNo", out var subTxnVal) ? subTxnVal : $"VNPAY_{orderCode}";
+                    var isSuccess = responseCodeRet == "00";
+
+                    if (isSuccess && pendingSub.Status == "pending")
+                    {
+                        var now = DateTimeOffset.UtcNow;
+                        var existingActive = await subRepo.FindAsync(s => s.UserId == pendingSub.UserId && s.Status == "active");
+                        foreach (var s in existingActive)
+                        {
+                            s.Status = "cancelled";
+                            s.UpdatedAt = now;
+                            subRepo.Update(s);
+                        }
+
+                        pendingSub.Status = "active";
+                        pendingSub.PaymentStatus = "paid";
+                        pendingSub.StartsAt = now;
+                        pendingSub.ExpiresAt = pendingSub.BillingCycle == "yearly" ? now.AddYears(1) : now.AddMonths(1);
+                        pendingSub.UpdatedAt = now;
+                        subRepo.Update(pendingSub);
+
+                        if (pendingSub.AmountPaid > 0)
+                        {
+                            var platformWallet = await BookingHelper.GetOrCreatePlatformWalletAsync(_unitOfWork);
+                            var platBefore = platformWallet.AvailableBalance;
+                            platformWallet.AvailableBalance += pendingSub.AmountPaid;
+                            platformWallet.TotalEarned += pendingSub.AmountPaid;
+                            platformWallet.UpdatedAt = now;
+                            _unitOfWork.Repository<UserWallet>().Update(platformWallet);
+
+                            await _unitOfWork.Repository<WalletTransaction>().AddAsync(new WalletTransaction
+                            {
+                                Id = Guid.NewGuid(),
+                                WalletId = platformWallet.Id,
+                                UserId = platformWallet.UserId,
+                                Amount = pendingSub.AmountPaid,
+                                BalanceBefore = platBefore,
+                                BalanceAfter = platformWallet.AvailableBalance,
+                                TransactionType = "SUBSCRIPTION_REVENUE",
+                                ReferenceId = pendingSub.Id,
+                                Description = $"Doanh thu gói qua VNPay đơn #{orderCode}",
+                                CreatedAt = now
+                            });
+                        }
+
+                        await _unitOfWork.SaveChangesAsync();
+                    }
+
+                    return new EscrowTransactionResponse
+                    {
+                        Id = pendingSub.Id,
+                        OrderCode = orderCode,
+                        Amount = pendingSub.AmountPaid,
+                        EscrowStatus = isSuccess ? EscrowStatus.HeldInEscrow : EscrowStatus.Cancelled,
+                        PaymentGateway = "VNPAY",
+                        PaymentReference = transactionNoRet,
+                        CreatedAt = pendingSub.CreatedAt
                     };
                 }
 

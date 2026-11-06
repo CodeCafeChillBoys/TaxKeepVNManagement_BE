@@ -20,6 +20,6 @@
         /// - GATEWAY: Cổng thanh toán trực tuyến VNPay / VietQR (Mặc định)
         /// - WALLET: Trừ trực tiếp từ số dư khả dụng ví User
         /// </summary>
-        public string? PaymentMethod { get; set; } = "GATEWAY";
+        public string? PaymentMethod { get; set; } = "GATEWAY"; 
     }
 }

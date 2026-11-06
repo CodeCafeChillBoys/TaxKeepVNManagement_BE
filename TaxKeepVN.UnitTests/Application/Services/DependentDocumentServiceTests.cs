@@ -145,11 +145,12 @@ namespace TaxKeepVN.UnitTests.Application.Services
             _mockFileStorageService.Setup(f => f.SaveFileAsync(mockFile.Object, It.IsAny<string>()))
                                    .ReturnsAsync("https://storage/dependents/cert.pdf");
 
+            var docsInDb = new List<DependentDocument>();
             _mockDocRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentDocument, bool>>>()))
-                        .ReturnsAsync(new List<DependentDocument>
-                        {
-                            new DependentDocument { DocType = DocumentType.BIRTH_CERTIFICATE }
-                        });
+                        .ReturnsAsync(() => docsInDb);
+            _mockDocRepo.Setup(r => r.AddAsync(It.IsAny<DependentDocument>()))
+                        .Callback<DependentDocument>(d => docsInDb.Add(d))
+                        .Returns(Task.CompletedTask);
 
             var mockRuleRepo = new Mock<IGenericRepository<DependentDocumentRule>>();
             mockRuleRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentDocumentRule, bool>>>()))
@@ -165,6 +166,68 @@ namespace TaxKeepVN.UnitTests.Application.Services
             result.Document.FileUrl.Should().Be("https://storage/dependents/cert.pdf");
             result.IsProfileComplete.Should().BeTrue();
             _mockDocRepo.Verify(r => r.AddAsync(It.IsAny<DependentDocument>()), Times.Once);
+            _mockUnitOfWork.Verify(u => u.CommitTransactionAsync(), Times.Once);
+        }
+
+        [Fact]
+        public async Task UTCID07b_UploadDocumentAsync_ExistingDocument_UpdatesExistingAndCleansDuplicates()
+        {
+            var userId = Guid.NewGuid();
+            var depId = Guid.NewGuid();
+
+            var mockFile = new Mock<IFormFile>();
+            mockFile.Setup(f => f.Length).Returns(1024);
+            mockFile.Setup(f => f.FileName).Returns("cccd_new.pdf");
+            mockFile.Setup(f => f.ContentType).Returns("application/pdf");
+
+            var dependent = new Dependent
+            {
+                Id = depId,
+                TaxpayerId = userId,
+                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                Status = DependentStatus.PENDING_DOCUMENTS
+            };
+
+            var existingDoc1 = new DependentDocument
+            {
+                Id = Guid.NewGuid(),
+                DependentId = depId,
+                DocType = DocumentType.CITIZEN_ID,
+                FileUrl = "https://storage/old1.pdf",
+                UploadedAt = DateTime.UtcNow.AddDays(-2)
+            };
+            var existingDoc2 = new DependentDocument
+            {
+                Id = Guid.NewGuid(),
+                DependentId = depId,
+                DocType = DocumentType.CITIZEN_ID,
+                FileUrl = "https://storage/old2.pdf",
+                UploadedAt = DateTime.UtcNow.AddDays(-1)
+            };
+
+            _mockDependentRepo.Setup(r => r.GetByIdAsync(depId)).ReturnsAsync(dependent);
+            _mockFileStorageService.Setup(f => f.SaveFileAsync(mockFile.Object, It.IsAny<string>()))
+                                   .ReturnsAsync("https://storage/new_cccd.pdf");
+
+            _mockDocRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentDocument, bool>>>()))
+                        .ReturnsAsync(new List<DependentDocument> { existingDoc1, existingDoc2 });
+
+            var mockRuleRepo = new Mock<IGenericRepository<DependentDocumentRule>>();
+            mockRuleRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentDocumentRule, bool>>>()))
+                        .ReturnsAsync(new List<DependentDocumentRule>
+                        {
+                            new DependentDocumentRule { DocType = "CITIZEN_ID", IsMandatory = true, IsActive = true, TargetGroup = "CHILD_UNDER_18" }
+                        });
+            _mockUnitOfWork.Setup(u => u.Repository<DependentDocumentRule>()).Returns(mockRuleRepo.Object);
+
+            var result = await _service.UploadDocumentAsync(userId, depId, "CITIZEN_ID", mockFile.Object);
+
+            result.Should().NotBeNull();
+            result.Document.FileUrl.Should().Be("https://storage/new_cccd.pdf");
+            result.Document.Id.Should().Be(existingDoc1.Id);
+            _mockDocRepo.Verify(r => r.Update(existingDoc1), Times.Once);
+            _mockDocRepo.Verify(r => r.Remove(existingDoc2), Times.Once);
+            _mockDocRepo.Verify(r => r.AddAsync(It.IsAny<DependentDocument>()), Times.Never);
             _mockUnitOfWork.Verify(u => u.CommitTransactionAsync(), Times.Once);
         }
 

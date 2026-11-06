@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Linq;
 using System.Threading.Tasks;
 using TaxKeepVN.Application.DTOs.Requests.Auth;
@@ -16,11 +16,18 @@ namespace TaxKeepVN.Application.Service.Implementations
         private readonly IJwtTokenService _jwtTokenService;
         private readonly IPasswordHasher _passwordHasher;
 
-        public AuthService(IUnitOfWork unitOfWork, IJwtTokenService jwtTokenService, IPasswordHasher passwordHasher)
+        private readonly IUserSubscriptionService? _userSubscriptionService;
+
+        public AuthService(
+            IUnitOfWork unitOfWork,
+            IJwtTokenService jwtTokenService,
+            IPasswordHasher passwordHasher,
+            IUserSubscriptionService? userSubscriptionService = null)
         {
             _unitOfWork = unitOfWork;
             _jwtTokenService = jwtTokenService;
             _passwordHasher = passwordHasher;
+            _userSubscriptionService = userSubscriptionService;
         }
 
         public async Task<RegisterResponse> RegisterAsync(RegisterRequest request)
@@ -82,6 +89,11 @@ namespace TaxKeepVN.Application.Service.Implementations
             await _unitOfWork.Repository<UserWallet>().AddAsync(initialWallet);
 
             await _unitOfWork.SaveChangesAsync();
+
+            if (_userSubscriptionService != null)
+            {
+                await _userSubscriptionService.AutoAssignBasicPlanIfNoneAsync(newUser.UserId);
+            }
 
             return new RegisterResponse
             {

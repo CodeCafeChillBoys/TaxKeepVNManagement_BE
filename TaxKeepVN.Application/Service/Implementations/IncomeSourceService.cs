@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -15,10 +15,12 @@ namespace TaxKeepVN.Application.Service.Implementations
     public class IncomeSourceService : IIncomeSourceService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly ISubscriptionQuotaService? _quotaService;
 
-        public IncomeSourceService(IUnitOfWork unitOfWork)
+        public IncomeSourceService(IUnitOfWork unitOfWork, ISubscriptionQuotaService? quotaService = null)
         {
             _unitOfWork = unitOfWork;
+            _quotaService = quotaService;
         }
 
         #region Public Methods
@@ -95,6 +97,12 @@ namespace TaxKeepVN.Application.Service.Implementations
             ValidateTaxCode(taxCode);
 
             var repo = _unitOfWork.Repository<IncomeSource>();
+
+            if (_quotaService != null)
+            {
+                var currentSources = await repo.FindAsync(s => s.TaxpayerId == userId && s.IsActive);
+                await _quotaService.CheckCanAddIncomeSourceAsync(userId, currentSources.Count());
+            }
 
             // Check duplicate MST for same user in the same tax year
             var existing = await repo.FindAsync(s =>

@@ -1,4 +1,4 @@
-using Microsoft.Extensions.Logging;
+﻿using Microsoft.Extensions.Logging;
 using TaxKeepVN.Application.DTOs.Bookings;
 using TaxKeepVN.Application.DTOs.Common;
 using TaxKeepVN.Application.DTOs.Experts;
@@ -17,15 +17,18 @@ namespace TaxKeepVN.Application.Service.Implementations
         private readonly IUnitOfWork _unitOfWork;
         private readonly IFileStorageService _fileStorageService;
         private readonly ILogger<BookingService> _logger;
+        private readonly ISubscriptionQuotaService? _quotaService;
 
         public BookingService(
             IUnitOfWork unitOfWork,
             IFileStorageService fileStorageService,
-            ILogger<BookingService> logger)
+            ILogger<BookingService> logger,
+            ISubscriptionQuotaService? quotaService = null)
         {
             _unitOfWork = unitOfWork;
             _fileStorageService = fileStorageService;
             _logger = logger;
+            _quotaService = quotaService;
         }
 
         // ── 1. LẤY LỊCH RẢNH KHẢ DỤNG CHO VIỆC ĐẶT LỊCH ──────────────────────────────
@@ -123,6 +126,14 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             var durationMinutes = (int)(slot.EndTime - slot.StartTime).TotalMinutes;
             var fee = await BookingHelper.CalculateConsultationFeeAsync(_unitOfWork, profile, slot.SessionType, durationMinutes);
+            if (_quotaService != null)
+            {
+                var discountPercent = await _quotaService.GetBookingDiscountPercentAsync(userId);
+                if (discountPercent > 0)
+                {
+                    fee = Math.Round(fee * (100 - discountPercent) / 100m, 0);
+                }
+            }
 
             var policy = await BookingHelper.GetPlatformPolicyAsync(_unitOfWork);
             var leadTimeHours = policy.BookingMinLeadTimeHours;
@@ -244,6 +255,14 @@ namespace TaxKeepVN.Application.Service.Implementations
 
                 var durationMinutes = (int)(slot.EndTime - slot.StartTime).TotalMinutes;
                 var fee = await BookingHelper.CalculateConsultationFeeAsync(_unitOfWork, profile, slot.SessionType, durationMinutes);
+                if (_quotaService != null)
+                {
+                    var discountPercent = await _quotaService.GetBookingDiscountPercentAsync(userId);
+                    if (discountPercent > 0)
+                    {
+                        fee = Math.Round(fee * (100 - discountPercent) / 100m, 0);
+                    }
+                }
 
                 // Tạm khóa slot theo cấu hình động BOOKING_SLOT_HOLD_MINUTES (mặc định 10 phút)
                 var holdExpiresAt = nowUtc.AddMinutes(holdMinutes);

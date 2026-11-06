@@ -2154,6 +2154,172 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("TaxKeepVN.Domain.Entities.SubscriptionPlan", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("BookingDiscountPercent")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("booking_discount_percent");
+
+                    b.Property<bool>("CanExportPdf")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("can_export_pdf");
+
+                    b.Property<bool>("CanExportZip")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("can_export_zip");
+
+                    b.Property<int>("ChatHistoryRetentionDays")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(30)
+                        .HasColumnName("chat_history_retention_days");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<int>("DisplayOrder")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("display_order");
+
+                    b.Property<int>("FreeConsultationsPerYear")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("free_consultations_per_year");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<int>("MaxAiQuestionsPerMonth")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(20)
+                        .HasColumnName("max_ai_questions_per_month");
+
+                    b.Property<int>("MaxDependents")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(3)
+                        .HasColumnName("max_dependents");
+
+                    b.Property<int>("MaxIncomeSources")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(1)
+                        .HasColumnName("max_income_sources");
+
+                    b.Property<int>("MaxOcrScansPerMonth")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(5)
+                        .HasColumnName("max_ocr_scans_per_month");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)")
+                        .HasColumnName("name");
+
+                    b.Property<decimal>("PriceMonthly")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasDefaultValue(0m)
+                        .HasColumnName("price_monthly");
+
+                    b.Property<decimal>("PriceYearly")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasDefaultValue(0m)
+                        .HasColumnName("price_yearly");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("slug");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Slug")
+                        .IsUnique()
+                        .HasDatabaseName("uq_subscription_plans_slug");
+
+                    b.ToTable("subscription_plans", (string)null);
+                });
+
+            modelBuilder.Entity("TaxKeepVN.Domain.Entities.SubscriptionQuotaUsage", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<int>("AiQuestionsUsed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("ai_questions_used");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int>("OcrScansUsed")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("ocr_scans_used");
+
+                    b.Property<string>("PeriodMonth")
+                        .IsRequired()
+                        .HasMaxLength(7)
+                        .HasColumnType("character varying(7)")
+                        .HasColumnName("period_month");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "PeriodMonth")
+                        .IsUnique()
+                        .HasDatabaseName("uq_subscription_quota_usages_user_period");
+
+                    b.ToTable("subscription_quota_usages", (string)null);
+                });
+
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.SystemConfig", b =>
                 {
                     b.Property<Guid>("ConfigId")
@@ -2973,6 +3139,130 @@ namespace TaxKeepVN.Infrastructure.Migrations
                     b.ToTable("users", (string)null);
                 });
 
+            modelBuilder.Entity("TaxKeepVN.Domain.Entities.UserSubscription", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<decimal>("AmountPaid")
+                        .ValueGeneratedOnAdd()
+                        .HasPrecision(18, 2)
+                        .HasColumnType("numeric(18,2)")
+                        .HasDefaultValue(0m)
+                        .HasColumnName("amount_paid");
+
+                    b.Property<string>("BillingCycle")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("free")
+                        .HasColumnName("billing_cycle");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTimeOffset?>("ExpiresAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("expires_at");
+
+                    b.Property<string>("PaymentMethod")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("FREE")
+                        .HasColumnName("payment_method");
+
+                    b.Property<string>("PaymentReference")
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("payment_reference");
+
+                    b.Property<string>("PaymentStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("free")
+                        .HasColumnName("payment_status");
+
+                    b.Property<Guid>("PlanId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("plan_id");
+
+                    b.Property<int>("SnapshotBookingDiscountPercent")
+                        .HasColumnType("integer")
+                        .HasColumnName("snapshot_booking_discount_percent");
+
+                    b.Property<bool>("SnapshotCanExportPdf")
+                        .HasColumnType("boolean")
+                        .HasColumnName("snapshot_can_export_pdf");
+
+                    b.Property<bool>("SnapshotCanExportZip")
+                        .HasColumnType("boolean")
+                        .HasColumnName("snapshot_can_export_zip");
+
+                    b.Property<int>("SnapshotChatHistoryRetentionDays")
+                        .HasColumnType("integer")
+                        .HasColumnName("snapshot_chat_history_retention_days");
+
+                    b.Property<int>("SnapshotFreeConsultationsPerYear")
+                        .HasColumnType("integer")
+                        .HasColumnName("snapshot_free_consultations_per_year");
+
+                    b.Property<int>("SnapshotMaxAiQuestionsPerMonth")
+                        .HasColumnType("integer")
+                        .HasColumnName("snapshot_max_ai_questions_per_month");
+
+                    b.Property<int>("SnapshotMaxDependents")
+                        .HasColumnType("integer")
+                        .HasColumnName("snapshot_max_dependents");
+
+                    b.Property<int>("SnapshotMaxIncomeSources")
+                        .HasColumnType("integer")
+                        .HasColumnName("snapshot_max_income_sources");
+
+                    b.Property<int>("SnapshotMaxOcrScansPerMonth")
+                        .HasColumnType("integer")
+                        .HasColumnName("snapshot_max_ocr_scans_per_month");
+
+                    b.Property<DateTimeOffset>("StartsAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("starts_at");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("active")
+                        .HasColumnName("status");
+
+                    b.Property<DateTimeOffset>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.Property<Guid>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExpiresAt")
+                        .HasDatabaseName("idx_user_subscriptions_expires_at");
+
+                    b.HasIndex("PlanId");
+
+                    b.HasIndex("UserId", "Status")
+                        .HasDatabaseName("idx_user_subscriptions_user_status");
+
+                    b.ToTable("user_subscriptions", (string)null);
+                });
+
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.UserWallet", b =>
                 {
                     b.Property<Guid>("Id")
@@ -3441,6 +3731,17 @@ namespace TaxKeepVN.Infrastructure.Migrations
                     b.Navigation("User");
                 });
 
+            modelBuilder.Entity("TaxKeepVN.Domain.Entities.SubscriptionQuotaUsage", b =>
+                {
+                    b.HasOne("TaxKeepVN.Domain.Entities.User", "User")
+                        .WithMany("QuotaUsages")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("User");
+                });
+
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.TaxPeriod", b =>
                 {
                     b.HasOne("TaxKeepVN.Domain.Entities.User", "User")
@@ -3481,6 +3782,25 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Role");
+                });
+
+            modelBuilder.Entity("TaxKeepVN.Domain.Entities.UserSubscription", b =>
+                {
+                    b.HasOne("TaxKeepVN.Domain.Entities.SubscriptionPlan", "Plan")
+                        .WithMany("UserSubscriptions")
+                        .HasForeignKey("PlanId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("TaxKeepVN.Domain.Entities.User", "User")
+                        .WithMany("Subscriptions")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Plan");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.UserWallet", b =>
@@ -3574,6 +3894,11 @@ namespace TaxKeepVN.Infrastructure.Migrations
                     b.Navigation("Bookings");
                 });
 
+            modelBuilder.Entity("TaxKeepVN.Domain.Entities.SubscriptionPlan", b =>
+                {
+                    b.Navigation("UserSubscriptions");
+                });
+
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.TaxDocumentType", b =>
                 {
                     b.Navigation("Documents");
@@ -3598,6 +3923,10 @@ namespace TaxKeepVN.Infrastructure.Migrations
                     b.Navigation("ExpertProfile");
 
                     b.Navigation("ExpertReviews");
+
+                    b.Navigation("QuotaUsages");
+
+                    b.Navigation("Subscriptions");
 
                     b.Navigation("TaxPeriods");
                 });

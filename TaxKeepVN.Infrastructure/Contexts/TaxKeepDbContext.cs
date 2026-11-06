@@ -1,4 +1,4 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using TaxKeepVN.Domain.Entities;
 using TaxKeepVN.Domain.Enums;
 
@@ -55,6 +55,11 @@ namespace TaxKeepVN.Infrastructure.Contexts
         public DbSet<WalletTransaction> WalletTransactions { get; set; }
         public DbSet<WithdrawalRequest> WithdrawalRequests { get; set; }
         public DbSet<BookingDispute> BookingDisputes { get; set; }
+
+        // Subscription
+        public DbSet<SubscriptionPlan> SubscriptionPlans { get; set; }
+        public DbSet<UserSubscription> UserSubscriptions { get; set; }
+        public DbSet<SubscriptionQuotaUsage> SubscriptionQuotaUsages { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -1210,6 +1215,104 @@ namespace TaxKeepVN.Infrastructure.Contexts
 
                 entity.HasIndex(d => d.BookingId).IsUnique().HasDatabaseName("uq_booking_disputes_booking_id");
                 entity.HasIndex(d => d.Status).HasDatabaseName("idx_booking_disputes_status");
+            });
+
+            // ── SubscriptionPlan ─────────────────────────────────────────────────────
+            modelBuilder.Entity<SubscriptionPlan>(entity =>
+            {
+                entity.ToTable("subscription_plans");
+                entity.HasKey(p => p.Id);
+
+                entity.Property(p => p.Id).HasColumnName("id");
+                entity.Property(p => p.Name).HasColumnName("name").HasMaxLength(100).IsRequired();
+                entity.Property(p => p.Slug).HasColumnName("slug").HasMaxLength(50).IsRequired();
+                entity.Property(p => p.Description).HasColumnName("description");
+                entity.Property(p => p.PriceMonthly).HasColumnName("price_monthly").HasPrecision(18, 2).HasDefaultValue(0m);
+                entity.Property(p => p.PriceYearly).HasColumnName("price_yearly").HasPrecision(18, 2).HasDefaultValue(0m);
+                entity.Property(p => p.MaxAiQuestionsPerMonth).HasColumnName("max_ai_questions_per_month").HasDefaultValue(20);
+                entity.Property(p => p.ChatHistoryRetentionDays).HasColumnName("chat_history_retention_days").HasDefaultValue(30);
+                entity.Property(p => p.MaxOcrScansPerMonth).HasColumnName("max_ocr_scans_per_month").HasDefaultValue(5);
+                entity.Property(p => p.MaxIncomeSources).HasColumnName("max_income_sources").HasDefaultValue(1);
+                entity.Property(p => p.MaxDependents).HasColumnName("max_dependents").HasDefaultValue(3);
+                entity.Property(p => p.CanExportPdf).HasColumnName("can_export_pdf").HasDefaultValue(false);
+                entity.Property(p => p.CanExportZip).HasColumnName("can_export_zip").HasDefaultValue(false);
+                entity.Property(p => p.BookingDiscountPercent).HasColumnName("booking_discount_percent").HasDefaultValue(0);
+                entity.Property(p => p.FreeConsultationsPerYear).HasColumnName("free_consultations_per_year").HasDefaultValue(0);
+                entity.Property(p => p.DisplayOrder).HasColumnName("display_order").HasDefaultValue(0);
+                entity.Property(p => p.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+                entity.Property(p => p.CreatedAt).HasColumnName("created_at");
+                entity.Property(p => p.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasIndex(p => p.Slug).IsUnique().HasDatabaseName("uq_subscription_plans_slug");
+            });
+
+            // ── UserSubscription ─────────────────────────────────────────────────────
+            modelBuilder.Entity<UserSubscription>(entity =>
+            {
+                entity.ToTable("user_subscriptions");
+                entity.HasKey(s => s.Id);
+
+                entity.Property(s => s.Id).HasColumnName("id");
+                entity.Property(s => s.UserId).HasColumnName("user_id");
+                entity.Property(s => s.PlanId).HasColumnName("plan_id");
+                entity.Property(s => s.BillingCycle).HasColumnName("billing_cycle").HasMaxLength(20).HasDefaultValue("free");
+                entity.Property(s => s.Status).HasColumnName("status").HasMaxLength(20).HasDefaultValue("active");
+                entity.Property(s => s.AmountPaid).HasColumnName("amount_paid").HasPrecision(18, 2).HasDefaultValue(0m);
+                entity.Property(s => s.PaymentMethod).HasColumnName("payment_method").HasMaxLength(20).HasDefaultValue("FREE");
+                entity.Property(s => s.PaymentStatus).HasColumnName("payment_status").HasMaxLength(20).HasDefaultValue("free");
+                entity.Property(s => s.PaymentReference).HasColumnName("payment_reference").HasMaxLength(255);
+                entity.Property(s => s.StartsAt).HasColumnName("starts_at");
+                entity.Property(s => s.ExpiresAt).HasColumnName("expires_at");
+
+                // Snapshot fields
+                entity.Property(s => s.SnapshotMaxAiQuestionsPerMonth).HasColumnName("snapshot_max_ai_questions_per_month");
+                entity.Property(s => s.SnapshotChatHistoryRetentionDays).HasColumnName("snapshot_chat_history_retention_days");
+                entity.Property(s => s.SnapshotMaxOcrScansPerMonth).HasColumnName("snapshot_max_ocr_scans_per_month");
+                entity.Property(s => s.SnapshotMaxIncomeSources).HasColumnName("snapshot_max_income_sources");
+                entity.Property(s => s.SnapshotMaxDependents).HasColumnName("snapshot_max_dependents");
+                entity.Property(s => s.SnapshotCanExportPdf).HasColumnName("snapshot_can_export_pdf");
+                entity.Property(s => s.SnapshotCanExportZip).HasColumnName("snapshot_can_export_zip");
+                entity.Property(s => s.SnapshotBookingDiscountPercent).HasColumnName("snapshot_booking_discount_percent");
+                entity.Property(s => s.SnapshotFreeConsultationsPerYear).HasColumnName("snapshot_free_consultations_per_year");
+
+                entity.Property(s => s.CreatedAt).HasColumnName("created_at");
+                entity.Property(s => s.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasOne(s => s.User)
+                    .WithMany(u => u.Subscriptions)
+                    .HasForeignKey(s => s.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(s => s.Plan)
+                    .WithMany(p => p.UserSubscriptions)
+                    .HasForeignKey(s => s.PlanId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasIndex(s => new { s.UserId, s.Status }).HasDatabaseName("idx_user_subscriptions_user_status");
+                entity.HasIndex(s => s.ExpiresAt).HasDatabaseName("idx_user_subscriptions_expires_at");
+            });
+
+            // ── SubscriptionQuotaUsage ───────────────────────────────────────────────
+            modelBuilder.Entity<SubscriptionQuotaUsage>(entity =>
+            {
+                entity.ToTable("subscription_quota_usages");
+                entity.HasKey(q => q.Id);
+
+                entity.Property(q => q.Id).HasColumnName("id");
+                entity.Property(q => q.UserId).HasColumnName("user_id");
+                entity.Property(q => q.PeriodMonth).HasColumnName("period_month").HasMaxLength(7).IsRequired();
+                entity.Property(q => q.AiQuestionsUsed).HasColumnName("ai_questions_used").HasDefaultValue(0);
+                entity.Property(q => q.OcrScansUsed).HasColumnName("ocr_scans_used").HasDefaultValue(0);
+                entity.Property(q => q.CreatedAt).HasColumnName("created_at");
+                entity.Property(q => q.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasOne(q => q.User)
+                    .WithMany(u => u.QuotaUsages)
+                    .HasForeignKey(q => q.UserId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(q => new { q.UserId, q.PeriodMonth }).IsUnique()
+                    .HasDatabaseName("uq_subscription_quota_usages_user_period");
             });
         }
     }
