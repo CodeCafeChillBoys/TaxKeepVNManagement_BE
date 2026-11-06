@@ -198,6 +198,12 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
             if (!string.IsNullOrWhiteSpace(data.InvoiceDate) && DateOnly.TryParse(data.InvoiceDate, out var invDate))
             {
                 document.InvoiceDate = invDate;
+                if (invDate > DateOnly.FromDateTime(DateTime.UtcNow))
+                {
+                    data.ValidationErrors ??= new System.Collections.Generic.List<string>();
+                    data.ValidationErrors.Add("Ngày lập trên hóa đơn không được lớn hơn ngày hiện tại.");
+                    data.Status = "FAILED";
+                }
             }
             if (data.ExtractedYear.HasValue)
             {

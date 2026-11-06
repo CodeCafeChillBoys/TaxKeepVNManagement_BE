@@ -841,5 +841,384 @@ namespace TaxKeepVN.UnitTests.Application.Services
         }
 
         #endregion
+
+        #region Dedicated 12-Case Matrix Tests for Submit, Approve, Reject
+
+        [Fact]
+        public async Task SubmitApplicationAsync_FromNeedSupplement_CreatesResubmittedAudit()
+        {
+            var userId = Guid.NewGuid();
+            var user = new User { UserId = userId, Status = "active", FullName = "Nguyen Van A" };
+            _mockUserRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<User, bool>>>()))
+                         .ReturnsAsync(new List<User> { user });
+
+            var appId = Guid.NewGuid();
+            var app = new ExpertApplication
+            {
+                Id = appId,
+                UserId = userId,
+                FullName = "Nguyen Van A",
+                JobTitle = "Chuyên viên thuế",
+                ExperienceDescription = "5 năm",
+                Status = ExpertApplicationStatus.NeedSupplement
+            };
+            var appsList = new List<ExpertApplication> { app };
+            _mockAppRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertApplication, bool>>>()))
+                        .ReturnsAsync((Expression<Func<ExpertApplication, bool>> expr) => appsList.Where(expr.Compile()).ToList());
+
+            _mockAppSpecRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertApplicationSpecialization, bool>>>()))
+                            .ReturnsAsync(new List<ExpertApplicationSpecialization> { new ExpertApplicationSpecialization { ApplicationId = appId, SpecializationId = 1 } });
+            _mockCertRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertApplicationCertificate, bool>>>()))
+                         .ReturnsAsync(new List<ExpertApplicationCertificate> { new ExpertApplicationCertificate { Id = Guid.NewGuid(), ApplicationId = appId, HasExpiry = false } });
+            _mockProposalRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertApplicationFeeProposal, bool>>>()))
+                             .ReturnsAsync(new List<ExpertApplicationFeeProposal> { new ExpertApplicationFeeProposal { ApplicationId = appId, ProposedFee = 500000m } });
+
+            var result = await _service.SubmitApplicationAsync(userId);
+
+            result.Should().NotBeNull();
+            app.Status.Should().Be(ExpertApplicationStatus.PendingReview);
+            _mockAuditRepo.Verify(r => r.AddAsync(It.Is<ExpertApplicationAudit>(a => a.Action == ApplicationAuditAction.Resubmitted)), Times.Once);
+        }
+
+        [Fact]
+        public async Task SubmitApplicationAsync_FeeAtBoundary_Success()
+        {
+            var userId = Guid.NewGuid();
+            var user = new User { UserId = userId, Status = "active", FullName = "Nguyen Van A" };
+            _mockUserRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<User, bool>>>()))
+                         .ReturnsAsync(new List<User> { user });
+
+            var appId = Guid.NewGuid();
+            var app = new ExpertApplication
+            {
+                Id = appId,
+                UserId = userId,
+                FullName = "Nguyen Van A",
+                JobTitle = "Chuyên viên thuế",
+                ExperienceDescription = "5 năm",
+                Status = ExpertApplicationStatus.Draft
+            };
+            var appsList = new List<ExpertApplication> { app };
+            _mockAppRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertApplication, bool>>>()))
+                        .ReturnsAsync((Expression<Func<ExpertApplication, bool>> expr) => appsList.Where(expr.Compile()).ToList());
+
+            _mockAppSpecRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertApplicationSpecialization, bool>>>()))
+                            .ReturnsAsync(new List<ExpertApplicationSpecialization> { new ExpertApplicationSpecialization { ApplicationId = appId, SpecializationId = 1 } });
+            _mockCertRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertApplicationCertificate, bool>>>()))
+                         .ReturnsAsync(new List<ExpertApplicationCertificate> { new ExpertApplicationCertificate { Id = Guid.NewGuid(), ApplicationId = appId, HasExpiry = false } });
+
+            // Exactly MinFee 100,000
+            var prop = new ExpertApplicationFeeProposal { ApplicationId = appId, SessionType = SessionType.ONLINE_MEETING, DurationMinutes = 60, ProposedFee = 100000m };
+            _mockProposalRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertApplicationFeeProposal, bool>>>()))
+                             .ReturnsAsync(new List<ExpertApplicationFeeProposal> { prop });
+            var feeConfig = new ConsultationFeeConfiguration { SessionType = SessionType.ONLINE_MEETING, DurationMinutes = 60, MinFee = 100000m, MaxFee = 1000000m, IsActive = true };
+            _mockFeeConfigRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ConsultationFeeConfiguration, bool>>>()))
+                              .ReturnsAsync(new List<ConsultationFeeConfiguration> { feeConfig });
+
+            var result = await _service.SubmitApplicationAsync(userId);
+            result.Should().NotBeNull();
+            app.Status.Should().Be(ExpertApplicationStatus.PendingReview);
+        }
+
+        [Fact]
+        public async Task SubmitApplicationAsync_CertExpiresTomorrowBoundary_Success()
+        {
+            var userId = Guid.NewGuid();
+            var user = new User { UserId = userId, Status = "active", FullName = "Nguyen Van A" };
+            _mockUserRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<User, bool>>>()))
+                         .ReturnsAsync(new List<User> { user });
+
+            var appId = Guid.NewGuid();
+            var app = new ExpertApplication
+            {
+                Id = appId,
+                UserId = userId,
+                FullName = "Nguyen Van A",
+                JobTitle = "Chuyên viên thuế",
+                ExperienceDescription = "5 năm",
+                Status = ExpertApplicationStatus.Draft
+            };
+            var appsList = new List<ExpertApplication> { app };
+            _mockAppRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertApplication, bool>>>()))
+                        .ReturnsAsync((Expression<Func<ExpertApplication, bool>> expr) => appsList.Where(expr.Compile()).ToList());
+
+            _mockAppSpecRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertApplicationSpecialization, bool>>>()))
+                            .ReturnsAsync(new List<ExpertApplicationSpecialization> { new ExpertApplicationSpecialization { ApplicationId = appId, SpecializationId = 1 } });
+
+            var tomorrow = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1));
+            var cert = new ExpertApplicationCertificate { Id = Guid.NewGuid(), ApplicationId = appId, HasExpiry = true, ExpiryDate = tomorrow };
+            _mockCertRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertApplicationCertificate, bool>>>()))
+                         .ReturnsAsync(new List<ExpertApplicationCertificate> { cert });
+
+            _mockProposalRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertApplicationFeeProposal, bool>>>()))
+                             .ReturnsAsync(new List<ExpertApplicationFeeProposal> { new ExpertApplicationFeeProposal { ApplicationId = appId, ProposedFee = 500000m } });
+
+            var result = await _service.SubmitApplicationAsync(userId);
+            result.Should().NotBeNull();
+            app.Status.Should().Be(ExpertApplicationStatus.PendingReview);
+        }
+
+        [Fact]
+        public async Task SubmitApplicationAsync_NoDraftApp_ThrowsNotFoundException()
+        {
+            var userId = Guid.NewGuid();
+            var user = new User { UserId = userId, Status = "active", FullName = "Nguyen Van A" };
+            _mockUserRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<User, bool>>>()))
+                         .ReturnsAsync(new List<User> { user });
+            _mockAppRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertApplication, bool>>>()))
+                        .ReturnsAsync(new List<ExpertApplication>());
+
+            await Assert.ThrowsAsync<NotFoundException>(() =>
+                _service.SubmitApplicationAsync(userId));
+        }
+
+        [Fact]
+        public async Task SubmitApplicationAsync_ActivePendingAppExists_ThrowsBadRequestException()
+        {
+            var userId = Guid.NewGuid();
+            var user = new User { UserId = userId, Status = "active", FullName = "Nguyen Van A" };
+            _mockUserRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<User, bool>>>()))
+                         .ReturnsAsync(new List<User> { user });
+
+            var draftApp = new ExpertApplication { Id = Guid.NewGuid(), UserId = userId, Status = ExpertApplicationStatus.Draft };
+            var pendingApp = new ExpertApplication { Id = Guid.NewGuid(), UserId = userId, Status = ExpertApplicationStatus.PendingReview };
+            var appsList = new List<ExpertApplication> { draftApp, pendingApp };
+
+            _mockAppRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertApplication, bool>>>()))
+                        .ReturnsAsync((Expression<Func<ExpertApplication, bool>> expr) => appsList.Where(expr.Compile()).ToList());
+
+            var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
+                _service.SubmitApplicationAsync(userId));
+            ex.ErrorCode.Should().Be("ACTIVE_APPLICATION_EXISTS");
+        }
+
+        [Fact]
+        public async Task SubmitApplicationAsync_FullNameMismatch_ThrowsBadRequestException()
+        {
+            var userId = Guid.NewGuid();
+            var user = new User { UserId = userId, Status = "active", FullName = "Nguyen Van A" };
+            _mockUserRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<User, bool>>>()))
+                         .ReturnsAsync(new List<User> { user });
+
+            var app = new ExpertApplication
+            {
+                Id = Guid.NewGuid(),
+                UserId = userId,
+                FullName = "Trần Thị B",
+                JobTitle = "Chuyên viên",
+                ExperienceDescription = "5 năm",
+                Status = ExpertApplicationStatus.Draft
+            };
+            var appsList = new List<ExpertApplication> { app };
+            _mockAppRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertApplication, bool>>>()))
+                        .ReturnsAsync((Expression<Func<ExpertApplication, bool>> expr) => appsList.Where(expr.Compile()).ToList());
+
+            var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
+                _service.SubmitApplicationAsync(userId));
+            ex.ErrorCode.Should().Be("FULLNAME_MISMATCH");
+        }
+
+        [Fact]
+        public async Task ApproveApplicationAsync_NullNote_AppliesDefaultNote()
+        {
+            var adminId = Guid.NewGuid();
+            var userId = Guid.NewGuid();
+            var appId = Guid.NewGuid();
+
+            var app = new ExpertApplication { Id = appId, UserId = userId, Status = ExpertApplicationStatus.PendingReview, ApplicationNumber = "EXP-01" };
+            _mockAppRepo.Setup(r => r.GetByIdAsync(appId)).ReturnsAsync(app);
+
+            var user = new User { UserId = userId, UserRole = "taxpayer", RoleId = 2 };
+            _mockUserRepo.Setup(r => r.GetByIdAsync(userId)).ReturnsAsync(user);
+
+            var result = await _service.ApproveApplicationAsync(adminId, appId, null);
+
+            result.Should().NotBeNull();
+            app.Status.Should().Be(ExpertApplicationStatus.Approved);
+            _mockAuditRepo.Verify(r => r.AddAsync(It.Is<ExpertApplicationAudit>(a => a.Notes == "Hồ sơ đã được phê duyệt thành công.")), Times.Once);
+        }
+
+        [Fact]
+        public async Task ApproveApplicationAsync_ExistingProfile_UpdatesAndReactivates()
+        {
+            var adminId = Guid.NewGuid();
+            var userId = Guid.NewGuid();
+            var appId = Guid.NewGuid();
+
+            var app = new ExpertApplication { Id = appId, UserId = userId, Status = ExpertApplicationStatus.PendingReview, ApplicationNumber = "EXP-02", JobTitle = "Tư vấn trưởng" };
+            _mockAppRepo.Setup(r => r.GetByIdAsync(appId)).ReturnsAsync(app);
+
+            var user = new User { UserId = userId, UserRole = "taxpayer", RoleId = 2 };
+            _mockUserRepo.Setup(r => r.GetByIdAsync(userId)).ReturnsAsync(user);
+
+            var existingProfile = new ExpertProfile { Id = Guid.NewGuid(), UserId = userId, IsActive = false };
+            _mockProfileRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertProfile, bool>>>()))
+                            .ReturnsAsync(new List<ExpertProfile> { existingProfile });
+
+            var result = await _service.ApproveApplicationAsync(adminId, appId, new ApproveExpertApplicationRequest { Note = "Phê duyệt lại" });
+
+            result.Should().NotBeNull();
+            existingProfile.IsActive.Should().BeTrue();
+            existingProfile.JobTitle.Should().Be("Tư vấn trưởng");
+            _mockProfileRepo.Verify(r => r.Update(existingProfile), Times.Once);
+        }
+
+        [Fact]
+        public async Task ApproveApplicationAsync_ExistingWallet_DoesNotCreateDuplicateWallet()
+        {
+            var adminId = Guid.NewGuid();
+            var userId = Guid.NewGuid();
+            var appId = Guid.NewGuid();
+
+            var app = new ExpertApplication { Id = appId, UserId = userId, Status = ExpertApplicationStatus.PendingReview, ApplicationNumber = "EXP-03" };
+            _mockAppRepo.Setup(r => r.GetByIdAsync(appId)).ReturnsAsync(app);
+
+            var user = new User { UserId = userId, UserRole = "taxpayer", RoleId = 2 };
+            _mockUserRepo.Setup(r => r.GetByIdAsync(userId)).ReturnsAsync(user);
+
+            var existingWallet = new UserWallet { Id = Guid.NewGuid(), UserId = userId, WalletType = "EXPERT", AvailableBalance = 50000m };
+            _mockWalletRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<UserWallet, bool>>>()))
+                           .ReturnsAsync(new List<UserWallet> { existingWallet });
+
+            var result = await _service.ApproveApplicationAsync(adminId, appId, null);
+
+            result.Should().NotBeNull();
+            _mockWalletRepo.Verify(r => r.AddAsync(It.IsAny<UserWallet>()), Times.Never);
+        }
+
+        [Fact]
+        public async Task ApproveApplicationAsync_CertExpiresToday_Boundary_Success()
+        {
+            var adminId = Guid.NewGuid();
+            var userId = Guid.NewGuid();
+            var appId = Guid.NewGuid();
+
+            var app = new ExpertApplication { Id = appId, UserId = userId, Status = ExpertApplicationStatus.PendingReview, ApplicationNumber = "EXP-04" };
+            _mockAppRepo.Setup(r => r.GetByIdAsync(appId)).ReturnsAsync(app);
+
+            var user = new User { UserId = userId, UserRole = "taxpayer", RoleId = 2 };
+            _mockUserRepo.Setup(r => r.GetByIdAsync(userId)).ReturnsAsync(user);
+
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            var cert = new ExpertApplicationCertificate { Id = Guid.NewGuid(), ApplicationId = appId, HasExpiry = true, ExpiryDate = today };
+            _mockCertRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertApplicationCertificate, bool>>>()))
+                         .ReturnsAsync(new List<ExpertApplicationCertificate> { cert });
+
+            var result = await _service.ApproveApplicationAsync(adminId, appId, null);
+
+            result.Should().NotBeNull();
+            app.Status.Should().Be(ExpertApplicationStatus.Approved);
+        }
+
+        [Fact]
+        public async Task ApproveApplicationAsync_AppNotFound_ThrowsNotFoundException()
+        {
+            _mockAppRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>())).ReturnsAsync((ExpertApplication?)null);
+
+            await Assert.ThrowsAsync<NotFoundException>(() =>
+                _service.ApproveApplicationAsync(Guid.NewGuid(), Guid.NewGuid(), null));
+        }
+
+        [Fact]
+        public async Task ApproveApplicationAsync_InvalidStatus_ThrowsBadRequestException()
+        {
+            var appId = Guid.NewGuid();
+            var app = new ExpertApplication { Id = appId, Status = ExpertApplicationStatus.Draft };
+            _mockAppRepo.Setup(r => r.GetByIdAsync(appId)).ReturnsAsync(app);
+
+            var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
+                _service.ApproveApplicationAsync(Guid.NewGuid(), appId, null));
+            ex.ErrorCode.Should().Be("INVALID_STATUS");
+        }
+
+        [Fact]
+        public async Task ApproveApplicationAsync_ExpiredCert_ThrowsBadRequestException()
+        {
+            var adminId = Guid.NewGuid();
+            var appId = Guid.NewGuid();
+            var app = new ExpertApplication { Id = appId, Status = ExpertApplicationStatus.PendingReview };
+            _mockAppRepo.Setup(r => r.GetByIdAsync(appId)).ReturnsAsync(app);
+
+            var yesterday = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(-1));
+            var cert = new ExpertApplicationCertificate { Id = Guid.NewGuid(), ApplicationId = appId, HasExpiry = true, ExpiryDate = yesterday, CertificateName = "Chứng chỉ CPA", CertificateNumber = "CPA-001" };
+            _mockCertRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertApplicationCertificate, bool>>>()))
+                         .ReturnsAsync(new List<ExpertApplicationCertificate> { cert });
+
+            var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
+                _service.ApproveApplicationAsync(adminId, appId, null));
+            ex.ErrorCode.Should().Be("CERTIFICATE_EXPIRED");
+        }
+
+        [Fact]
+        public async Task RejectApplicationAsync_NeedSupplementStatus_Success()
+        {
+            var adminId = Guid.NewGuid();
+            var userId = Guid.NewGuid();
+            var appId = Guid.NewGuid();
+
+            var app = new ExpertApplication { Id = appId, UserId = userId, Status = ExpertApplicationStatus.NeedSupplement, ApplicationNumber = "EXP-REJ-01" };
+            _mockAppRepo.Setup(r => r.GetByIdAsync(appId)).ReturnsAsync(app);
+
+            var request = new RejectExpertApplicationRequest { Reason = "Không đáp ứng yêu cầu bổ sung." };
+            var result = await _service.RejectApplicationAsync(adminId, appId, request);
+
+            result.Should().NotBeNull();
+            app.Status.Should().Be(ExpertApplicationStatus.Rejected);
+            _mockAuditRepo.Verify(r => r.AddAsync(It.Is<ExpertApplicationAudit>(a => a.Action == ApplicationAuditAction.Rejected)), Times.Once);
+        }
+
+        [Fact]
+        public async Task RejectApplicationAsync_WhitespacePaddedReason_TrimmedProperly()
+        {
+            var adminId = Guid.NewGuid();
+            var userId = Guid.NewGuid();
+            var appId = Guid.NewGuid();
+
+            var app = new ExpertApplication { Id = appId, UserId = userId, Status = ExpertApplicationStatus.PendingReview, ApplicationNumber = "EXP-REJ-02" };
+            _mockAppRepo.Setup(r => r.GetByIdAsync(appId)).ReturnsAsync(app);
+
+            var request = new RejectExpertApplicationRequest { Reason = "   Lý do có khoảng trắng đầu cuối   " };
+            var result = await _service.RejectApplicationAsync(adminId, appId, request);
+
+            result.Should().NotBeNull();
+            app.RejectionReason.Should().Be("Lý do có khoảng trắng đầu cuối");
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("   ")]
+        public async Task RejectApplicationAsync_EmptyOrWhitespaceReason_ThrowsBadRequestException(string? invalidReason)
+        {
+            var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
+                _service.RejectApplicationAsync(Guid.NewGuid(), Guid.NewGuid(), new RejectExpertApplicationRequest { Reason = invalidReason! }));
+            ex.ErrorCode.Should().Be("REASON_REQUIRED");
+        }
+
+        [Fact]
+        public async Task RejectApplicationAsync_AppNotFound_ThrowsNotFoundException()
+        {
+            _mockAppRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>())).ReturnsAsync((ExpertApplication?)null);
+
+            await Assert.ThrowsAsync<NotFoundException>(() =>
+                _service.RejectApplicationAsync(Guid.NewGuid(), Guid.NewGuid(), new RejectExpertApplicationRequest { Reason = "Hồ sơ không hợp lệ" }));
+        }
+
+        [Theory]
+        [InlineData(ExpertApplicationStatus.Draft)]
+        [InlineData(ExpertApplicationStatus.Approved)]
+        [InlineData(ExpertApplicationStatus.Rejected)]
+        public async Task RejectApplicationAsync_InvalidStatus_ThrowsBadRequestException(ExpertApplicationStatus invalidStatus)
+        {
+            var appId = Guid.NewGuid();
+            var app = new ExpertApplication { Id = appId, Status = invalidStatus };
+            _mockAppRepo.Setup(r => r.GetByIdAsync(appId)).ReturnsAsync(app);
+
+            var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
+                _service.RejectApplicationAsync(Guid.NewGuid(), appId, new RejectExpertApplicationRequest { Reason = "Không đạt" }));
+            ex.ErrorCode.Should().Be("INVALID_STATUS");
+        }
+
+        #endregion
     }
 }

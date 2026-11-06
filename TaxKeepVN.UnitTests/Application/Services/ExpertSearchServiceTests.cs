@@ -461,5 +461,246 @@ namespace TaxKeepVN.UnitTests.Application.Services
         }
 
         #endregion
+
+        #region Dedicated Matrix Tests for SearchExpertsAsync & GetExpertDetailByIdAsync
+
+        [Fact]
+        public async Task SearchExpertsAsync_RatingAndFeeFilter_MatchesCorrectProfiles()
+        {
+            var profileId = Guid.NewGuid();
+            var userId = Guid.NewGuid();
+            var appId = Guid.NewGuid();
+
+            var profile = new ExpertProfile
+            {
+                Id = profileId,
+                UserId = userId,
+                LatestApplicationId = appId,
+                IsActive = true,
+                Rating = 4.8m,
+                YearsOfExperience = 5
+            };
+            _mockProfileRepo.Setup(r => r.GetAllAsync()).ReturnsAsync(new List<ExpertProfile> { profile });
+
+            var app = new ExpertApplication { Id = appId, Status = ExpertApplicationStatus.Approved, FullName = "Le Thi C" };
+            _mockAppRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertApplication, bool>>>()))
+                        .ReturnsAsync(new List<ExpertApplication> { app });
+
+            var user = new User { UserId = userId, Status = "active", FullName = "Le Thi C" };
+            _mockUserRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<User, bool>>>()))
+                         .ReturnsAsync(new List<User> { user });
+
+            var fee = new ExpertApplicationFeeProposal { ApplicationId = appId, ProposedFee = 400000m };
+            _mockProposalRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertApplicationFeeProposal, bool>>>()))
+                             .ReturnsAsync(new List<ExpertApplicationFeeProposal> { fee });
+
+            _mockSlotRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertSlot, bool>>>()))
+                         .ReturnsAsync(new List<ExpertSlot>());
+            _mockCertRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertApplicationCertificate, bool>>>()))
+                         .ReturnsAsync(new List<ExpertApplicationCertificate>());
+            _mockAppSpecRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertApplicationSpecialization, bool>>>()))
+                            .ReturnsAsync(new List<ExpertApplicationSpecialization>());
+            _mockSpecRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Specialization, bool>>>()))
+                         .ReturnsAsync(new List<Specialization>());
+
+            var query = new ExpertSearchQueryParameters
+            {
+                MinRating = 4.5m,
+                MinFee = 300000m,
+                MaxFee = 500000m,
+                TimeFilter = ExpertTimeFilter.All
+            };
+
+            var result = await _service.SearchExpertsAsync(query);
+
+            result.Should().NotBeNull();
+            result.Items.Should().HaveCount(1);
+            result.Items[0].FullName.Should().Be("Le Thi C");
+        }
+
+        [Fact]
+        public async Task SearchExpertsAsync_NoCriteriaMatch_ReturnsEmptyWithSuggestions()
+        {
+            var profileId = Guid.NewGuid();
+            var userId = Guid.NewGuid();
+            var appId = Guid.NewGuid();
+
+            var profile = new ExpertProfile { Id = profileId, UserId = userId, LatestApplicationId = appId, IsActive = true, Rating = 3.0m };
+            _mockProfileRepo.Setup(r => r.GetAllAsync()).ReturnsAsync(new List<ExpertProfile> { profile });
+
+            var app = new ExpertApplication { Id = appId, Status = ExpertApplicationStatus.Approved, FullName = "Expert Match" };
+            _mockAppRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertApplication, bool>>>()))
+                        .ReturnsAsync(new List<ExpertApplication> { app });
+
+            var user = new User { UserId = userId, Status = "active", FullName = "Expert Match" };
+            _mockUserRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<User, bool>>>()))
+                         .ReturnsAsync(new List<User> { user });
+
+            _mockProposalRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertApplicationFeeProposal, bool>>>()))
+                             .ReturnsAsync(new List<ExpertApplicationFeeProposal>());
+            _mockSlotRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertSlot, bool>>>()))
+                         .ReturnsAsync(new List<ExpertSlot>());
+            _mockCertRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertApplicationCertificate, bool>>>()))
+                         .ReturnsAsync(new List<ExpertApplicationCertificate>());
+            _mockAppSpecRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertApplicationSpecialization, bool>>>()))
+                            .ReturnsAsync(new List<ExpertApplicationSpecialization>());
+            _mockSpecRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Specialization, bool>>>()))
+                         .ReturnsAsync(new List<Specialization>());
+
+            // Filter for rating >= 4.9 which doesn't match rating 3.0
+            var query = new ExpertSearchQueryParameters { MinRating = 4.9m };
+            var result = await _service.SearchExpertsAsync(query);
+
+            result.Should().NotBeNull();
+            result.Items.Should().BeEmpty();
+            result.Pagination.TotalItems.Should().Be(0);
+            result.Suggestion.Should().NotBeNull();
+        }
+
+        [Fact]
+        public async Task GetExpertDetailByIdAsync_EmptyGuid_ThrowsNotFoundException()
+        {
+            _mockProfileRepo.Setup(r => r.GetByIdAsync(Guid.Empty)).ReturnsAsync((ExpertProfile?)null);
+
+            await Assert.ThrowsAsync<NotFoundException>(() =>
+                _service.GetExpertDetailByIdAsync(Guid.Empty));
+        }
+
+        [Fact]
+        public async Task GetExpertDetailByIdAsync_NonAnonymousReview_DisplaysFullName()
+        {
+            var profileId = Guid.NewGuid();
+            var userId = Guid.NewGuid();
+            var appId = Guid.NewGuid();
+            var reviewerId = Guid.NewGuid();
+
+            var profile = new ExpertProfile { Id = profileId, UserId = userId, LatestApplicationId = appId, IsActive = true };
+            _mockProfileRepo.Setup(r => r.GetByIdAsync(profileId)).ReturnsAsync(profile);
+
+            var app = new ExpertApplication { Id = appId, FullName = "Expert NonAnon" };
+            _mockAppRepo.Setup(r => r.GetByIdAsync(appId)).ReturnsAsync(app);
+
+            var user = new User { UserId = userId, FullName = "Expert NonAnon" };
+            _mockUserRepo.Setup(r => r.GetByIdAsync(userId)).ReturnsAsync(user);
+
+            var reviewerUser = new User { UserId = reviewerId, FullName = "Dang Van Lam" };
+            _mockUserRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<User, bool>>>()))
+                         .ReturnsAsync(new List<User> { reviewerUser });
+
+            var review = new ExpertReview
+            {
+                Id = Guid.NewGuid(),
+                ExpertProfileId = profileId,
+                UserId = reviewerId,
+                Rating = 5,
+                Comment = "Rất tốt",
+                IsPublished = true,
+                IsAnonymous = false,
+                CreatedAt = DateTimeOffset.UtcNow
+            };
+            _mockReviewRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertReview, bool>>>()))
+                           .ReturnsAsync(new List<ExpertReview> { review });
+
+            _mockSlotRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertSlot, bool>>>()))
+                         .ReturnsAsync(new List<ExpertSlot>());
+            _mockCertRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertApplicationCertificate, bool>>>()))
+                         .ReturnsAsync(new List<ExpertApplicationCertificate>());
+            _mockProposalRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertApplicationFeeProposal, bool>>>()))
+                             .ReturnsAsync(new List<ExpertApplicationFeeProposal>());
+            _mockAppSpecRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertApplicationSpecialization, bool>>>()))
+                            .ReturnsAsync(new List<ExpertApplicationSpecialization>());
+            _mockSpecRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Specialization, bool>>>()))
+                         .ReturnsAsync(new List<Specialization>());
+
+            var result = await _service.GetExpertDetailByIdAsync(profileId);
+
+            result.Should().NotBeNull();
+            result.RecentReviews.Should().HaveCount(1);
+            result.RecentReviews[0].ReviewerDisplayName.Should().Be("Dang L***");
+        }
+
+        [Fact]
+        public async Task GetExpertDetailByIdAsync_SlotsBeyond14Days_Excluded()
+        {
+            var profileId = Guid.NewGuid();
+            var userId = Guid.NewGuid();
+            var appId = Guid.NewGuid();
+
+            var profile = new ExpertProfile { Id = profileId, UserId = userId, LatestApplicationId = appId, IsActive = true };
+            _mockProfileRepo.Setup(r => r.GetByIdAsync(profileId)).ReturnsAsync(profile);
+
+            var app = new ExpertApplication { Id = appId, FullName = "Expert Slot Horizon" };
+            _mockAppRepo.Setup(r => r.GetByIdAsync(appId)).ReturnsAsync(app);
+
+            var user = new User { UserId = userId, FullName = "Expert Slot Horizon" };
+            _mockUserRepo.Setup(r => r.GetByIdAsync(userId)).ReturnsAsync(user);
+
+            var today = DateOnly.FromDateTime(DateTime.UtcNow);
+            // In range: slot in 3 days
+            var slot1 = new ExpertSlot { Id = Guid.NewGuid(), ExpertProfileId = profileId, SlotDate = today.AddDays(3), StartTime = new TimeOnly(10, 0), EndTime = new TimeOnly(11, 0), IsActive = true, IsBooked = false };
+            // Out of range: slot in 20 days (> 14 days)
+            var slot2 = new ExpertSlot { Id = Guid.NewGuid(), ExpertProfileId = profileId, SlotDate = today.AddDays(20), StartTime = new TimeOnly(10, 0), EndTime = new TimeOnly(11, 0), IsActive = true, IsBooked = false };
+
+            var slotsList = new List<ExpertSlot> { slot1, slot2 };
+            _mockSlotRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertSlot, bool>>>()))
+                         .ReturnsAsync((Expression<Func<ExpertSlot, bool>> expr) => slotsList.Where(expr.Compile()).ToList());
+
+            _mockReviewRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertReview, bool>>>()))
+                           .ReturnsAsync(new List<ExpertReview>());
+            _mockCertRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertApplicationCertificate, bool>>>()))
+                         .ReturnsAsync(new List<ExpertApplicationCertificate>());
+            _mockProposalRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertApplicationFeeProposal, bool>>>()))
+                             .ReturnsAsync(new List<ExpertApplicationFeeProposal>());
+            _mockAppSpecRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertApplicationSpecialization, bool>>>()))
+                            .ReturnsAsync(new List<ExpertApplicationSpecialization>());
+            _mockSpecRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Specialization, bool>>>()))
+                         .ReturnsAsync(new List<Specialization>());
+
+            var result = await _service.GetExpertDetailByIdAsync(profileId);
+
+            result.Should().NotBeNull();
+            result.UpcomingAvailableSlots.Should().HaveCount(1);
+            result.UpcomingAvailableSlots[0].Id.Should().Be(slot1.Id);
+        }
+
+        [Fact]
+        public async Task GetExpertDetailByIdAsync_ZeroReviewsAndZeroSlots_ReturnsEmptyLists()
+        {
+            var profileId = Guid.NewGuid();
+            var userId = Guid.NewGuid();
+            var appId = Guid.NewGuid();
+
+            var profile = new ExpertProfile { Id = profileId, UserId = userId, LatestApplicationId = appId, IsActive = true };
+            _mockProfileRepo.Setup(r => r.GetByIdAsync(profileId)).ReturnsAsync(profile);
+
+            var app = new ExpertApplication { Id = appId, FullName = "Expert Empty Subcollections" };
+            _mockAppRepo.Setup(r => r.GetByIdAsync(appId)).ReturnsAsync(app);
+
+            var user = new User { UserId = userId, FullName = "Expert Empty Subcollections" };
+            _mockUserRepo.Setup(r => r.GetByIdAsync(userId)).ReturnsAsync(user);
+
+            _mockReviewRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertReview, bool>>>()))
+                           .ReturnsAsync(new List<ExpertReview>());
+            _mockSlotRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertSlot, bool>>>()))
+                         .ReturnsAsync(new List<ExpertSlot>());
+            _mockCertRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertApplicationCertificate, bool>>>()))
+                         .ReturnsAsync(new List<ExpertApplicationCertificate>());
+            _mockProposalRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertApplicationFeeProposal, bool>>>()))
+                             .ReturnsAsync(new List<ExpertApplicationFeeProposal>());
+            _mockAppSpecRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertApplicationSpecialization, bool>>>()))
+                            .ReturnsAsync(new List<ExpertApplicationSpecialization>());
+            _mockSpecRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Specialization, bool>>>()))
+                         .ReturnsAsync(new List<Specialization>());
+
+            var result = await _service.GetExpertDetailByIdAsync(profileId);
+
+            result.Should().NotBeNull();
+            result.RecentReviews.Should().BeEmpty();
+            result.UpcomingAvailableSlots.Should().BeEmpty();
+            result.VerifiedCertificates.Should().BeEmpty();
+            result.FeePackages.Should().BeEmpty();
+        }
+
+        #endregion
     }
 }

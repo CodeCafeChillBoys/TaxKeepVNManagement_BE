@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
@@ -128,6 +128,13 @@ namespace TaxKeepVN.Application.Mappers
         private static List<string> BuildValidationErrors(Document doc)
         {
             var errors = new List<string>();
+
+            // 1. Kiểm tra ngày lập hóa đơn ở tương lai
+            bool isFutureDate = doc.InvoiceDate.HasValue && doc.InvoiceDate.Value > DateOnly.FromDateTime(DateTime.UtcNow);
+            if (isFutureDate)
+            {
+                errors.Add("Ngày lập trên hóa đơn không được lớn hơn ngày hiện tại.");
+            }
             if (doc.IsYearValid == false)
             {
                 errors.Add("Năm trên hóa đơn không khớp với kỳ tính thuế.");
@@ -139,6 +146,7 @@ namespace TaxKeepVN.Application.Mappers
             // Thêm lỗi danh mục không hợp lệ: khi FAILED nhưng identity và year đều null/true
             // -> lý do FAILED là do loại chứng từ không thuộc diện giảm trừ
             if (string.Equals(doc.Status, "FAILED", StringComparison.OrdinalIgnoreCase)
+                && !isFutureDate
                 && doc.IsYearValid != false
                 && doc.IsIdentityValid != false
                 && !string.IsNullOrWhiteSpace(doc.DocTypeCode))
