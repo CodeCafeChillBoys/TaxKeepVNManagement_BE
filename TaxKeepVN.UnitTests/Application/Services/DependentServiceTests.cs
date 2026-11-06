@@ -400,6 +400,72 @@ namespace TaxKeepVN.UnitTests.Application.Services
             result.Documents.Should().HaveCount(1);
         }
 
+        [Fact]
+        public async Task UTCID12b_GetDependentByIdAsync_DuplicatesInDatabase_ReturnsOnlyLatestDocumentPerType()
+        {
+            var taxpayerId = Guid.NewGuid();
+            var depId = Guid.NewGuid();
+            var dependent = new Dependent
+            {
+                Id = depId,
+                TaxpayerId = taxpayerId,
+                FullName = "Vu Thi Lan",
+                Relationship = DependentRelationship.PARENT,
+                CurrentGroup = DependentGroup.PARENT_RETIRED,
+                Status = DependentStatus.PENDING_DOCUMENTS,
+                IsDeleted = false,
+                CreatedAt = DateTimeOffset.UtcNow
+            };
+
+            var mockRepo = new Mock<IGenericRepository<Dependent>>();
+            mockRepo.Setup(r => r.GetByIdAsync(depId)).ReturnsAsync(dependent);
+            _mockUnitOfWork.Setup(u => u.Repository<Dependent>()).Returns(mockRepo.Object);
+
+            var latestCccdId = Guid.NewGuid();
+            var mockDocRepo = new Mock<IGenericRepository<DependentDocument>>();
+            mockDocRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentDocument, bool>>>()))
+                .ReturnsAsync(new List<DependentDocument>
+                {
+                    new DependentDocument
+                    {
+                        Id = Guid.NewGuid(),
+                        DependentId = depId,
+                        DocType = DocumentType.CITIZEN_ID,
+                        FileUrl = "/uploads/cccd1.jpg",
+                        UploadedAt = DateTime.UtcNow.AddHours(-2)
+                    },
+                    new DependentDocument
+                    {
+                        Id = latestCccdId,
+                        DependentId = depId,
+                        DocType = DocumentType.CITIZEN_ID,
+                        FileUrl = "/uploads/cccd_latest.jpg",
+                        UploadedAt = DateTime.UtcNow
+                    },
+                    new DependentDocument
+                    {
+                        Id = Guid.NewGuid(),
+                        DependentId = depId,
+                        DocType = DocumentType.CITIZEN_ID,
+                        FileUrl = "/uploads/cccd2.jpg",
+                        UploadedAt = DateTime.UtcNow.AddHours(-1)
+                    }
+                });
+            _mockUnitOfWork.Setup(u => u.Repository<DependentDocument>()).Returns(mockDocRepo.Object);
+
+            var mockRuleRepo = new Mock<IGenericRepository<DependentDocumentRule>>();
+            mockRuleRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentDocumentRule, bool>>>()))
+                .ReturnsAsync(new List<DependentDocumentRule>());
+            _mockUnitOfWork.Setup(u => u.Repository<DependentDocumentRule>()).Returns(mockRuleRepo.Object);
+
+            var result = await _dependentService.GetDependentByIdAsync(taxpayerId, depId);
+
+            result.Should().NotBeNull();
+            result.Documents.Should().HaveCount(1);
+            result.Documents[0].DocId.Should().Be(latestCccdId);
+            result.Documents[0].FileUrl.Should().Be("/uploads/cccd_latest.jpg");
+        }
+
         #endregion
 
         #region FN_DEP_04: UpdateGroupAsync

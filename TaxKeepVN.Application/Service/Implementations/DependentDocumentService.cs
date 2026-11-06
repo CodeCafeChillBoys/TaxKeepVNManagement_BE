@@ -65,26 +65,49 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             var fileUrl = await _fileStorageService.SaveFileAsync(file, "documents");
 
-            var document = new DependentDocument
-            {
-                Id = Guid.NewGuid(),
-                DependentId = dependentId,
-                DocType = docType,
-                FileUrl = fileUrl,
-                FileMimeType = file.ContentType,
-                IsReadable = true,
-                UploadedAt = DateTime.UtcNow
-            };
+            var docRepo = _unitOfWork.Repository<DependentDocument>();
+            var existingDocs = (await docRepo.FindAsync(d => d.DependentId == dependentId && d.DocType == docType)).ToList();
 
+            DependentDocument document;
             await _unitOfWork.BeginTransactionAsync();
             try
             {
-                await _unitOfWork.Repository<DependentDocument>().AddAsync(document);
+                if (existingDocs.Count > 0)
+                {
+                    // Cập nhật bản ghi đã có thay vì tạo bản ghi trùng lặp
+                    document = existingDocs[0];
+                    document.FileUrl = fileUrl;
+                    document.FileMimeType = file.ContentType;
+                    document.IsReadable = true;
+                    document.UploadedAt = DateTime.UtcNow;
+                    docRepo.Update(document);
+
+                    // Dọn dẹp các bản ghi trùng lặp cũ nếu có trong DB
+                    for (int i = 1; i < existingDocs.Count; i++)
+                    {
+                        docRepo.Remove(existingDocs[i]);
+                    }
+                }
+                else
+                {
+                    document = new DependentDocument
+                    {
+                        Id = Guid.NewGuid(),
+                        DependentId = dependentId,
+                        DocType = docType,
+                        FileUrl = fileUrl,
+                        FileMimeType = file.ContentType,
+                        IsReadable = true,
+                        UploadedAt = DateTime.UtcNow
+                    };
+                    await docRepo.AddAsync(document);
+                }
+
                 await _unitOfWork.SaveChangesAsync();
 
                 // Logic: Kiểm tra đủ danh sách giấy tờ bắt buộc dựa trên dynamic rules trong DB
-                var allDocs = await _unitOfWork.Repository<DependentDocument>().FindAsync(d => d.DependentId == dependentId);
-                var uploadedTypes = allDocs.Select(d => d.DocType).ToList();
+                var allDocs = await docRepo.FindAsync(d => d.DependentId == dependentId);
+                var uploadedTypes = allDocs.Select(d => d.DocType).Distinct().ToList();
                 
                 var (isComplete, missing) = await CheckProfileCompletionAsync(dependent.CurrentGroup, uploadedTypes);
 
