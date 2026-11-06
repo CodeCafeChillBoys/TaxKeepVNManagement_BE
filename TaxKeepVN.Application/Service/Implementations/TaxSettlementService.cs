@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
@@ -37,6 +37,7 @@ namespace TaxKeepVN.Application.Service.Implementations
         private const string KeyEducationMaxYearly   = "PIT_EDUCATION_MAX_YEARLY";
         private const string DocTypeMedical          = "MEDICAL_RECEIPT";
         private const string DocTypeEducation        = "EDUCATION_RECEIPT";
+        private const string DocTypeDonation         = "DONATION_VOUCHER";
 
         private readonly ISubscriptionQuotaService? _quotaService;
 
@@ -60,7 +61,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             var config = await LoadConfigAsync(request.TaxYear);
             var incomes = await LoadIncomesAsync(taxpayerId, request.TaxYear, cutoff);
             var dependents = await LoadValidDependentsAsync(taxpayerId, request.TaxYear, cutoff);
-            var (medicalDed, educationDed) = await LoadReceiptDeductionsAsync(taxpayerId, request.TaxYear, config);
+            var (medicalDed, educationDed, charityDed) = await LoadReceiptDeductionsAsync(taxpayerId, request.TaxYear, config);
 
             return CalculatePreview(
                 dossierId: null,
@@ -70,7 +71,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 config: config,
                 incomes: incomes,
                 dependents: dependents,
-                charityDeduction: request.CharityDeduction,
+                charityDeduction: charityDed,
                 medicalDeduction: medicalDed,
                 educationDeduction: educationDed,
                 status: "DRAFT",
@@ -87,7 +88,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             var config = await LoadConfigAsync(request.TaxYear);
             var allIncomes = await LoadIncomesAsync(taxpayerId, request.TaxYear, cutoff);
             var dependents = await LoadValidDependentsAsync(taxpayerId, request.TaxYear, cutoff);
-            var (medicalDed, educationDed) = await LoadReceiptDeductionsAsync(taxpayerId, request.TaxYear, config);
+            var (medicalDed, educationDed, charityDed) = await LoadReceiptDeductionsAsync(taxpayerId, request.TaxYear, config);
 
             // Lọc income theo selectedIds (nếu không truyền → chọn tất cả)
             var selectedIds = request.SelectedIncomeSourceIds;
@@ -101,7 +102,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 config: config,
                 incomes: allIncomes,
                 dependents: dependents,
-                charityDeduction: request.CharityDeduction,
+                charityDeduction: charityDed,
                 medicalDeduction: medicalDed,
                 educationDeduction: educationDed,
                 status: "LOCKED",
@@ -288,47 +289,56 @@ namespace TaxKeepVN.Application.Service.Implementations
         }
 
         /// <summary>
-        /// Đọc tổng số tiền biên lai y tế (MEDICAL_RECEIPT) và giáo dục (EDUCATION_RECEIPT)
+        /// Đọc tổng số tiền biên lai y tế (MEDICAL_RECEIPT), giáo dục (EDUCATION_RECEIPT) và chứng từ từ thiện (DONATION_VOUCHER)
         /// đã được xác nhận (Status=CONFIRMED) trong năm quyết toán.
-        /// Tham chiếu: Biện pháp giảm trừ thu TNCN theo Luật 109/2025/QH15 (từ năm 2026)
+        /// - Y tế & Giáo dục: áp dụng từ năm 2026 theo Luật 109/2025/QH15.
+        /// - Từ thiện: áp dụng cho mọi năm tính thuế theo Thông tư 111/2013/TT-BTC.
         /// </summary>
-        private async Task<(decimal medical, decimal education)> LoadReceiptDeductionsAsync(
+        private async Task<(decimal medical, decimal education, decimal charity)> LoadReceiptDeductionsAsync(
             Guid userId, int taxYear, TaxCalcConfig config)
         {
-            // Chỉ áp dụng từ năm 2026 trở đi
-            if (taxYear < 2026)
-                return (0, 0);
-
             var docRepo = _unitOfWork.Repository<Document>();
 
-            // Lấy tất cả biên lai đã xác nhận (CONFIRMED) của user trong năm quyết toán
-            // biên lai thuộc TaxPeriod của user (join qua Period.UserId == userId AND Period.TaxYear == taxYear)
+            // Lấy tất cả chứng từ đã xác nhận (CONFIRMED) của user trong năm quyết toán
+            // thuộc TaxPeriod của user (join qua Period.UserId == userId AND Period.TaxYear == taxYear)
             var docs = await docRepo.FindAsync(d =>
                 d.Period != null &&
                 d.Period.UserId == userId &&
                 d.Period.TaxYear == (short)taxYear &&
                 d.Status == "CONFIRMED" &&
-                (d.DocTypeCode == DocTypeMedical || d.DocTypeCode == DocTypeEducation) &&
+                (d.DocTypeCode == DocTypeMedical || d.DocTypeCode == DocTypeEducation || d.DocTypeCode == DocTypeDonation) &&
                 d.TotalAmount != null);
 
-            var medicalTotal = docs
-                .Where(d => d.DocTypeCode == DocTypeMedical)
+            decimal medicalCapped = 0m;
+            decimal educationCapped = 0m;
+
+            // Y tế và giáo dục chỉ áp dụng từ năm 2026 trở đi (Luật 109/2025/QH15)
+            if (taxYear >= 2026)
+            {
+                var medicalTotal = docs
+                    .Where(d => d.DocTypeCode == DocTypeMedical)
+                    .Sum(d => d.TotalAmount ?? 0);
+
+                var educationTotal = docs
+                    .Where(d => d.DocTypeCode == DocTypeEducation)
+                    .Sum(d => d.TotalAmount ?? 0);
+
+                // Cap theo giới hạn luật (lấy từ config, không hardcode)
+                medicalCapped = config.MedicalMaxYearly > 0
+                    ? Math.Min(medicalTotal, config.MedicalMaxYearly)
+                    : medicalTotal;
+
+                educationCapped = config.EducationMaxYearly > 0
+                    ? Math.Min(educationTotal, config.EducationMaxYearly)
+                    : educationTotal;
+            }
+
+            // Từ thiện (DONATION_VOUCHER): áp dụng cho mọi năm tính thuế theo Thông tư 111/2013/TT-BTC
+            var charityTotal = docs
+                .Where(d => d.DocTypeCode == DocTypeDonation)
                 .Sum(d => d.TotalAmount ?? 0);
 
-            var educationTotal = docs
-                .Where(d => d.DocTypeCode == DocTypeEducation)
-                .Sum(d => d.TotalAmount ?? 0);
-
-            // Cap theo giới hạn luật (lấy từ config, không hardcode)
-            var medicalCapped = config.MedicalMaxYearly > 0
-                ? Math.Min(medicalTotal, config.MedicalMaxYearly)
-                : medicalTotal;
-
-            var educationCapped = config.EducationMaxYearly > 0
-                ? Math.Min(educationTotal, config.EducationMaxYearly)
-                : educationTotal;
-
-            return (medicalCapped, educationCapped);
+            return (medicalCapped, educationCapped, charityTotal);
         }
 
         // ══════════════════════════════════════════════════════════════════════════
