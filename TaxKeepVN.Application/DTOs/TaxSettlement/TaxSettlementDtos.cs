@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
@@ -76,7 +76,10 @@ namespace TaxKeepVN.Application.DTOs.TaxSettlement
         /// </summary>
         public string? CutoffDate { get; set; }
 
-        /// <summary>Các khoản đóng góp từ thiện bổ sung (nếu có). Đơn vị: VNĐ.</summary>
+        /// <summary>
+        /// Các khoản đóng góp từ thiện, nhân đạo, khuyến học (Đơn vị: VNĐ).
+        /// Lưu ý: Hệ thống tự động tổng hợp từ các chứng từ DONATION_VOUCHER đã xác nhận (Status = CONFIRMED).
+        /// </summary>
         public decimal CharityDeduction { get; set; } = 0;
     }
 

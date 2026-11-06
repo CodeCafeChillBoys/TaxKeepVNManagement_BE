@@ -23,6 +23,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
         private readonly Mock<IGenericRepository<TaxDeductionPolicy>> _mockPolicyRepo;
         private readonly Mock<IGenericRepository<IncomeSource>> _mockIncomeRepo;
         private readonly Mock<IGenericRepository<Dependent>> _mockDependentRepo;
+        private readonly Mock<IGenericRepository<Document>> _mockDocumentRepo;
         private readonly TaxSettlementService _service;
 
         public TaxSettlementServiceTests()
@@ -33,11 +34,16 @@ namespace TaxKeepVN.UnitTests.Application.Services
             _mockPolicyRepo = new Mock<IGenericRepository<TaxDeductionPolicy>>();
             _mockIncomeRepo = new Mock<IGenericRepository<IncomeSource>>();
             _mockDependentRepo = new Mock<IGenericRepository<Dependent>>();
+            _mockDocumentRepo = new Mock<IGenericRepository<Document>>();
 
             _mockUnitOfWork.Setup(u => u.Repository<TaxSettlementDossier>()).Returns(_mockDossierRepo.Object);
             _mockUnitOfWork.Setup(u => u.Repository<TaxDeductionPolicy>()).Returns(_mockPolicyRepo.Object);
             _mockUnitOfWork.Setup(u => u.Repository<IncomeSource>()).Returns(_mockIncomeRepo.Object);
             _mockUnitOfWork.Setup(u => u.Repository<Dependent>()).Returns(_mockDependentRepo.Object);
+            _mockUnitOfWork.Setup(u => u.Repository<Document>()).Returns(_mockDocumentRepo.Object);
+
+            _mockDocumentRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Document, bool>>>()))
+                .ReturnsAsync(new List<Document>());
 
             _service = new TaxSettlementService(_mockUnitOfWork.Object, _mockConfigService.Object);
         }
@@ -108,9 +114,6 @@ namespace TaxKeepVN.UnitTests.Application.Services
             var mockBracketRepo = new Mock<IGenericRepository<TaxBracket>>();
             _mockUnitOfWork.Setup(u => u.Repository<TaxBracket>()).Returns(mockBracketRepo.Object);
 
-            var mockDocRepo = new Mock<IGenericRepository<Document>>();
-            _mockUnitOfWork.Setup(u => u.Repository<Document>()).Returns(mockDocRepo.Object);
-
             _mockPolicyRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<TaxDeductionPolicy, bool>>>()))
                 .ReturnsAsync(new List<TaxDeductionPolicy>
                 {
@@ -160,11 +163,21 @@ namespace TaxKeepVN.UnitTests.Application.Services
             _mockDependentRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Dependent, bool>>>()))
                 .ReturnsAsync(new List<Dependent> { dependent });
 
+            var period = new TaxPeriod { UserId = taxpayerId, TaxYear = 2025 };
+            var donationDoc = new Document
+            {
+                DocTypeCode = "DONATION_VOUCHER",
+                Status = "CONFIRMED",
+                TotalAmount = 5000000m,
+                Period = period
+            };
+            _mockDocumentRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Document, bool>>>()))
+                .ReturnsAsync(new List<Document> { donationDoc });
+
             var request = new TaxSettlementPreviewRequest
             {
                 TaxYear = 2025,
-                CutoffDate = "2025-12-31",
-                CharityDeduction = 5000000m
+                CutoffDate = "2025-12-31"
             };
 
             var result = await _service.PreviewAsync(taxpayerId, request);
@@ -185,9 +198,6 @@ namespace TaxKeepVN.UnitTests.Application.Services
             var taxpayerId = Guid.NewGuid();
             var mockBracketRepo = new Mock<IGenericRepository<TaxBracket>>();
             _mockUnitOfWork.Setup(u => u.Repository<TaxBracket>()).Returns(mockBracketRepo.Object);
-
-            var mockDocRepo = new Mock<IGenericRepository<Document>>();
-            _mockUnitOfWork.Setup(u => u.Repository<Document>()).Returns(mockDocRepo.Object);
 
             _mockPolicyRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<TaxDeductionPolicy, bool>>>()))
                 .ReturnsAsync(new List<TaxDeductionPolicy>
@@ -221,7 +231,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 new Document { DocTypeCode = "MEDICAL_RECEIPT", Status = "CONFIRMED", TotalAmount = 15000000m, Period = period },
                 new Document { DocTypeCode = "EDUCATION_RECEIPT", Status = "CONFIRMED", TotalAmount = 25000000m, Period = period }
             };
-            mockDocRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Document, bool>>>()))
+            _mockDocumentRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Document, bool>>>()))
                 .ReturnsAsync(docs);
 
             var request = new TaxSettlementPreviewRequest
@@ -243,9 +253,6 @@ namespace TaxKeepVN.UnitTests.Application.Services
             var taxpayerId = Guid.NewGuid();
             var mockBracketRepo = new Mock<IGenericRepository<TaxBracket>>();
             _mockUnitOfWork.Setup(u => u.Repository<TaxBracket>()).Returns(mockBracketRepo.Object);
-
-            var mockDocRepo = new Mock<IGenericRepository<Document>>();
-            _mockUnitOfWork.Setup(u => u.Repository<Document>()).Returns(mockDocRepo.Object);
 
             _mockPolicyRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<TaxDeductionPolicy, bool>>>()))
                 .ReturnsAsync(new List<TaxDeductionPolicy>
@@ -343,6 +350,55 @@ namespace TaxKeepVN.UnitTests.Application.Services
             result.TaxYear.Should().Be(2025);
             result.TotalGrossIncome.Should().Be(200000000m);
             result.RefundAmount.Should().Be(7350000m);
+        }
+
+        [Fact]
+        public async Task UTCID08_PreviewAsync_WithDonationVouchers_CalculatesCharityDeductionFromConfirmedDocuments()
+        {
+            var taxpayerId = Guid.NewGuid();
+            var mockBracketRepo = new Mock<IGenericRepository<TaxBracket>>();
+            _mockUnitOfWork.Setup(u => u.Repository<TaxBracket>()).Returns(mockBracketRepo.Object);
+
+            _mockPolicyRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<TaxDeductionPolicy, bool>>>()))
+                .ReturnsAsync(new List<TaxDeductionPolicy>
+                {
+                    new TaxDeductionPolicy { AppliesFromYear = 2025, PersonalMonthly = 11000000m, DependentMonthly = 4400000m, IsActive = true }
+                });
+
+            mockBracketRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<TaxBracket, bool>>>()))
+                .ReturnsAsync(new List<TaxBracket>
+                {
+                    new TaxBracket { BracketNo = 1, FromMonthly = 0, ToMonthly = 5000000, Rate = 0.05m, QuickDeduct = 0, AppliesFromYear = 2025, IsActive = true }
+                });
+
+            _mockIncomeRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<IncomeSource, bool>>>()))
+                .ReturnsAsync(new List<IncomeSource>());
+            _mockDependentRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Dependent, bool>>>()))
+                .ReturnsAsync(new List<Dependent>());
+
+            var period = new TaxPeriod { UserId = taxpayerId, TaxYear = 2025 };
+            var docs = new List<Document>
+            {
+                // Chứng từ từ thiện hợp lệ 1: 3.000.000đ
+                new Document { DocTypeCode = "DONATION_VOUCHER", Status = "CONFIRMED", TotalAmount = 3000000m, Period = period },
+                // Chứng từ từ thiện hợp lệ 2: 4.000.000đ
+                new Document { DocTypeCode = "DONATION_VOUCHER", Status = "CONFIRMED", TotalAmount = 4000000m, Period = period }
+            };
+
+            _mockDocumentRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Document, bool>>>()))
+                .ReturnsAsync(docs);
+
+            var request = new TaxSettlementPreviewRequest
+            {
+                TaxYear = 2025,
+                CutoffDate = "2025-12-31"
+            };
+
+            var result = await _service.PreviewAsync(taxpayerId, request);
+
+            result.Should().NotBeNull();
+            // 3.000.000 + 4.000.000 = 7.000.000 VNĐ
+            result.CharityDeduction.Should().Be(7000000m);
         }
 
         #endregion
