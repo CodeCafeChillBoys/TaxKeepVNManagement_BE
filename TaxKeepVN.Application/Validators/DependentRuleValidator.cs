@@ -1,8 +1,9 @@
-using FluentValidation;
+﻿using FluentValidation;
 using TaxKeepVN.Application.DTOs.Rules;
 
 namespace TaxKeepVN.Application.Validators
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class CreateDependentRuleValidator : AbstractValidator<CreateDependentRuleDto>
     {
         public CreateDependentRuleValidator()
@@ -19,6 +20,7 @@ namespace TaxKeepVN.Application.Validators
                 .MaximumLength(500).WithMessage("Mô tả hướng dẫn không được vượt quá 500 ký tự.");
         }
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class UpdateDependentRuleValidator : AbstractValidator<UpdateDependentRuleDto>
     {

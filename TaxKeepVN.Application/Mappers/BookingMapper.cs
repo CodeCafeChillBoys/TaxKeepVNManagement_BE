@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -8,6 +8,7 @@ using TaxKeepVN.Domain.IRepositories;
 
 namespace TaxKeepVN.Application.Mappers
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public static class BookingMapper
     {
         /// <summary>

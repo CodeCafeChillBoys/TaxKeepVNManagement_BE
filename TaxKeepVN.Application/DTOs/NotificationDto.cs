@@ -2,6 +2,7 @@
 
 namespace TaxKeepVN.Application.DTOs
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class NotificationDto
     {
         public Guid NotificationId { get; set; }

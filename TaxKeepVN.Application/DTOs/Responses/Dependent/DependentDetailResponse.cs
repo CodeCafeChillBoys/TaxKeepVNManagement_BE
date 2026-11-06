@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace TaxKeepVN.Application.DTOs.Responses.Dependent
@@ -6,6 +6,7 @@ namespace TaxKeepVN.Application.DTOs.Responses.Dependent
     /// <summary>
     /// Response đầy đủ cho GET /api/v1/dependents/{id} — bao gồm thông tin NPT và tất cả documents đã upload.
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class DependentDetailResponse
     {
         public Guid DependentId { get; set; }

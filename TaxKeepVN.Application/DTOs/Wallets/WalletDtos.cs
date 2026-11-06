@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 
@@ -7,6 +7,7 @@ namespace TaxKeepVN.Application.DTOs.Wallets
     /// <summary>
     /// Response thông tin ví điện tử (Ví thu nhập chuyên gia hoặc ví hoàn tiền người dùng)
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class WalletResponse
     {
         public Guid Id { get; set; }
@@ -34,6 +35,7 @@ namespace TaxKeepVN.Application.DTOs.Wallets
     /// <summary>
     /// Chi tiết ca tư vấn đang bị tạm giữ tiền ký quỹ Escrow chờ giải ngân
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class PendingEscrowDetailResponse
     {
         public Guid EscrowId { get; set; }
@@ -54,6 +56,7 @@ namespace TaxKeepVN.Application.DTOs.Wallets
     /// <summary>
     /// Bản ghi lịch sử giao dịch / biến động số dư ví
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class WalletTransactionResponse
     {
         public Guid Id { get; set; }
@@ -70,6 +73,7 @@ namespace TaxKeepVN.Application.DTOs.Wallets
     /// <summary>
     /// Request chuyên gia gửi lệnh rút tiền về tài khoản ngân hàng (Đặc tả 7 - Mục 5.3)
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class CreateWithdrawalRequest
     {
         /// <summary>Số tiền yêu cầu rút (VNĐ, tối thiểu EXPERT_MIN_WITHDRAWAL_VND)</summary>
@@ -88,6 +92,7 @@ namespace TaxKeepVN.Application.DTOs.Wallets
     /// <summary>
     /// Response chi tiết lệnh rút tiền
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class WithdrawalResponse
     {
         public Guid Id { get; set; }
@@ -108,6 +113,7 @@ namespace TaxKeepVN.Application.DTOs.Wallets
     /// <summary>
     /// Request Admin duyệt hoặc từ chối lệnh rút tiền
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class AdminProcessWithdrawalRequest
     {
         /// <summary>Hành động xử lý: APPROVE (Duyệt & đã chuyển tiền) | REJECT (Từ chối & hoàn tiền về ví)</summary>
@@ -126,6 +132,7 @@ namespace TaxKeepVN.Application.DTOs.Wallets
     /// <summary>
     /// Request nạp tiền vào ví cá nhân qua cổng thanh toán VNPay / VietQR
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class WalletTopUpRequest
     {
         [Range(10000, 100000000, ErrorMessage = "Số tiền nạp tối thiểu là 10.000 VNĐ và tối đa 100.000.000 VNĐ.")]
@@ -138,6 +145,7 @@ namespace TaxKeepVN.Application.DTOs.Wallets
     /// <summary>
     /// Response khởi tạo link nạp tiền vào ví
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class WalletTopUpResponse
     {
         public long OrderCode { get; set; }

@@ -1,8 +1,9 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
 namespace TaxKeepVN.Application.DTOs.TaxAI
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class UrlRuleUpdateRequest
     {
         [MaxLength(100)]

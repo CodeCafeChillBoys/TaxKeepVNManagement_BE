@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace TaxKeepVN.Application.DTOs.Requests.Dependent
 {
@@ -7,6 +7,7 @@ namespace TaxKeepVN.Application.DTOs.Requests.Dependent
     /// Chỉ cần cung cấp nhóm mới và (tùy chọn) ghi chú cập nhật.
     /// Toàn bộ thông tin định danh (FullName, BirthDate, CitizenId, ...) được giữ nguyên.
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class UpdateDependentGroupRequest
     {
         /// <summary>

@@ -1,7 +1,8 @@
-using System;
+﻿using System;
 
 namespace TaxKeepVN.Application.DTOs.Documents
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class ConfirmDocumentReviewRequestDto
     {
         /// <summary>Mã loại chứng từ (VD: MEDICAL_EXPENSE_INVOICE, TUITION_FEE_INVOICE)</summary>

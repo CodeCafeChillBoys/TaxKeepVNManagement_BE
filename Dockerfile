@@ -9,6 +9,7 @@ COPY TaxKeepVN.Application/TaxKeepVN.Application.csproj TaxKeepVN.Application/
 COPY TaxKeepVN.Infrastructure/TaxKeepVN.Infrastructure.csproj TaxKeepVN.Infrastructure/
 COPY TaxKeepVNManagementSystem/TaxKeepVNManagementSystem.csproj TaxKeepVNManagementSystem/
 COPY TaxKeepVN.ApiGateway/TaxKeepVN.ApiGateway.csproj TaxKeepVN.ApiGateway/
+COPY TaxKeepVN.UnitTests/TaxKeepVN.UnitTests.csproj TaxKeepVN.UnitTests/
 
 # Restore dependencies
 RUN dotnet restore TaxKeepVNManagement.sln

@@ -141,6 +141,8 @@ builder.Services.AddScoped<IUrlRuleService, UrlRuleService>();
 builder.Services.AddScoped<IOcrAIProducerService, OcrAIProducerService>();
 builder.Services.AddScoped<ICertificateOcrProducerService, CertificateOcrProducerService>();
 builder.Services.AddScoped<ITaxChatService, TaxChatService>();
+builder.Services.AddScoped<IAiKeyService, AiKeyService>();
+builder.Services.AddScoped<IPromptTemplateService, PromptTemplateService>();
 
 builder.Services.AddScoped<ISpecializationService, SpecializationService>();
 builder.Services.AddScoped<IExpertApplicationService, ExpertApplicationService>();
@@ -151,6 +153,10 @@ builder.Services.AddScoped<IExpertSearchService, ExpertSearchService>();
 builder.Services.AddScoped<IBookingService, BookingService>();
 builder.Services.AddScoped<IReviewService, ReviewService>();
 builder.Services.AddScoped<IPaymentEscrowService, PaymentEscrowService>();
+builder.Services.AddScoped<ISubscriptionPlanService, SubscriptionPlanService>();
+builder.Services.AddScoped<IUserSubscriptionService, UserSubscriptionService>();
+builder.Services.AddScoped<ISubscriptionQuotaService, SubscriptionQuotaService>();
+builder.Services.AddScoped<IAdminSubscriptionService, AdminSubscriptionService>();
 builder.Services.AddScoped<IConsultationRealtimeNotifier, TaxKeepVNManagementSystem.Services.ConsultationRealtimeNotifier>();
 builder.Services.AddScoped<IConsultationService, ConsultationService>();
 builder.Services.AddScoped<IExpertSlotService, ExpertSlotService>();
@@ -226,6 +232,7 @@ builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.Booki
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.ConsultationNoShowBackgroundService>();
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.ConsultationMeetingReminderJob>();
 builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.EscrowCooldownDisbursementBackgroundService>();
+builder.Services.AddHostedService<TaxKeepVNManagementSystem.BackgroundJobs.SubscriptionExpirationAndResetJob>();
 
 // ── QuestPDF Community License Configuration (WBS 3.6.T7) ───────────────────
 QuestPDF.Settings.License = LicenseType.Community;

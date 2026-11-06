@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.IO;
 using System.Net.Http;
 using System.Net.Http.Headers;
@@ -26,17 +26,20 @@ namespace TaxKeepVNManagementSystem.Controllers
         private readonly IMemoryCache _cache;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IFileStorageService _fileStorageService;
+        private readonly ISubscriptionQuotaService? _quotaService;
 
         public OcrController(
             IOcrAIProducerService ocrProducerService,
             IMemoryCache cache,
             IHttpClientFactory httpClientFactory,
-            IFileStorageService fileStorageService)
+            IFileStorageService fileStorageService,
+            ISubscriptionQuotaService? quotaService = null)
         {
             _ocrProducerService = ocrProducerService;
             _cache = cache;
             _httpClientFactory = httpClientFactory;
             _fileStorageService = fileStorageService;
+            _quotaService = quotaService;
         }
 
         /// <summary>
@@ -58,6 +61,10 @@ namespace TaxKeepVNManagementSystem.Controllers
             var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value 
                 ?? User.FindFirst("userId")?.Value;
             Guid? userId = Guid.TryParse(userIdClaim, out var parsedId) ? parsedId : null;
+            if (_quotaService != null && userId.HasValue && userId.Value != Guid.Empty)
+            {
+                await _quotaService.CheckAndConsumeOcrScanAsync(userId.Value);
+            }
 
             // 2. Chuyển đổi file mặt trước sang Base64
             string frontBase64;
@@ -140,6 +147,15 @@ namespace TaxKeepVNManagementSystem.Controllers
                 return BadRequest(ApiResponse<object>.Fail("INVALID_FILE", "Vui lòng chọn file ảnh giấy tờ hợp lệ."));
             }
 
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value 
+                ?? User.FindFirst("userId")?.Value;
+            Guid? userId = Guid.TryParse(userIdClaim, out var parsedId) ? parsedId : null;
+
+            if (_quotaService != null && userId.HasValue && userId.Value != Guid.Empty)
+            {
+                await _quotaService.CheckAndConsumeOcrScanAsync(userId.Value);
+            }
+
             try
             {
                 var client = _httpClientFactory.CreateClient("TaxAIService");
@@ -197,6 +213,15 @@ namespace TaxKeepVNManagementSystem.Controllers
             if (request.File == null || request.File.Length == 0)
             {
                 return BadRequest(ApiResponse<object>.Fail("INVALID_FILE", "Vui lòng chọn file ảnh phiếu lương hợp lệ."));
+            }
+
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value 
+                ?? User.FindFirst("userId")?.Value;
+            Guid? userId = Guid.TryParse(userIdClaim, out var parsedId) ? parsedId : null;
+
+            if (_quotaService != null && userId.HasValue && userId.Value != Guid.Empty)
+            {
+                await _quotaService.CheckAndConsumeOcrScanAsync(userId.Value);
             }
 
             try

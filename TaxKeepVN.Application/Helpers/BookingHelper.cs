@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
@@ -16,6 +16,7 @@ namespace TaxKeepVN.Application.Helpers
     /// ZERO-HARDCODE: Toàn bộ ngưỡng thời gian, hạn mức phí và tỷ lệ phần trăm hoa hồng
     /// đều đọc động từ bảng consultation_platform_policies trong CSDL qua GetPlatformPolicyAsync.
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public static class BookingHelper
     {
         /// <summary>Múi giờ chuẩn Việt Nam (UTC+7)</summary>

@@ -1,7 +1,8 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace TaxKeepVN.Application.DTOs.ExpertCertificateConfigurations
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class CreateExpertCertificateConfigRequest
     {
         [Required(ErrorMessage = "Mã chứng chỉ không được để trống")]

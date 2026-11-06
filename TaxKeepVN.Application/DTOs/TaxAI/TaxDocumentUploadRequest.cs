@@ -1,8 +1,9 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Http;
 
 namespace TaxKeepVN.Application.DTOs.TaxAI
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class TaxDocumentUploadRequest
     {
         [Required(ErrorMessage = "Vui lòng chọn file PDF luật thuế.")]

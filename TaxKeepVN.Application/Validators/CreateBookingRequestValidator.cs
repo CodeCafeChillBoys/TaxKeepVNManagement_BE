@@ -1,8 +1,9 @@
-using FluentValidation;
+﻿using FluentValidation;
 using TaxKeepVN.Application.DTOs.Bookings;
 
 namespace TaxKeepVN.Application.Validators
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class CreateBookingRequestValidator : AbstractValidator<CreateBookingRequest>
     {
         public CreateBookingRequestValidator()

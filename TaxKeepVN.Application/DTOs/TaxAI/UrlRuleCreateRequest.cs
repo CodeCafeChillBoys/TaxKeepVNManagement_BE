@@ -1,8 +1,9 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
 namespace TaxKeepVN.Application.DTOs.TaxAI
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class UrlRuleCreateRequest
     {
         [Required(ErrorMessage = "Tên quy tắc không được để trống.")]

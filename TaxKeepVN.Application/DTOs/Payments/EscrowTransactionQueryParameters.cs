@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using TaxKeepVN.Domain.Enums;
 
 namespace TaxKeepVN.Application.DTOs.Payments
@@ -6,6 +6,7 @@ namespace TaxKeepVN.Application.DTOs.Payments
     /// <summary>
     /// Tham số truy vấn danh sách giao dịch ký quỹ Escrow (Hỗ trợ Filtering, Searching, Sorting, Pagination theo API Design Guidelines)
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class EscrowTransactionQueryParameters
     {
         public int Page { get; set; } = 1;

@@ -1,8 +1,9 @@
-using System;
+﻿using System;
 using System.ComponentModel.DataAnnotations;
 
 namespace TaxKeepVN.Application.DTOs.Requests.Income
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class UpdateIncomeRequest
     {
         [Required]

@@ -1,10 +1,11 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace TaxKeepVN.Application.DTOs.Bookings
 {
     /// <summary>
     /// Request chuyên gia từ chối tiếp nhận ca tư vấn trong vòng 2 giờ
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class RejectBookingRequest
     {
         [Required(ErrorMessage = "Vui lòng nhập lý do từ chối tiếp nhận ca tư vấn.")]

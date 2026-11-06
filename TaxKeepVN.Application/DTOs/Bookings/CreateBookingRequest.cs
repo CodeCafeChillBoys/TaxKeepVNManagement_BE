@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 
 namespace TaxKeepVN.Application.DTOs.Bookings
 {
@@ -6,6 +6,7 @@ namespace TaxKeepVN.Application.DTOs.Bookings
     /// Request tạo lịch hẹn tư vấn thuần JSON gọn nhẹ (Đặc tả 3 - Mục 5 Luồng chính)
     /// Đã loại bỏ đính kèm tệp trước buổi tư vấn để bảo vệ quyền riêng tư & dữ liệu nhạy cảm của khách hàng
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class CreateBookingRequest
     {
         /// <summary>Khung giờ rảnh đã chọn trên lịch chuyên gia</summary>

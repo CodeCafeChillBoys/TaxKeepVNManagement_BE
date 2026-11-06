@@ -1,7 +1,8 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace TaxKeepVN.Application.DTOs.TaxDocumentTypes
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class TaxDocumentTypeDto
     {
         public string Code { get; set; } = string.Empty;
@@ -9,6 +10,7 @@ namespace TaxKeepVN.Application.DTOs.TaxDocumentTypes
         public string? Description { get; set; }
         public bool IsTaxEligible { get; set; } = true;
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class CreateTaxDocumentTypeDto
     {
@@ -25,6 +27,7 @@ namespace TaxKeepVN.Application.DTOs.TaxDocumentTypes
 
         public bool IsTaxEligible { get; set; } = true;
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class UpdateTaxDocumentTypeDto
     {
@@ -36,6 +39,7 @@ namespace TaxKeepVN.Application.DTOs.TaxDocumentTypes
 
         public bool IsTaxEligible { get; set; } = true;
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class TaxDocumentTypeQueryParameters
     {

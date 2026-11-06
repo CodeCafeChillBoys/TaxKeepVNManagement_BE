@@ -1,7 +1,8 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace TaxKeepVN.Application.DTOs.SystemConfigs
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class SystemConfigUpdateDto
     {
         [Required(ErrorMessage = "Giá trị cấu hình không được để trống.")]

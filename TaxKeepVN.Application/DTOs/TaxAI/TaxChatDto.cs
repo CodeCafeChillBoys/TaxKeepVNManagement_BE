@@ -1,8 +1,9 @@
-using System;
+﻿using System;
 using System.Text.Json.Serialization;
 
 namespace TaxKeepVN.Application.DTOs.TaxAI
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class TaxChatRequest
     {
         [JsonPropertyName("question")]
@@ -17,6 +18,7 @@ namespace TaxKeepVN.Application.DTOs.TaxAI
         [JsonPropertyName("user_id")]
         public Guid? UserId { get; set; }
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class TaxChatResponse
     {
@@ -29,6 +31,7 @@ namespace TaxKeepVN.Application.DTOs.TaxAI
         [JsonPropertyName("answer")]
         public string Answer { get; set; } = string.Empty;
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class ChatSessionResponse
     {
@@ -47,6 +50,7 @@ namespace TaxKeepVN.Application.DTOs.TaxAI
         [JsonPropertyName("updated_at")]
         public DateTime UpdatedAt { get; set; }
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class ChatMessageResponse
     {

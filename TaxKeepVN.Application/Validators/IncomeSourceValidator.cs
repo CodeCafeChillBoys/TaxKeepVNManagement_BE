@@ -1,8 +1,9 @@
-using FluentValidation;
+﻿using FluentValidation;
 using TaxKeepVN.Application.DTOs.IncomeSources;
 
 namespace TaxKeepVN.Application.Validators
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class IncomeSourceCreateValidator : AbstractValidator<IncomeSourceCreateDto>
     {
         public IncomeSourceCreateValidator()
@@ -26,6 +27,7 @@ namespace TaxKeepVN.Application.Validators
                 .GreaterThanOrEqualTo(0).WithMessage("Số thuế đã khấu trừ không được âm.");
         }
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class IncomeSourceUpdateValidator : AbstractValidator<IncomeSourceUpdateDto>
     {

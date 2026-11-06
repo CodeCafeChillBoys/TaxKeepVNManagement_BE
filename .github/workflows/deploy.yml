@@ -1,69 +1,149 @@
-name: Deploy Backend & ApiGateway to AWS EC2
+name: CI/CD Pipeline - Test, Build & Deploy to AWS EC2
 
 on:
   push:
     branches: [ "develop", "Develop" ]
-  workflow_dispatch: # Cho phép trigger deploy thủ công trên giao diện GitHub
+  pull_request:
+    branches: [ "develop", "Develop" ]
+  workflow_dispatch: # Cho phép kích hoạt thủ công từ giao diện GitHub Actions
 
 jobs:
+  # =========================================================================
+  # 1. CI JOB: Build Solution, Run Tests & Enforce Code Coverage >= 80%
+  # =========================================================================
   test-and-build:
-    name: 1. CI - Verify & Test Solution
+    name: 1. CI - Build & Verify Test Coverage (>80%)
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: 1.1. Checkout source code
         uses: actions/checkout@v4
 
-      - name: Setup .NET 8 SDK
+      - name: 1.2. Cài đặt .NET 8 SDK
         uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
 
-      - name: Restore dependencies
+      - name: 1.3. Restore dependencies
         run: dotnet restore TaxKeepVNManagement.sln
 
-      - name: Build project (Release)
+      - name: 1.4. Build solution (Release mode)
         run: dotnet build TaxKeepVNManagement.sln --configuration Release --no-restore
 
-      - name: Run Unit Tests
-        run: dotnet test TaxKeepVNManagement.sln --configuration Release --no-build --verbosity normal
+      - name: 1.5. Chạy Unit Tests & Thu thập dữ liệu Code Coverage
+        run: |
+          dotnet test TaxKeepVNManagement.sln \
+            --configuration Release \
+            --no-build \
+            --verbosity normal \
+            --collect:"XPlat Code Coverage" \
+            --results-directory ./TestResults
 
+      - name: 1.6. Kiểm tra ngưỡng Code Coverage (Yêu cầu > 80%)
+        run: |
+          # Tìm các file coverage.cobertura.xml do coverlet tạo ra
+          COVERAGE_FILES=$(find ./TestResults -name "coverage.cobertura.xml" 2>/dev/null || true)
+          
+          if [ -z "$COVERAGE_FILES" ]; then
+            echo "::error::Không tìm thấy file kết quả kiểm thử/độ bao phủ (coverage.cobertura.xml). Vui lòng đảm bảo các dự án test có cài package coverlet.collector!"
+            echo "### ❌ Thất bại: Thiếu kết quả đo Code Coverage" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          fi
+
+          # Cài đặt công cụ ReportGenerator để tổng hợp kết quả từ các project test
+          dotnet tool install -g dotnet-reportgenerator-globaltool
+          export PATH="$PATH:$HOME/.dotnet/tools"
+
+          reportgenerator \
+            -reports:"./TestResults/**/coverage.cobertura.xml" \
+            -targetdir:"./CoverageReport" \
+            -reporttypes:"TextSummary;Cobertura"
+
+          echo "--- BẢNG TỔNG HỢP CODE COVERAGE ---"
+          cat ./CoverageReport/Summary.txt
+
+          # Trích xuất tỷ lệ Line Coverage từ file Cobertura tổng hợp
+          LINE_RATE=$(grep -oPm1 '(?<=line-rate=")[^"]*' ./CoverageReport/Cobertura.xml | head -1)
+          COVERAGE_PERCENT=$(awk "BEGIN {printf \"%.2f\", $LINE_RATE * 100}")
+          echo "Tổng độ bao phủ mã nguồn (Line Coverage): ${COVERAGE_PERCENT}%"
+
+          # Hiển thị trực quan trên GitHub Actions Step Summary
+          echo "### 📊 Báo Cáo Kiểm Tra Độ Bao Phủ Mã Nguồn (Code Coverage)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Tỷ lệ bao phủ đạt được:** \`${COVERAGE_PERCENT}%\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Ngưỡng tối thiểu quy định:** \`80.00%\`" >> $GITHUB_STEP_SUMMARY
+
+          # So sánh với ngưỡng 80%
+          IS_QUALIFIED=$(awk "BEGIN {print ($COVERAGE_PERCENT >= 80.0) ? 1 : 0}")
+          if [ "$IS_QUALIFIED" -eq 1 ]; then
+            echo "✅ **ĐẠT YÊU CẦU:** Tỷ lệ bao phủ ${COVERAGE_PERCENT}% >= 80%. Đủ điều kiện chuyển tiếp sang bước CD Deploy!" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "❌ **KHÔNG ĐẠT:** Tỷ lệ bao phủ ${COVERAGE_PERCENT}% chưa đạt ngưỡng 80%. Dừng pipeline ngay lập tức, không cho phép Deploy!" >> $GITHUB_STEP_SUMMARY
+            echo "::error::Code coverage ${COVERAGE_PERCENT}% is below the required 80% threshold!"
+            exit 1
+          fi
+
+  # =========================================================================
+  # 2. CD JOB: Build Docker Images, Transfer & Restart via Docker Compose on EC2
+  # Chỉ chạy khi:
+  #   - Job CI (test-and-build) thành công (Coverage >= 80%)
+  #   - Sự kiện là PUSH (sau khi PR được merge vào nhánh develop/main) hoặc chạy thủ công
+  # =========================================================================
   deploy:
     name: 2. CD - Build Docker Images & Deploy to EC2
     needs: test-and-build
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout code
+      - name: 2.1. Checkout code
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
+      - name: 2.2. Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Docker Images (Backend & Gateway)
-        run: |
-          docker build -t taxkeep-backend:latest -f Dockerfile .
-          docker build -t taxkeep-gateway:latest -f Dockerfile.gateway .
-          docker save taxkeep-backend:latest taxkeep-gateway:latest | gzip > backend_and_gateway.tar.gz
-
-      - name: Copy Docker Images to EC2
-        uses: appleboy/scp-action@v0.1.7
+      - name: 2.3. Đăng nhập vào Docker Hub
+        uses: docker/login-action@v3
         with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ${{ secrets.EC2_USER }}
-          key: ${{ secrets.EC2_SSH_KEY }}
-          source: "backend_and_gateway.tar.gz"
-          target: "~/taxkeep/"
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Deploy Containers on EC2
+      - name: 2.4. Build và Push Backend API Image lên Docker Hub
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/taxkeep-backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: 2.5. Build và Push ApiGateway Image lên Docker Hub
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.gateway
+          push: true
+          tags: ${{ secrets.DOCKERHUB_USERNAME }}/taxkeep-gateway:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: 2.6. SSH vào EC2 và kéo image mới về chạy qua Docker Compose
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ${{ secrets.EC2_USER }}
           key: ${{ secrets.EC2_SSH_KEY }}
+          port: ${{ secrets.EC2_PORT || 22 }}
           script: |
             cd ~/taxkeep
-            docker load < backend_and_gateway.tar.gz
-            rm -f backend_and_gateway.tar.gz
-            docker compose up -d backend gateway
+            echo "==> Đang kéo image mới từ Docker Hub..."
+            docker compose pull backend gateway
+
+            echo "==> Khởi động lại các container bằng Docker Compose..."
+            docker compose up -d --remove-orphans backend gateway
+
+            echo "==> Dọn dẹp image cũ không dùng..."
             docker image prune -f
+
+            echo "==> Kiểm tra trạng thái các container sau khi deploy:"
+            docker compose ps

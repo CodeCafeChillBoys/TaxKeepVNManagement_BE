@@ -1,4 +1,4 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using TaxKeepVN.Domain.Enums;
 
 namespace TaxKeepVN.Application.DTOs.ExpertApplications
@@ -6,6 +6,7 @@ namespace TaxKeepVN.Application.DTOs.ExpertApplications
     /// <summary>
     /// Đề xuất mức phí tư vấn theo phiên
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class FeeProposalRequestDto
     {
         [Required(ErrorMessage = "Loại phiên tư vấn không được để trống")]

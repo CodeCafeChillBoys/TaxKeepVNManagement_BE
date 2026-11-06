@@ -1,7 +1,8 @@
-using System;
+﻿using System;
 
 namespace TaxKeepVN.Application.DTOs.Responses.Income
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class IncomeResponseDto
     {
         public Guid Id { get; set; }

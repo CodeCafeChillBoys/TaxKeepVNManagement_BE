@@ -1,5 +1,6 @@
-namespace TaxKeepVN.Application.Constants
+﻿namespace TaxKeepVN.Application.Constants
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public static class ErrorCodes
     {
         // Auth & Identity
@@ -20,6 +21,7 @@ namespace TaxKeepVN.Application.Constants
         public const string InvalidCode = "INVALID_CODE";
         public const string DuplicateCode = "DUPLICATE_CODE";
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public static class ErrorMessages
     {
@@ -46,6 +48,7 @@ namespace TaxKeepVN.Application.Constants
         public static string DocTypeNotFound(string code) => $"Không tìm thấy loại chứng từ với mã '{code}'.";
         public static string DuplicateDocTypeCode(string code) => $"Mã loại chứng từ '{code}' đã tồn tại trong hệ thống.";
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public static class SuccessMessages
     {

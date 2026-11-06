@@ -1,8 +1,9 @@
-namespace TaxKeepVN.Application.DTOs.Payments
+﻿namespace TaxKeepVN.Application.DTOs.Payments
 {
     /// <summary>
     /// Request khởi tạo link thanh toán PayOS cho phiên đặt lịch tư vấn (Đặc tả 4)
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class CreatePaymentLinkRequest
     {
         /// <summary>Đường dẫn điều hướng về Frontend/Mobile khi thanh toán thành công (Tùy chọn)</summary>

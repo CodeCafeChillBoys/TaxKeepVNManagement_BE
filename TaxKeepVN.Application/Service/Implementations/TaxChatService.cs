@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Net;
 using System.Net.Http;
@@ -14,18 +14,25 @@ namespace TaxKeepVN.Application.Service.Implementations
     {
         private readonly HttpClient _httpClient;
         private readonly ILogger<TaxChatService> _logger;
+        private readonly ISubscriptionQuotaService? _quotaService;
 
         public TaxChatService(
             IHttpClientFactory httpClientFactory,
-            ILogger<TaxChatService> logger)
+            ILogger<TaxChatService> logger,
+            ISubscriptionQuotaService? quotaService = null)
         {
             _httpClient = httpClientFactory.CreateClient("TaxAIService");
             _logger = logger;
+            _quotaService = quotaService;
         }
 
         // 1. POST /api/tax-chat
         public async Task<TaxChatResponse> AskAsync(Guid userId, TaxChatRequest request)
         {
+            if (_quotaService != null && userId != Guid.Empty)
+            {
+                await _quotaService.CheckAndConsumeAiQuestionAsync(userId);
+            }
             var payload = new
             {
                 question = request.Question,

@@ -1,9 +1,10 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using TaxKeepVN.Domain.Enums;
 
 namespace TaxKeepVN.Application.DTOs.ExpertApplications
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class ExpertApplicationListItemResponse
     {
         public Guid Id { get; set; }

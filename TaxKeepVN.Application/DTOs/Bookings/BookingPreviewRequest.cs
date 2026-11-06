@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.ComponentModel.DataAnnotations;
 
 namespace TaxKeepVN.Application.DTOs.Bookings
@@ -6,6 +6,7 @@ namespace TaxKeepVN.Application.DTOs.Bookings
     /// <summary>
     /// Request tính toán và xem trước thông tin đặt lịch tư vấn (Đặc tả 3 - Mục 5 Luồng chính)
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class BookingPreviewRequest
     {
         [Required(ErrorMessage = "Vui lòng chọn khung giờ tư vấn (expertSlotId).")]

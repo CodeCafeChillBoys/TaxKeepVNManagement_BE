@@ -1,10 +1,11 @@
-using System;
+﻿using System;
 
 namespace TaxKeepVN.Application.DTOs.Responses.Dependent
 {
     /// <summary>
     /// DTO đại diện 1 document đã upload, dùng trong response chi tiết NPT.
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class DependentDocumentDto
     {
         public Guid DocId { get; set; }

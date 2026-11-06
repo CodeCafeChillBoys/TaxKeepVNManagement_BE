@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 
 namespace TaxKeepVN.Application.DTOs.TaxSettlement
@@ -6,6 +6,7 @@ namespace TaxKeepVN.Application.DTOs.TaxSettlement
     /// <summary>
     /// Thông tin bổ sung người nộp thuế cung cấp khi xuất Tờ khai Mẫu 02/QTT-TNCN (tùy chọn, fallback vào Profile).
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class TaxSettlementExportPdfRequest
     {
         /// <summary>Tên Cơ quan thuế quản lý quyết toán (VD: Cục Thuế TP. Hồ Chí Minh, Chi cục Thuế Quận 1).</summary>
@@ -33,6 +34,7 @@ namespace TaxKeepVN.Application.DTOs.TaxSettlement
     /// <summary>
     /// Request đóng gói trọn bộ hồ sơ quyết toán (PDF + chứng từ gốc) thành file ZIP.
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class TaxSettlementExportZipRequest : TaxSettlementExportPdfRequest
     {
         /// <summary>Ghi chú thêm cho gói hồ sơ lưu trữ.</summary>
@@ -42,6 +44,7 @@ namespace TaxKeepVN.Application.DTOs.TaxSettlement
     /// <summary>
     /// Kết quả trả về sau khi đóng gói hồ sơ ZIP và sinh Download URL có thời hạn.
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class TaxSettlementPackageZipResponse
     {
         public Guid DossierId { get; set; }
@@ -56,6 +59,7 @@ namespace TaxKeepVN.Application.DTOs.TaxSettlement
     /// <summary>
     /// Payload lưu trong Signed Download Token (HMAC-SHA256).
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class DownloadTokenPayload
     {
         public Guid DossierId { get; set; }
@@ -69,6 +73,7 @@ namespace TaxKeepVN.Application.DTOs.TaxSettlement
     /// <summary>
     /// Dữ liệu toàn diện được chuẩn bị để vẽ Tờ khai Quyết toán thuế bằng QuestPDF.
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class TaxSettlementPdfModel
     {
         public Guid DossierId { get; set; }
@@ -118,6 +123,7 @@ namespace TaxKeepVN.Application.DTOs.TaxSettlement
         // Phụ lục 2: Danh sách Chứng từ Y tế & Giáo dục được giảm trừ
         public List<PdfReceiptItemDto> Receipts { get; set; } = new();
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class PdfDependentItemDto
     {
@@ -129,6 +135,7 @@ namespace TaxKeepVN.Application.DTOs.TaxSettlement
         public int EligibleMonths { get; set; }
         public decimal DeductionAmount { get; set; }
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class PdfReceiptItemDto
     {
@@ -140,6 +147,7 @@ namespace TaxKeepVN.Application.DTOs.TaxSettlement
         public decimal TotalAmount { get; set; }
         public decimal TaxEligibleAmount { get; set; }
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class ProgressiveBracketDetailDto
     {

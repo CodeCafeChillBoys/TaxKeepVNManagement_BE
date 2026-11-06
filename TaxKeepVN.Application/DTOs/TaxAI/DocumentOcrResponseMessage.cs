@@ -1,9 +1,10 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
 namespace TaxKeepVN.Application.DTOs.TaxAI
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class DocumentOcrResponseMessage
     {
         [JsonPropertyName("message")]
@@ -12,6 +13,7 @@ namespace TaxKeepVN.Application.DTOs.TaxAI
         [JsonPropertyName("data")]
         public DocumentOcrData? Data { get; set; }
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class DocumentOcrData
     {
@@ -110,6 +112,7 @@ namespace TaxKeepVN.Application.DTOs.TaxAI
         [JsonPropertyName("createdAt")]
         public string? CreatedAt { get; set; }
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class InvoiceLineItemDto
     {
@@ -131,6 +134,7 @@ namespace TaxKeepVN.Application.DTOs.TaxAI
         [JsonPropertyName("totalPrice")]
         public decimal TotalPrice { get; set; } = 0;
     }
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 
     public class DocumentValidationStatus
     {

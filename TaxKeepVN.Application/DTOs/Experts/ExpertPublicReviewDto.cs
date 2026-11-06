@@ -1,10 +1,11 @@
-using System;
+﻿using System;
 
 namespace TaxKeepVN.Application.DTOs.Experts
 {
     /// <summary>
     /// Feedback, đánh giá từ khách hàng cũ (ẩn danh nếu khách yêu cầu)
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class ExpertPublicReviewDto
     {
         public Guid Id { get; set; }

@@ -1,7 +1,8 @@
-using System;
+﻿using System;
 
 namespace TaxKeepVN.Application.DTOs.ExpertCertificateConfigurations
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class ExpertCertificateConfigDto
     {
         public int Id { get; set; }

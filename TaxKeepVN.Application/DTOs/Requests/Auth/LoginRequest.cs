@@ -1,7 +1,8 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace TaxKeepVN.Application.DTOs.Requests.Auth
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class LoginRequest
     {
         /// <summary>Số căn cước công dân dùng để đăng nhập</summary>

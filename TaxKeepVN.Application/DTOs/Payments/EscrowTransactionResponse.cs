@@ -1,10 +1,11 @@
-using TaxKeepVN.Domain.Enums;
+﻿using TaxKeepVN.Domain.Enums;
 
 namespace TaxKeepVN.Application.DTOs.Payments
 {
     /// <summary>
     /// Thông tin chi tiết bản ghi sổ cái tạm giữ tiền bảo đảm (EscrowTransaction) gắn với Booking (Đặc tả 4 & 7)
     /// </summary>
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class EscrowTransactionResponse
     {
         public Guid Id { get; set; }

@@ -1,7 +1,8 @@
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 
 namespace TaxKeepVN.Application.DTOs.ExpertApplications
 {
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class RequestSupplementRequest
     {
         [Required(ErrorMessage = "Nội dung yêu cầu bổ sung không được để trống (BR-10).")]
