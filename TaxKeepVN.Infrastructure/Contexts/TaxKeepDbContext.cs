@@ -1,4 +1,5 @@
 ﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TaxKeepVN.Domain.Entities;
 using TaxKeepVN.Domain.Enums;
 
@@ -60,6 +61,23 @@ namespace TaxKeepVN.Infrastructure.Contexts
         public DbSet<SubscriptionPlan> SubscriptionPlans { get; set; }
         public DbSet<UserSubscription> UserSubscriptions { get; set; }
         public DbSet<SubscriptionQuotaUsage> SubscriptionQuotaUsages { get; set; }
+
+        protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+        {
+            base.ConfigureConventions(configurationBuilder);
+
+            configurationBuilder.Properties<DateTime>()
+                .HaveConversion<UtcDateTimeConverter>();
+
+            configurationBuilder.Properties<DateTime?>()
+                .HaveConversion<NullableUtcDateTimeConverter>();
+
+            configurationBuilder.Properties<DateTimeOffset>()
+                .HaveConversion<UtcDateTimeOffsetConverter>();
+
+            configurationBuilder.Properties<DateTimeOffset?>()
+                .HaveConversion<NullableUtcDateTimeOffsetConverter>();
+        }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -1314,6 +1332,70 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.HasIndex(q => new { q.UserId, q.PeriodMonth }).IsUnique()
                     .HasDatabaseName("uq_subscription_quota_usages_user_period");
             });
+
+            // Chuẩn hóa toàn bộ các trường DateTime và DateTimeOffset sang UTC để tương thích triệt để với PostgreSQL (timestamp with time zone)
+            foreach (var entityType in modelBuilder.Model.GetEntityTypes())
+            {
+                foreach (var property in entityType.GetProperties())
+                {
+                    if (property.ClrType == typeof(DateTime))
+                    {
+                        property.SetValueConverter(new UtcDateTimeConverter());
+                    }
+                    else if (property.ClrType == typeof(DateTime?))
+                    {
+                        property.SetValueConverter(new NullableUtcDateTimeConverter());
+                    }
+                    else if (property.ClrType == typeof(DateTimeOffset))
+                    {
+                        property.SetValueConverter(new UtcDateTimeOffsetConverter());
+                    }
+                    else if (property.ClrType == typeof(DateTimeOffset?))
+                    {
+                        property.SetValueConverter(new NullableUtcDateTimeOffsetConverter());
+                    }
+                }
+            }
+        }
+    }
+
+    public class UtcDateTimeConverter : ValueConverter<DateTime, DateTime>
+    {
+        public UtcDateTimeConverter()
+            : base(
+                v => v.Kind == DateTimeKind.Utc ? v : DateTime.SpecifyKind(v, DateTimeKind.Utc),
+                v => DateTime.SpecifyKind(v, DateTimeKind.Utc))
+        {
+        }
+    }
+
+    public class NullableUtcDateTimeConverter : ValueConverter<DateTime?, DateTime?>
+    {
+        public NullableUtcDateTimeConverter()
+            : base(
+                v => v.HasValue ? (v.Value.Kind == DateTimeKind.Utc ? v.Value : DateTime.SpecifyKind(v.Value, DateTimeKind.Utc)) : v,
+                v => v.HasValue ? DateTime.SpecifyKind(v.Value, DateTimeKind.Utc) : v)
+        {
+        }
+    }
+
+    public class UtcDateTimeOffsetConverter : ValueConverter<DateTimeOffset, DateTimeOffset>
+    {
+        public UtcDateTimeOffsetConverter()
+            : base(
+                v => v.ToUniversalTime(),
+                v => v.ToUniversalTime())
+        {
+        }
+    }
+
+    public class NullableUtcDateTimeOffsetConverter : ValueConverter<DateTimeOffset?, DateTimeOffset?>
+    {
+        public NullableUtcDateTimeOffsetConverter()
+            : base(
+                v => v.HasValue ? v.Value.ToUniversalTime() : v,
+                v => v.HasValue ? v.Value.ToUniversalTime() : v)
+        {
         }
     }
 }
