@@ -189,7 +189,7 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
                         NotificationType = "EXPERT_NO_SHOW_REFUND",
                         IsRead = false,
                         TargetActionUrl = $"/consultation/bookings/{booking.Id}",
-                        CreatedAt = nowUtc.DateTime
+                        CreatedAt = nowUtc.UtcDateTime
                     });
 
                     // Gửi cảnh báo vi phạm cho Chuyên gia
@@ -204,7 +204,7 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
                             NotificationType = "EXPERT_NO_SHOW_PENALTY",
                             IsRead = false,
                             TargetActionUrl = $"/expert/bookings/{booking.Id}",
-                            CreatedAt = nowUtc.DateTime
+                            CreatedAt = nowUtc.UtcDateTime
                         });
                     }
 
@@ -238,7 +238,7 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
                         NotificationType = "USER_NO_SHOW",
                         IsRead = false,
                         TargetActionUrl = $"/consultation/bookings/{booking.Id}",
-                        CreatedAt = nowUtc.DateTime
+                        CreatedAt = nowUtc.UtcDateTime
                     });
 
                     // Gửi thông báo cho Chuyên gia biết thù lao đã được bảo vệ
@@ -253,7 +253,7 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
                             NotificationType = "USER_NO_SHOW_EXPERT_NOTIFIED",
                             IsRead = false,
                             TargetActionUrl = $"/expert/bookings/{booking.Id}",
-                            CreatedAt = nowUtc.DateTime
+                            CreatedAt = nowUtc.UtcDateTime
                         });
                     }
 
