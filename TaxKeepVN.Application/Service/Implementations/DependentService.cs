@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -282,6 +282,15 @@ namespace TaxKeepVN.Application.Service.Implementations
             }
 
             var uploadedNames = uploadedDocTypes.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (uploadedNames.Contains("RELATIONSHIP_CERTIFICATE"))
+            {
+                uploadedNames.Add("RESIDENCE_CT07");
+                uploadedNames.Add("CT07");
+            }
+            if (uploadedNames.Contains("RESIDENCE_CT07") || uploadedNames.Contains("CT07"))
+            {
+                uploadedNames.Add("RELATIONSHIP_CERTIFICATE");
+            }
             var missing = new List<string>();
 
             if (activeRules.Count > 0)
@@ -299,6 +308,32 @@ namespace TaxKeepVN.Application.Service.Implementations
                     var otherMandatory = activeRules.Where(r => r.IsMandatory &&
                         !r.DocType.Equals("BIRTH_CERTIFICATE", StringComparison.OrdinalIgnoreCase) &&
                         !r.DocType.Equals("CITIZEN_ID", StringComparison.OrdinalIgnoreCase));
+
+                    foreach (var r in otherMandatory)
+                    {
+                        if (!uploadedNames.Contains(r.DocType))
+                            missing.Add(r.DocType);
+                    }
+                }
+                else if (group == DependentGroup.PARENT_DISABLED || group == DependentGroup.PARENT_RETIRED)
+                {
+                    // Theo Thông tư 111/2013 và Thông tư 79/2022: Minh chứng quan hệ cha/mẹ gồm Giấy khai sinh HOẶC Giấy xác nhận quan hệ/cư trú (CT07, hộ khẩu)
+                    bool hasRelationshipProof = uploadedNames.Contains("RELATIONSHIP_CERTIFICATE") || uploadedNames.Contains("BIRTH_CERTIFICATE");
+
+                    bool requiresRelationshipProof = activeRules.Any(r => r.IsMandatory &&
+                        (r.DocType.Equals("BIRTH_CERTIFICATE", StringComparison.OrdinalIgnoreCase) ||
+                         r.DocType.Equals("RELATIONSHIP_CERTIFICATE", StringComparison.OrdinalIgnoreCase)));
+
+                    if (requiresRelationshipProof && !hasRelationshipProof)
+                    {
+                        var prefRule = activeRules.FirstOrDefault(r => r.IsMandatory && r.DocType.Equals("RELATIONSHIP_CERTIFICATE", StringComparison.OrdinalIgnoreCase))
+                            ?? activeRules.FirstOrDefault(r => r.IsMandatory && r.DocType.Equals("BIRTH_CERTIFICATE", StringComparison.OrdinalIgnoreCase));
+                        missing.Add(prefRule?.DocType ?? "RELATIONSHIP_CERTIFICATE");
+                    }
+
+                    var otherMandatory = activeRules.Where(r => r.IsMandatory &&
+                        !r.DocType.Equals("BIRTH_CERTIFICATE", StringComparison.OrdinalIgnoreCase) &&
+                        !r.DocType.Equals("RELATIONSHIP_CERTIFICATE", StringComparison.OrdinalIgnoreCase));
 
                     foreach (var r in otherMandatory)
                     {
@@ -340,16 +375,18 @@ namespace TaxKeepVN.Application.Service.Implementations
                         break;
                     case DependentGroup.PARENT_DISABLED:
                         if (!uploadedNames.Contains("CITIZEN_ID")) missing.Add("CITIZEN_ID");
-                        if (!uploadedNames.Contains("BIRTH_CERTIFICATE")) missing.Add("BIRTH_CERTIFICATE");
+                        if (!uploadedNames.Contains("RELATIONSHIP_CERTIFICATE") && !uploadedNames.Contains("BIRTH_CERTIFICATE"))
+                            missing.Add("RELATIONSHIP_CERTIFICATE");
                         if (!uploadedNames.Contains("DISABILITY_CERTIFICATE")) missing.Add("DISABILITY_CERTIFICATE");
                         break;
                     case DependentGroup.PARENT_RETIRED:
                         if (!uploadedNames.Contains("CITIZEN_ID")) missing.Add("CITIZEN_ID");
-                        if (!uploadedNames.Contains("BIRTH_CERTIFICATE")) missing.Add("BIRTH_CERTIFICATE");
+                        if (!uploadedNames.Contains("RELATIONSHIP_CERTIFICATE") && !uploadedNames.Contains("BIRTH_CERTIFICATE"))
+                            missing.Add("RELATIONSHIP_CERTIFICATE");
                         break;
                     case DependentGroup.OTHER_HELPLESS:
                         if (!uploadedNames.Contains("CITIZEN_ID")) missing.Add("CITIZEN_ID");
-                        if (!uploadedNames.Contains("RESIDENCE_CT07")) missing.Add("RESIDENCE_CT07");
+                        if (!uploadedNames.Contains("RELATIONSHIP_CERTIFICATE")) missing.Add("RELATIONSHIP_CERTIFICATE");
                         if (!uploadedNames.Contains("SUPPORT_COMMITMENT_FORM")) missing.Add("SUPPORT_COMMITMENT_FORM");
                         break;
                 }

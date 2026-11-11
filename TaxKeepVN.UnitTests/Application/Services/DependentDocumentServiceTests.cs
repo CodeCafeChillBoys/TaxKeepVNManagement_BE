@@ -449,6 +449,52 @@ namespace TaxKeepVN.UnitTests.Application.Services
             dependent.Status.Should().Be(DependentStatus.ACTIVE);
         }
 
+        [Theory]
+        [InlineData("BIRTH_CERTIFICATE", DocumentType.BIRTH_CERTIFICATE)]
+        [InlineData("RELATIONSHIP_CERTIFICATE", DocumentType.RELATIONSHIP_CERTIFICATE)]
+        public async Task UTCID13_UploadDocumentAsync_ParentRetired_EitherBirthCertOrRelationshipCert_CompletesProfile(string docTypeStr, DocumentType docTypeEnum)
+        {
+            var userId = Guid.NewGuid();
+            var depId = Guid.NewGuid();
+
+            var mockFile = new Mock<IFormFile>();
+            mockFile.Setup(f => f.Length).Returns(500 * 1024);
+            mockFile.Setup(f => f.FileName).Returns("doc.pdf");
+            mockFile.Setup(f => f.ContentType).Returns("application/pdf");
+
+            var dependent = new Dependent
+            {
+                Id = depId,
+                TaxpayerId = userId,
+                CurrentGroup = DependentGroup.PARENT_RETIRED,
+                Status = DependentStatus.PENDING_DOCUMENTS
+            };
+
+            _mockDependentRepo.Setup(r => r.GetByIdAsync(depId)).ReturnsAsync(dependent);
+            _mockFileStorageService.Setup(f => f.SaveFileAsync(mockFile.Object, It.IsAny<string>()))
+                                   .ReturnsAsync("https://storage/dependents/doc.pdf");
+
+            // Already has CITIZEN_ID, and now uploading docTypeEnum
+            _mockDocRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentDocument, bool>>>()))
+                        .ReturnsAsync(new List<DependentDocument>
+                        {
+                            new DependentDocument { DocType = DocumentType.CITIZEN_ID },
+                            new DependentDocument { DocType = docTypeEnum }
+                        });
+
+            var mockRuleRepo = new Mock<IGenericRepository<DependentDocumentRule>>();
+            mockRuleRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentDocumentRule, bool>>>()))
+                        .ReturnsAsync(new List<DependentDocumentRule>()); // Empty to test fallback OR condition
+            _mockUnitOfWork.Setup(u => u.Repository<DependentDocumentRule>()).Returns(mockRuleRepo.Object);
+
+            var result = await _service.UploadDocumentAsync(userId, depId, docTypeStr, mockFile.Object);
+
+            result.Should().NotBeNull();
+            result.IsProfileComplete.Should().BeTrue();
+            result.MissingDocuments.Should().BeEmpty();
+            dependent.Status.Should().Be(DependentStatus.ACTIVE);
+        }
+
         #endregion
     }
 }
