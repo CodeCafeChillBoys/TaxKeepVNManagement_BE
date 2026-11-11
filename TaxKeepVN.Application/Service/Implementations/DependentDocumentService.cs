@@ -158,6 +158,11 @@ namespace TaxKeepVN.Application.Service.Implementations
             {
                 var missing = new List<string>();
                 var uploadedNames = uploadedDocs.Select(d => d.ToString()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+                if (uploadedNames.Contains("RELATIONSHIP_CERTIFICATE"))
+                {
+                    uploadedNames.Add("RESIDENCE_CT07");
+                    uploadedNames.Add("CT07");
+                }
 
                 if (group == DependentGroup.CHILD_UNDER_18)
                 {
@@ -173,6 +178,32 @@ namespace TaxKeepVN.Application.Service.Implementations
                     var otherMandatory = activeRules.Where(r => r.IsMandatory &&
                         !r.DocType.Equals("BIRTH_CERTIFICATE", StringComparison.OrdinalIgnoreCase) &&
                         !r.DocType.Equals("CITIZEN_ID", StringComparison.OrdinalIgnoreCase));
+
+                    foreach (var r in otherMandatory)
+                    {
+                        if (!uploadedNames.Contains(r.DocType))
+                            missing.Add(r.DocType);
+                    }
+                }
+                else if (group == DependentGroup.PARENT_DISABLED || group == DependentGroup.PARENT_RETIRED)
+                {
+                    // Theo Thông tư 111/2013 và Thông tư 79/2022: Minh chứng quan hệ cha/mẹ gồm Giấy khai sinh HOẶC Giấy xác nhận quan hệ/cư trú (CT07, hộ khẩu)
+                    bool hasRelationshipProof = uploadedNames.Contains("RELATIONSHIP_CERTIFICATE") || uploadedNames.Contains("BIRTH_CERTIFICATE");
+
+                    bool requiresRelationshipProof = activeRules.Any(r => r.IsMandatory &&
+                        (r.DocType.Equals("BIRTH_CERTIFICATE", StringComparison.OrdinalIgnoreCase) ||
+                         r.DocType.Equals("RELATIONSHIP_CERTIFICATE", StringComparison.OrdinalIgnoreCase)));
+
+                    if (requiresRelationshipProof && !hasRelationshipProof)
+                    {
+                        var prefRule = activeRules.FirstOrDefault(r => r.IsMandatory && r.DocType.Equals("RELATIONSHIP_CERTIFICATE", StringComparison.OrdinalIgnoreCase))
+                            ?? activeRules.FirstOrDefault(r => r.IsMandatory && r.DocType.Equals("BIRTH_CERTIFICATE", StringComparison.OrdinalIgnoreCase));
+                        missing.Add(prefRule?.DocType ?? "RELATIONSHIP_CERTIFICATE");
+                    }
+
+                    var otherMandatory = activeRules.Where(r => r.IsMandatory &&
+                        !r.DocType.Equals("BIRTH_CERTIFICATE", StringComparison.OrdinalIgnoreCase) &&
+                        !r.DocType.Equals("RELATIONSHIP_CERTIFICATE", StringComparison.OrdinalIgnoreCase));
 
                     foreach (var r in otherMandatory)
                     {
@@ -231,13 +262,15 @@ namespace TaxKeepVN.Application.Service.Implementations
                     
                 case DependentGroup.PARENT_DISABLED:
                     if (!uploadedDocs.Contains(DocumentType.CITIZEN_ID)) missing.Add("CITIZEN_ID");
-                    if (!uploadedDocs.Contains(DocumentType.RELATIONSHIP_CERTIFICATE)) missing.Add("RELATIONSHIP_CERTIFICATE");
+                    if (!uploadedDocs.Contains(DocumentType.RELATIONSHIP_CERTIFICATE) && !uploadedDocs.Contains(DocumentType.BIRTH_CERTIFICATE))
+                        missing.Add("RELATIONSHIP_CERTIFICATE");
                     if (!uploadedDocs.Contains(DocumentType.DISABILITY_CERTIFICATE)) missing.Add("DISABILITY_CERTIFICATE");
                     break;
                     
                 case DependentGroup.PARENT_RETIRED:
                     if (!uploadedDocs.Contains(DocumentType.CITIZEN_ID)) missing.Add("CITIZEN_ID");
-                    if (!uploadedDocs.Contains(DocumentType.RELATIONSHIP_CERTIFICATE)) missing.Add("RELATIONSHIP_CERTIFICATE");
+                    if (!uploadedDocs.Contains(DocumentType.RELATIONSHIP_CERTIFICATE) && !uploadedDocs.Contains(DocumentType.BIRTH_CERTIFICATE))
+                        missing.Add("RELATIONSHIP_CERTIFICATE");
                     break;
                     
                 case DependentGroup.OTHER_HELPLESS:
