@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TaxKeepVN.Domain.Entities;
 using TaxKeepVN.Domain.Enums;
@@ -1250,8 +1250,6 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(p => p.MaxAiQuestionsPerMonth).HasColumnName("max_ai_questions_per_month").HasDefaultValue(20);
                 entity.Property(p => p.ChatHistoryRetentionDays).HasColumnName("chat_history_retention_days").HasDefaultValue(30);
                 entity.Property(p => p.MaxOcrScansPerMonth).HasColumnName("max_ocr_scans_per_month").HasDefaultValue(5);
-                entity.Property(p => p.MaxIncomeSources).HasColumnName("max_income_sources").HasDefaultValue(1);
-                entity.Property(p => p.MaxDependents).HasColumnName("max_dependents").HasDefaultValue(3);
                 entity.Property(p => p.CanExportPdf).HasColumnName("can_export_pdf").HasDefaultValue(false);
                 entity.Property(p => p.CanExportZip).HasColumnName("can_export_zip").HasDefaultValue(false);
                 entity.Property(p => p.BookingDiscountPercent).HasColumnName("booking_discount_percent").HasDefaultValue(0);
@@ -1286,8 +1284,6 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(s => s.SnapshotMaxAiQuestionsPerMonth).HasColumnName("snapshot_max_ai_questions_per_month");
                 entity.Property(s => s.SnapshotChatHistoryRetentionDays).HasColumnName("snapshot_chat_history_retention_days");
                 entity.Property(s => s.SnapshotMaxOcrScansPerMonth).HasColumnName("snapshot_max_ocr_scans_per_month");
-                entity.Property(s => s.SnapshotMaxIncomeSources).HasColumnName("snapshot_max_income_sources");
-                entity.Property(s => s.SnapshotMaxDependents).HasColumnName("snapshot_max_dependents");
                 entity.Property(s => s.SnapshotCanExportPdf).HasColumnName("snapshot_can_export_pdf");
                 entity.Property(s => s.SnapshotCanExportZip).HasColumnName("snapshot_can_export_zip");
                 entity.Property(s => s.SnapshotBookingDiscountPercent).HasColumnName("snapshot_booking_discount_percent");

@@ -64,7 +64,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         }
 
         /// <summary>
-        /// Xem hạn mức sử dụng và số lượt còn lại trong tháng (AI questions, OCR, nguồn thu nhập, người phụ thuộc...)
+        /// Xem hạn mức sử dụng và số lượt còn lại trong tháng (AI questions, OCR, quyền xuất PDF/ZIP, ưu đãi đặt lịch...)
         /// GET /api/v1/subscription/quota
         /// </summary>
         [Authorize]

@@ -20,27 +20,19 @@ namespace TaxKeepVN.Application.Service.Implementations
         private readonly IUnitOfWork _unitOfWork;
         private readonly IMemoryCache _cache;
         private readonly IConfiguration _configuration;
-        private readonly ISubscriptionQuotaService? _quotaService;
 
         public DependentService(
             IUnitOfWork unitOfWork,
             IMemoryCache cache,
-            IConfiguration configuration,
-            ISubscriptionQuotaService? quotaService = null)
+            IConfiguration configuration)
         {
             _unitOfWork = unitOfWork;
             _cache = cache;
             _configuration = configuration;
-            _quotaService = quotaService;
         }
 
         public async Task<DependentResponse> CreateDependentAsync(Guid taxpayerId, CreateDependentRequest request)
         {
-            if (_quotaService != null)
-            {
-                var currentCount = (await _unitOfWork.Repository<Dependent>().FindAsync(d => d.TaxpayerId == taxpayerId)).Count();
-                await _quotaService.CheckCanAddDependentAsync(taxpayerId, currentCount);
-            }
             // ── 1. Validate Relationship enum ───────────────────────────────────
             if (!Enum.TryParse<DependentRelationship>(request.Relationship, true, out var relationship))
             {

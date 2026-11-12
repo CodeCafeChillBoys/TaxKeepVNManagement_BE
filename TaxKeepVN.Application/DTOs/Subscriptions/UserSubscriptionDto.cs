@@ -53,8 +53,6 @@ namespace TaxKeepVN.Application.DTOs.Subscriptions
         public int MaxAiQuestionsPerMonth { get; set; }
         public int ChatHistoryRetentionDays { get; set; }
         public int MaxOcrScansPerMonth { get; set; }
-        public int MaxIncomeSources { get; set; }
-        public int MaxDependents { get; set; }
         public bool CanExportPdf { get; set; }
         public bool CanExportZip { get; set; }
         public int BookingDiscountPercent { get; set; }
@@ -80,12 +78,6 @@ namespace TaxKeepVN.Application.DTOs.Subscriptions
         public int MaxOcrScansPerMonth { get; set; }
         public int? OcrScansRemaining { get; set; } // null if unlimited (-1)
         public bool IsOcrScansUnlimited => MaxOcrScansPerMonth == -1;
-
-        // Current limits
-        public int MaxIncomeSources { get; set; }
-        public int CurrentIncomeSourcesCount { get; set; }
-        public int MaxDependents { get; set; }
-        public int CurrentDependentsCount { get; set; }
 
         // Features
         public bool CanExportPdf { get; set; }

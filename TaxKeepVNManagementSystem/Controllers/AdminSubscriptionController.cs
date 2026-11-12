@@ -67,7 +67,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         }
 
         /// <summary>
-        /// Admin cập nhật cấu hình gói dịch vụ (giá tháng/năm, số câu hỏi AI, OCR, giới hạn nguồn thu nhập...)
+        /// Admin cập nhật cấu hình gói dịch vụ (giá tháng/năm, số câu hỏi AI, OCR, quyền xuất PDF/ZIP, ưu đãi đặt lịch...)
         /// PUT /api/v1/admin/subscription/plans/{id}
         /// </summary>
         [HttpPut("{id:guid}")]
