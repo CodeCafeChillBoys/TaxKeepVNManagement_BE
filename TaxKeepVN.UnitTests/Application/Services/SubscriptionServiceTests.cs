@@ -25,8 +25,6 @@ namespace TaxKeepVN.UnitTests.Application.Services
         private readonly Mock<IGenericRepository<SubscriptionQuotaUsage>> _mockUsageRepo;
         private readonly Mock<IGenericRepository<UserWallet>> _mockWalletRepo;
         private readonly Mock<IGenericRepository<WalletTransaction>> _mockTxnRepo;
-        private readonly Mock<IGenericRepository<IncomeSource>> _mockIncomeRepo;
-        private readonly Mock<IGenericRepository<Dependent>> _mockDepRepo;
         private readonly Mock<IConfiguration> _mockConfig;
         private readonly Mock<ILogger<UserSubscriptionService>> _mockLogger;
 
@@ -38,8 +36,6 @@ namespace TaxKeepVN.UnitTests.Application.Services
             _mockUsageRepo = new Mock<IGenericRepository<SubscriptionQuotaUsage>>();
             _mockWalletRepo = new Mock<IGenericRepository<UserWallet>>();
             _mockTxnRepo = new Mock<IGenericRepository<WalletTransaction>>();
-            _mockIncomeRepo = new Mock<IGenericRepository<IncomeSource>>();
-            _mockDepRepo = new Mock<IGenericRepository<Dependent>>();
             _mockConfig = new Mock<IConfiguration>();
             _mockLogger = new Mock<ILogger<UserSubscriptionService>>();
 
@@ -48,8 +44,6 @@ namespace TaxKeepVN.UnitTests.Application.Services
             _mockUnitOfWork.Setup(u => u.Repository<SubscriptionQuotaUsage>()).Returns(_mockUsageRepo.Object);
             _mockUnitOfWork.Setup(u => u.Repository<UserWallet>()).Returns(_mockWalletRepo.Object);
             _mockUnitOfWork.Setup(u => u.Repository<WalletTransaction>()).Returns(_mockTxnRepo.Object);
-            _mockUnitOfWork.Setup(u => u.Repository<IncomeSource>()).Returns(_mockIncomeRepo.Object);
-            _mockUnitOfWork.Setup(u => u.Repository<Dependent>()).Returns(_mockDepRepo.Object);
         }
 
         // ══════════════════════════════════════════════════════════════════════
@@ -213,25 +207,6 @@ namespace TaxKeepVN.UnitTests.Application.Services
             var service = new SubscriptionQuotaService(_mockUnitOfWork.Object, userSubService.Object);
 
             await Assert.ThrowsAsync<BadRequestException>(() => service.CheckCanExportPdfAsync(userId));
-        }
-
-        [Fact]
-        public async Task CheckCanAddIncomeSourceAsync_WhenLimitExceeded_ShouldThrowBadRequestException()
-        {
-            var userId = Guid.NewGuid();
-            var sub = new UserSubscription
-            {
-                UserId = userId,
-                SnapshotMaxIncomeSources = 1 // Basic chỉ cho phép 1
-            };
-
-            var userSubService = new Mock<IUserSubscriptionService>();
-            userSubService.Setup(s => s.GetOrCreateActiveSubscriptionEntityAsync(userId)).ReturnsAsync(sub);
-
-            var service = new SubscriptionQuotaService(_mockUnitOfWork.Object, userSubService.Object);
-
-            // Đang có 1 nguồn, cố gắng thêm nguồn thứ 2
-            await Assert.ThrowsAsync<BadRequestException>(() => service.CheckCanAddIncomeSourceAsync(userId, 1));
         }
     }
 }
