@@ -6,6 +6,7 @@ using System.Net.Http.Json;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using TaxKeepVN.Application.DTOs.TaxAI;
+using TaxKeepVN.Application.Exceptions;
 using TaxKeepVN.Application.Service.Interfaces;
 
 namespace TaxKeepVN.Application.Service.Implementations
@@ -29,13 +30,20 @@ namespace TaxKeepVN.Application.Service.Implementations
         // 1. POST /api/tax-chat
         public async Task<TaxChatResponse> AskAsync(Guid userId, TaxChatRequest request)
         {
+            if (request == null || string.IsNullOrWhiteSpace(request.Question))
+            {
+                throw new BadRequestException("INVALID_QUESTION", "Vui lòng nhập câu hỏi.");
+            }
+
+            var cleanQuestion = request.Question.Trim();
+
             if (_quotaService != null && userId != Guid.Empty)
             {
                 await _quotaService.CheckAndConsumeAiQuestionAsync(userId);
             }
             var payload = new
             {
-                question = request.Question,
+                question = cleanQuestion,
                 session_id = request.SessionId,
                 tax_year = request.TaxYear,
                 user_id = userId

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
 
 namespace TaxKeepVN.Application.DTOs.TaxAI
@@ -6,6 +7,8 @@ namespace TaxKeepVN.Application.DTOs.TaxAI
 [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class TaxChatRequest
     {
+        [Required(AllowEmptyStrings = false, ErrorMessage = "Vui lòng nhập câu hỏi.")]
+        [MinLength(1, ErrorMessage = "Vui lòng nhập câu hỏi.")]
         [JsonPropertyName("question")]
         public string Question { get; set; } = string.Empty;
 
