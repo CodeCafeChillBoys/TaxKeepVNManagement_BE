@@ -30,14 +30,29 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// </summary>
         [HttpPost]
         [ProducesResponseType(typeof(ApiResponse<TaxChatResponse>), StatusCodes.Status200OK)]
+        [ProducesResponseType(typeof(ApiResponse<object>), StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
         public async Task<IActionResult> Ask([FromBody] TaxChatRequest request)
         {
+            if (!ModelState.IsValid)
+            {
+                return BadRequest(ApiResponse<object>.ValidationFail(ModelState));
+            }
+
+            if (request == null || string.IsNullOrWhiteSpace(request.Question))
+            {
+                return BadRequest(ApiResponse<object>.Fail("INVALID_QUESTION", "Vui lòng nhập câu hỏi."));
+            }
+
             try
             {
                 var userId = GetUserIdFromToken();
                 var result = await _chatService.AskAsync(userId, request);
                 return Ok(ApiResponse<TaxChatResponse>.Ok(result, "Phản hồi từ Tax AI thành công."));
+            }
+            catch (BadRequestException ex)
+            {
+                return BadRequest(ApiResponse<object>.Fail(ex.ErrorCode, ex.Message));
             }
             catch (System.Net.Http.HttpRequestException ex)
             {

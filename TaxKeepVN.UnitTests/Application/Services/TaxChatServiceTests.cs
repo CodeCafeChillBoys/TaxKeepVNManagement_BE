@@ -10,7 +10,9 @@ using Microsoft.Extensions.Logging;
 using Moq;
 using Moq.Protected;
 using TaxKeepVN.Application.DTOs.TaxAI;
+using TaxKeepVN.Application.Exceptions;
 using TaxKeepVN.Application.Service.Implementations;
+using TaxKeepVN.Application.Service.Interfaces;
 using Xunit;
 
 namespace TaxKeepVN.UnitTests.Application.Services
@@ -66,6 +68,28 @@ namespace TaxKeepVN.UnitTests.Application.Services
 
             result.Should().NotBeNull();
             result.Answer.Should().Contain("11 triệu đồng");
+        }
+
+        [Theory]
+        [InlineData(null)]
+        [InlineData("")]
+        [InlineData("   ")]
+        [InlineData("\t\n  ")]
+        public async Task UTCID01B_AskAsync_EmptyOrWhitespaceQuestion_ThrowsBadRequestException(string invalidQuestion)
+        {
+            var mockQuotaService = new Mock<ISubscriptionQuotaService>();
+            var serviceWithQuota = new TaxChatService(_mockHttpClientFactory.Object, _mockLogger.Object, mockQuotaService.Object);
+
+            var request = invalidQuestion == null ? null : new TaxChatRequest { Question = invalidQuestion };
+            var userId = Guid.NewGuid();
+
+            var act = async () => await serviceWithQuota.AskAsync(userId, request!);
+
+            var exception = await act.Should().ThrowAsync<BadRequestException>();
+            exception.Which.ErrorCode.Should().Be("INVALID_QUESTION");
+            exception.Which.Message.Should().Be("Vui lòng nhập câu hỏi.");
+
+            mockQuotaService.Verify(q => q.CheckAndConsumeAiQuestionAsync(It.IsAny<Guid>()), Times.Never);
         }
 
         #endregion
