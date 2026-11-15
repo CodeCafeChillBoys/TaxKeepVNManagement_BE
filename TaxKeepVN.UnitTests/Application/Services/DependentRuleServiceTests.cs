@@ -418,6 +418,27 @@ namespace TaxKeepVN.UnitTests.Application.Services
             _mockUnitOfWork.Verify(u => u.SaveChangesAsync(), Times.AtLeastOnce());
         }
 
+        [Theory]
+        [InlineData("CT07", "RELATIONSHIP_CERTIFICATE")]
+        [InlineData("RESIDENCE_CT07", "RELATIONSHIP_CERTIFICATE")]
+        [InlineData("ho_khau", "RELATIONSHIP_CERTIFICATE")]
+        [InlineData("KHAI_SINH", "BIRTH_CERTIFICATE")]
+        [InlineData("CCCD", "CITIZEN_ID")]
+        [InlineData("CMND", "CITIZEN_ID")]
+        [InlineData("KET_HON", "MARRIAGE_CERTIFICATE")]
+        [InlineData("THE_SINH_VIEN", "STUDENT_CARD")]
+        [InlineData("DISABILITY", "DISABILITY_CERTIFICATE")]
+        [InlineData("CAM_KET", "SUPPORT_COMMITMENT_FORM")]
+        [InlineData("HUU_TRI", "PENSION_STATEMENT")]
+        [InlineData("BIRTH_CERTIFICATE", "BIRTH_CERTIFICATE")]
+        [InlineData("RELATIONSHIP_CERTIFICATE", "RELATIONSHIP_CERTIFICATE")]
+        [InlineData("CUSTOM_DOC", "CUSTOM_DOC")]
+        public void NormalizeDocType_MapsAiAliasesCorrectly(string input, string expected)
+        {
+            var result = DependentRuleService.NormalizeDocType(input);
+            result.Should().Be(expected);
+        }
+
         #endregion
     }
 }

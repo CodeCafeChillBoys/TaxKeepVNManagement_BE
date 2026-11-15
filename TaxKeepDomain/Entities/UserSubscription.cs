@@ -44,8 +44,6 @@ namespace TaxKeepVN.Domain.Entities
         public int SnapshotMaxAiQuestionsPerMonth { get; set; }
         public int SnapshotChatHistoryRetentionDays { get; set; }
         public int SnapshotMaxOcrScansPerMonth { get; set; }
-        public int SnapshotMaxIncomeSources { get; set; }
-        public int SnapshotMaxDependents { get; set; }
         public bool SnapshotCanExportPdf { get; set; }
         public bool SnapshotCanExportZip { get; set; }
         public int SnapshotBookingDiscountPercent { get; set; }

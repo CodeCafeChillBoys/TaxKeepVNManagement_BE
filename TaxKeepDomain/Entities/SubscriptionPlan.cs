@@ -35,12 +35,6 @@ namespace TaxKeepVN.Domain.Entities
         /// <summary>Số lượt OCR chứng từ / tháng. -1 = không giới hạn</summary>
         public int MaxOcrScansPerMonth { get; set; } = 5;
 
-        /// <summary>Số nguồn thu nhập tối đa. -1 = không giới hạn</summary>
-        public int MaxIncomeSources { get; set; } = 1;
-
-        /// <summary>Số người phụ thuộc tối đa. -1 = không giới hạn</summary>
-        public int MaxDependents { get; set; } = 3;
-
         /// <summary>Có thể xuất PDF quyết toán không</summary>
         public bool CanExportPdf { get; set; } = false;
 

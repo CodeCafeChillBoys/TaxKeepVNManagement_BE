@@ -2217,18 +2217,6 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         .HasDefaultValue(20)
                         .HasColumnName("max_ai_questions_per_month");
 
-                    b.Property<int>("MaxDependents")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(3)
-                        .HasColumnName("max_dependents");
-
-                    b.Property<int>("MaxIncomeSources")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("integer")
-                        .HasDefaultValue(1)
-                        .HasColumnName("max_income_sources");
-
                     b.Property<int>("MaxOcrScansPerMonth")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("integer")
@@ -3217,14 +3205,6 @@ namespace TaxKeepVN.Infrastructure.Migrations
                     b.Property<int>("SnapshotMaxAiQuestionsPerMonth")
                         .HasColumnType("integer")
                         .HasColumnName("snapshot_max_ai_questions_per_month");
-
-                    b.Property<int>("SnapshotMaxDependents")
-                        .HasColumnType("integer")
-                        .HasColumnName("snapshot_max_dependents");
-
-                    b.Property<int>("SnapshotMaxIncomeSources")
-                        .HasColumnType("integer")
-                        .HasColumnName("snapshot_max_income_sources");
 
                     b.Property<int>("SnapshotMaxOcrScansPerMonth")
                         .HasColumnType("integer")

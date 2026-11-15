@@ -126,7 +126,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             await _unitOfWork.SaveChangesAsync();
 
             // Invalidate cache for this group
-            _cache.Remove($"DependentRules_{targetGroup}");
+            InvalidateGroupCache(targetGroup);
 
             return MapToDto(rule);
         }
@@ -147,7 +147,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             await _unitOfWork.SaveChangesAsync();
 
             // Invalidate cache for this group
-            _cache.Remove($"DependentRules_{rule.TargetGroup}");
+            InvalidateGroupCache(rule.TargetGroup);
 
             return MapToDto(rule);
         }
@@ -164,7 +164,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             await _unitOfWork.SaveChangesAsync();
 
             // Invalidate cache for this group
-            _cache.Remove($"DependentRules_{targetGroup}");
+            InvalidateGroupCache(targetGroup);
         }
 
         #endregion
@@ -218,7 +218,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                     {
                         if (string.IsNullOrWhiteSpace(doc.DocType)) continue;
 
-                        var normDocType = doc.DocType.Trim().ToUpper();
+                        var normDocType = NormalizeDocType(doc.DocType);
                         var key = (normGroup, normDocType);
 
                         if (incomingMap.TryGetValue(key, out var existingIncoming))
@@ -282,10 +282,8 @@ namespace TaxKeepVN.Application.Service.Implementations
                 // Xóa toàn bộ cache liên quan
                 foreach (var grp in affectedGroups)
                 {
-                    _cache.Remove($"DependentRules_{grp}");
-                    _cache.Remove($"DependentRules_Required_{grp}");
+                    InvalidateGroupCache(grp);
                 }
-                _cache.Remove("ActiveDependentGroups");
             }
 
             return (added, updated);
@@ -400,6 +398,40 @@ namespace TaxKeepVN.Application.Service.Implementations
                 "createdat" => desc ? rules.OrderByDescending(r => r.CreatedAt) : rules.OrderBy(r => r.CreatedAt),
                 "updatedat" => desc ? rules.OrderByDescending(r => r.UpdatedAt) : rules.OrderBy(r => r.UpdatedAt),
                 _ => desc ? rules.OrderByDescending(r => r.CreatedAt) : rules.OrderBy(r => r.CreatedAt)
+            };
+        }
+
+        private void InvalidateGroupCache(string targetGroup)
+        {
+            if (string.IsNullOrWhiteSpace(targetGroup)) return;
+            var normGroup = targetGroup.Trim().ToUpper();
+            _cache.Remove($"DependentRules_{normGroup}");
+            _cache.Remove($"DependentRules_Required_{normGroup}");
+            _cache.Remove($"DependentRules_Active_{normGroup}");
+            _cache.Remove("ActiveDependentGroups");
+        }
+
+        public static string NormalizeDocType(string rawDocType)
+        {
+            if (string.IsNullOrWhiteSpace(rawDocType))
+                return "OTHER";
+
+            var trimmed = rawDocType.Trim().ToUpperInvariant();
+
+            return trimmed switch
+            {
+                "CT07" or "RESIDENCE_CT07" or "RESIDENCE" or "HO_KHAU" or "HOUSEHOLD" or "XAC_NHAN_CU_TRU" or "GIAY_XAC_NHAN_CU_TRU" => "RELATIONSHIP_CERTIFICATE",
+                "KHAI_SINH" or "GIAY_KHAI_SINH" or "BIRTH" => "BIRTH_CERTIFICATE",
+                "CCCD" or "CMND" or "CAN_CUOC" or "CAN_CUOC_CONG_DAN" or "CITIZEN_IDENTIFICATION" => "CITIZEN_ID",
+                "DANG_KY_KET_HON" or "KET_HON" or "GIAY_KET_HON" or "MARRIAGE" => "MARRIAGE_CERTIFICATE",
+                "THE_SINH_VIEN" or "SINH_VIEN" or "STUDENT" => "STUDENT_CARD",
+                "KHUYET_TAT" or "GIAY_KHUYET_TAT" or "DISABILITY" => "DISABILITY_CERTIFICATE",
+                "CAM_KET" or "GIAY_CAM_KET" or "SUPPORT_COMMITMENT" => "SUPPORT_COMMITMENT_FORM",
+                "HUU_TRI" or "SO_HUU_TRI" or "PENSION" => "PENSION_STATEMENT",
+                "XAC_NHAN_UBND" or "COMMUNE" => "COMMUNE_CERTIFICATION",
+                _ => Enum.TryParse<TaxKeepVN.Domain.Enums.DocumentType>(trimmed, true, out var parsed)
+                    ? parsed.ToString()
+                    : trimmed
             };
         }
 

@@ -1,4 +1,4 @@
-﻿using FluentValidation;
+using FluentValidation;
 using TaxKeepVN.Application.DTOs.Documents;
 
 namespace TaxKeepVN.Application.Validators
@@ -11,7 +11,9 @@ namespace TaxKeepVN.Application.Validators
         {
             "BIRTH_CERTIFICATE", "CITIZEN_ID", "STUDENT_CARD",
             "DISABILITY_CERTIFICATE", "MARRIAGE_CERTIFICATE",
-            "RELATIONSHIP_CERTIFICATE", "SUPPORT_COMMITMENT_FORM", "OTHER"
+            "RELATIONSHIP_CERTIFICATE", "SUPPORT_COMMITMENT_FORM",
+            "PENSION_STATEMENT", "COMMUNE_CERTIFICATION", "HOUSEHOLD_BOOK",
+            "DONATION_VOUCHER", "OTHER"
         };
 
         public UploadDocumentRequestValidator()

@@ -28,9 +28,6 @@ namespace TaxKeepVN.Application.Service.Implementations
             var currentMonth = DateTime.UtcNow.ToString("yyyy-MM");
             var usage = await GetOrCreateCurrentUsageAsync(userId, currentMonth);
 
-            var incomeCount = (await _unitOfWork.Repository<IncomeSource>().FindAsync(i => i.TaxpayerId == userId && i.IsActive)).Count();
-            var depCount = (await _unitOfWork.Repository<Dependent>().FindAsync(d => d.TaxpayerId == userId)).Count();
-
             int? aiRemaining = sub.SnapshotMaxAiQuestionsPerMonth == -1 ? null : Math.Max(0, sub.SnapshotMaxAiQuestionsPerMonth - usage.AiQuestionsUsed);
             int? ocrRemaining = sub.SnapshotMaxOcrScansPerMonth == -1 ? null : Math.Max(0, sub.SnapshotMaxOcrScansPerMonth - usage.OcrScansUsed);
 
@@ -54,10 +51,6 @@ namespace TaxKeepVN.Application.Service.Implementations
                 OcrScansUsed = usage.OcrScansUsed,
                 MaxOcrScansPerMonth = sub.SnapshotMaxOcrScansPerMonth,
                 OcrScansRemaining = ocrRemaining,
-                MaxIncomeSources = sub.SnapshotMaxIncomeSources,
-                CurrentIncomeSourcesCount = incomeCount,
-                MaxDependents = sub.SnapshotMaxDependents,
-                CurrentDependentsCount = depCount,
                 CanExportPdf = sub.SnapshotCanExportPdf,
                 CanExportZip = sub.SnapshotCanExportZip,
                 BookingDiscountPercent = sub.SnapshotBookingDiscountPercent,
@@ -110,32 +103,6 @@ namespace TaxKeepVN.Application.Service.Implementations
             usage.UpdatedAt = DateTimeOffset.UtcNow;
             _unitOfWork.Repository<SubscriptionQuotaUsage>().Update(usage);
             await _unitOfWork.SaveChangesAsync();
-        }
-
-        public async Task CheckCanAddIncomeSourceAsync(Guid userId, int currentCount)
-        {
-            var sub = await _userSubService.GetOrCreateActiveSubscriptionEntityAsync(userId);
-            if (sub.SnapshotMaxIncomeSources == -1) return;
-
-            if (currentCount >= sub.SnapshotMaxIncomeSources)
-            {
-                throw new BadRequestException(
-                    "INCOME_SOURCE_LIMIT_EXCEEDED",
-                    $"Gói {sub.Plan?.Name ?? "hiện tại"} chỉ hỗ trợ tối đa {sub.SnapshotMaxIncomeSources} nguồn thu nhập (bạn hiện có {currentCount}). Vui lòng nâng cấp gói Standard hoặc Premium để thêm nguồn thu nhập mới.");
-            }
-        }
-
-        public async Task CheckCanAddDependentAsync(Guid userId, int currentCount)
-        {
-            var sub = await _userSubService.GetOrCreateActiveSubscriptionEntityAsync(userId);
-            if (sub.SnapshotMaxDependents == -1) return;
-
-            if (currentCount >= sub.SnapshotMaxDependents)
-            {
-                throw new BadRequestException(
-                    "DEPENDENT_LIMIT_EXCEEDED",
-                    $"Gói {sub.Plan?.Name ?? "hiện tại"} chỉ hỗ trợ tối đa {sub.SnapshotMaxDependents} người phụ thuộc (bạn hiện có {currentCount}). Vui lòng nâng cấp gói Standard hoặc Premium để đăng ký thêm người phụ thuộc.");
-            }
         }
 
         public async Task CheckCanExportPdfAsync(Guid userId)

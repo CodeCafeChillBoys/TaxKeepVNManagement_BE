@@ -65,8 +65,6 @@ namespace TaxKeepVN.Application.Service.Implementations
                 MaxAiQuestionsPerMonth = request.MaxAiQuestionsPerMonth,
                 ChatHistoryRetentionDays = request.ChatHistoryRetentionDays,
                 MaxOcrScansPerMonth = request.MaxOcrScansPerMonth,
-                MaxIncomeSources = request.MaxIncomeSources,
-                MaxDependents = request.MaxDependents,
                 CanExportPdf = request.CanExportPdf,
                 CanExportZip = request.CanExportZip,
                 BookingDiscountPercent = request.BookingDiscountPercent,
@@ -98,8 +96,6 @@ namespace TaxKeepVN.Application.Service.Implementations
             if (request.MaxAiQuestionsPerMonth.HasValue) plan.MaxAiQuestionsPerMonth = request.MaxAiQuestionsPerMonth.Value;
             if (request.ChatHistoryRetentionDays.HasValue) plan.ChatHistoryRetentionDays = request.ChatHistoryRetentionDays.Value;
             if (request.MaxOcrScansPerMonth.HasValue) plan.MaxOcrScansPerMonth = request.MaxOcrScansPerMonth.Value;
-            if (request.MaxIncomeSources.HasValue) plan.MaxIncomeSources = request.MaxIncomeSources.Value;
-            if (request.MaxDependents.HasValue) plan.MaxDependents = request.MaxDependents.Value;
             if (request.CanExportPdf.HasValue) plan.CanExportPdf = request.CanExportPdf.Value;
             if (request.CanExportZip.HasValue) plan.CanExportZip = request.CanExportZip.Value;
             if (request.BookingDiscountPercent.HasValue) plan.BookingDiscountPercent = request.BookingDiscountPercent.Value;
@@ -152,8 +148,6 @@ namespace TaxKeepVN.Application.Service.Implementations
                     MaxAiQuestionsPerMonth = 20,
                     ChatHistoryRetentionDays = 30,
                     MaxOcrScansPerMonth = 5,
-                    MaxIncomeSources = 1,
-                    MaxDependents = 3,
                     CanExportPdf = false,
                     CanExportZip = false,
                     BookingDiscountPercent = 0,
@@ -174,8 +168,6 @@ namespace TaxKeepVN.Application.Service.Implementations
                     MaxAiQuestionsPerMonth = 100,
                     ChatHistoryRetentionDays = 365,
                     MaxOcrScansPerMonth = 30,
-                    MaxIncomeSources = 3,
-                    MaxDependents = 10,
                     CanExportPdf = true,
                     CanExportZip = false,
                     BookingDiscountPercent = 0,
@@ -196,8 +188,6 @@ namespace TaxKeepVN.Application.Service.Implementations
                     MaxAiQuestionsPerMonth = -1, // Không giới hạn
                     ChatHistoryRetentionDays = -1, // Vĩnh viễn
                     MaxOcrScansPerMonth = 100,
-                    MaxIncomeSources = -1, // Không giới hạn
-                    MaxDependents = -1, // Không giới hạn
                     CanExportPdf = true,
                     CanExportZip = true,
                     BookingDiscountPercent = 10,
@@ -229,8 +219,6 @@ namespace TaxKeepVN.Application.Service.Implementations
                 MaxAiQuestionsPerMonth = plan.MaxAiQuestionsPerMonth,
                 ChatHistoryRetentionDays = plan.ChatHistoryRetentionDays,
                 MaxOcrScansPerMonth = plan.MaxOcrScansPerMonth,
-                MaxIncomeSources = plan.MaxIncomeSources,
-                MaxDependents = plan.MaxDependents,
                 CanExportPdf = plan.CanExportPdf,
                 CanExportZip = plan.CanExportZip,
                 BookingDiscountPercent = plan.BookingDiscountPercent,
