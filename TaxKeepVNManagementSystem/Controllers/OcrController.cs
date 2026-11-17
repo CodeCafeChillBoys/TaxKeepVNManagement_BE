@@ -26,6 +26,7 @@ namespace TaxKeepVNManagementSystem.Controllers
     {
         private readonly IOcrAIProducerService _ocrProducerService;
         private readonly IMemoryCache _cache;
+        private readonly IRedisCacheService? _redisCache;
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IFileStorageService _fileStorageService;
         private readonly ISubscriptionQuotaService? _quotaService;
@@ -35,13 +36,15 @@ namespace TaxKeepVNManagementSystem.Controllers
             IMemoryCache cache,
             IHttpClientFactory httpClientFactory,
             IFileStorageService fileStorageService,
-            ISubscriptionQuotaService? quotaService = null)
+            ISubscriptionQuotaService? quotaService = null,
+            IRedisCacheService? redisCache = null)
         {
             _ocrProducerService = ocrProducerService;
             _cache = cache;
             _httpClientFactory = httpClientFactory;
             _fileStorageService = fileStorageService;
             _quotaService = quotaService;
+            _redisCache = redisCache;
         }
 
         /// <summary>
@@ -122,8 +125,17 @@ namespace TaxKeepVNManagementSystem.Controllers
         [HttpGet("tasks/{taskId:guid}", Name = "GetOcrTaskResult")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public IActionResult GetOcrTaskResult([FromRoute] Guid taskId)
+        public async Task<IActionResult> GetOcrTaskResult([FromRoute] Guid taskId)
         {
+            if (_redisCache != null)
+            {
+                var cachedRedis = await _redisCache.GetAsync<OcrExtractResponseMessage>($"taxkeep:ocr_task:{taskId}");
+                if (cachedRedis != null)
+                {
+                    return Ok(ApiResponse<OcrExtractResponseMessage>.Ok(cachedRedis, "Lấy kết quả bóc tách thành công."));
+                }
+            }
+
             if (_cache.TryGetValue($"ocr_task_{taskId}", out OcrExtractResponseMessage? result) && result != null)
             {
                 return Ok(ApiResponse<OcrExtractResponseMessage>.Ok(result, "Lấy kết quả bóc tách thành công."));

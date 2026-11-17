@@ -14,15 +14,25 @@ namespace TaxKeepVN.Application.Service.Implementations
 {
     public class ExpertSearchConfigService : IExpertSearchConfigService
     {
+        private const string CacheKey = "taxkeep:expert_search:config";
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IRedisCacheService? _redisCache;
 
-        public ExpertSearchConfigService(IUnitOfWork unitOfWork)
+        public ExpertSearchConfigService(IUnitOfWork unitOfWork, IRedisCacheService? redisCache = null)
         {
             _unitOfWork = unitOfWork;
+            _redisCache = redisCache;
         }
 
         public async Task<ExpertSearchCriteriaConfigDto> GetConfigAsync()
         {
+            if (_redisCache != null)
+            {
+                var cached = await _redisCache.GetAsync<ExpertSearchCriteriaConfigDto>(CacheKey);
+                if (cached != null)
+                    return cached;
+            }
+
             var repo = _unitOfWork.Repository<ExpertSearchConfiguration>();
             var allConfigs = await repo.GetAllAsync();
             var entity = allConfigs.OrderBy(c => c.Id).FirstOrDefault();
@@ -32,7 +42,13 @@ namespace TaxKeepVN.Application.Service.Implementations
                 return new ExpertSearchCriteriaConfigDto();
             }
 
-            return MapToDto(entity);
+            var dto = MapToDto(entity);
+            if (_redisCache != null)
+            {
+                await _redisCache.SetAsync(CacheKey, dto, TimeSpan.FromHours(24));
+            }
+
+            return dto;
         }
 
         public async Task<ExpertSearchCriteriaConfigDto> UpdateConfigAsync(ExpertSearchCriteriaConfigDto newConfig)
@@ -56,6 +72,8 @@ namespace TaxKeepVN.Application.Service.Implementations
             }
 
             await _unitOfWork.SaveChangesAsync();
+            if (_redisCache != null) await _redisCache.RemoveAsync(CacheKey);
+
             return newConfig;
         }
 

@@ -165,6 +165,7 @@ builder.Services.AddScoped<IDisbursementDisputeService, DisbursementDisputeServi
 builder.Services.AddScoped<IPermissionService, PermissionService>();
 builder.Services.AddScoped<IRolePermissionService, RolePermissionService>();
 builder.Services.AddScoped<IPermissionCacheService, RedisPermissionCacheService>();
+builder.Services.AddSingleton<IRedisCacheService, RedisCacheService>();
 
 // ── Upstash Redis Cache ─────────────────────────────────────────────────────
 var redisConfig = builder.Configuration.GetSection("Redis");
@@ -316,6 +317,85 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHub<TaxAIHub>("/hubs/tax-ai");
 app.MapHub<TaxKeepVNManagementSystem.Hubs.ConsultationHub>("/hubs/consultation");
+
+// ── Startup Cache Warmup: Nạp dữ liệu các tính năng vào Redis Cache ───────────
+using (var scope = app.Services.CreateScope())
+{
+    try
+    {
+        var cacheService = scope.ServiceProvider.GetService<IPermissionCacheService>();
+        var dbContext = scope.ServiceProvider.GetRequiredService<TaxKeepDbContext>();
+        if (cacheService != null)
+        {
+            var roleIds = await dbContext.Roles.Select(r => r.Id).ToListAsync();
+            foreach (var roleId in roleIds)
+            {
+                await cacheService.WarmupRolePermissionsAsync(roleId);
+            }
+            Console.WriteLine($"[Redis Info] Đã nạp thành công cache phân quyền cho {roleIds.Count} vai trò vào Redis Cache.");
+        }
+
+        // 1. Warmup danh sách gói dịch vụ Subscription
+        var planService = scope.ServiceProvider.GetService<ISubscriptionPlanService>();
+        if (planService != null)
+        {
+            var plans = await planService.GetAllActivePlansAsync();
+            Console.WriteLine($"[Redis Info] Đã nạp thành công {plans.Count} gói dịch vụ vào Redis Cache.");
+        }
+
+        // 2. Warmup danh mục chuyên môn Specializations
+        var specService = scope.ServiceProvider.GetService<ISpecializationService>();
+        if (specService != null)
+        {
+            var specs = await specService.GetAllAsync();
+            Console.WriteLine($"[Redis Info] Đã nạp thành công danh mục chuyên môn vào Redis Cache.");
+        }
+
+        // 3. Warmup danh mục nhóm người phụ thuộc
+        var depRuleService = scope.ServiceProvider.GetService<IDependentRuleService>();
+        if (depRuleService != null)
+        {
+            var groups = await depRuleService.GetActiveGroupsAsync();
+            Console.WriteLine($"[Redis Info] Đã nạp thành công danh mục nhóm người phụ thuộc vào Redis Cache.");
+        }
+
+        // 4. Warmup cấu hình khung phí tư vấn
+        var feeService = scope.ServiceProvider.GetService<IConsultationFeeConfigService>();
+        if (feeService != null)
+        {
+            await feeService.GetAllAsync();
+            Console.WriteLine($"[Redis Info] Đã nạp thành công cấu hình khung phí tư vấn vào Redis Cache.");
+        }
+
+        // 5. Warmup cấu hình chứng chỉ chuyên gia
+        var certConfigService = scope.ServiceProvider.GetService<IExpertCertificateConfigService>();
+        if (certConfigService != null)
+        {
+            await certConfigService.GetAllAsync();
+            Console.WriteLine($"[Redis Info] Đã nạp thành công cấu hình loại chứng chỉ vào Redis Cache.");
+        }
+
+        // 6. Warmup danh mục loại chứng từ thuế
+        var docTypeService = scope.ServiceProvider.GetService<ITaxDocumentTypeService>();
+        if (docTypeService != null)
+        {
+            await docTypeService.GetAllAsync();
+            Console.WriteLine($"[Redis Info] Đã nạp thành công danh mục loại chứng từ thuế vào Redis Cache.");
+        }
+
+        // 7. Warmup cấu hình tìm kiếm chuyên gia
+        var expertSearchConfigService = scope.ServiceProvider.GetService<IExpertSearchConfigService>();
+        if (expertSearchConfigService != null)
+        {
+            await expertSearchConfigService.GetConfigAsync();
+            Console.WriteLine($"[Redis Info] Đã nạp thành công cấu hình tìm kiếm chuyên gia vào Redis Cache.");
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"[Redis Warning] Không thể nạp trước dữ liệu vào Redis lúc khởi động: {ex.Message}");
+    }
+}
 
 app.Run();
 

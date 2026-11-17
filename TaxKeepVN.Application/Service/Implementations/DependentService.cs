@@ -20,15 +20,18 @@ namespace TaxKeepVN.Application.Service.Implementations
         private readonly IUnitOfWork _unitOfWork;
         private readonly IMemoryCache _cache;
         private readonly IConfiguration _configuration;
+        private readonly IRedisCacheService? _redisCache;
 
         public DependentService(
             IUnitOfWork unitOfWork,
             IMemoryCache cache,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            IRedisCacheService? redisCache = null)
         {
             _unitOfWork = unitOfWork;
             _cache = cache;
             _configuration = configuration;
+            _redisCache = redisCache;
         }
 
         public async Task<DependentResponse> CreateDependentAsync(Guid taxpayerId, CreateDependentRequest request)
@@ -218,14 +221,19 @@ namespace TaxKeepVN.Application.Service.Implementations
             return _configuration.GetValue<int?>(configPath) ?? -1;
         }
 
-        // ── Helper: danh sách giấy tờ bắt buộc — đọc từ DB + IMemoryCache ────────
-        // Nguồn dữ liệu: bảng dependent_document_rules (is_mandatory=true, is_active=true).
-        // Cache key: DependentRules_{groupName} — hết hạn sau 1 tiếng.
-        // FE không cần thay đổi: response shape (string[]) giữ nguyên.
+        // ── Helper: danh sách giấy tờ bắt buộc — đọc từ DB + IMemoryCache + Redis ────────
         private async Task<string[]> GetRequiredDocumentsAsync(DependentGroup group)
         {
             var groupString = group.ToString();
             var cacheKey = $"DependentRules_Required_{groupString}";
+            var redisKey = $"taxkeep:dependent_rules:required:{groupString}";
+
+            if (_redisCache != null)
+            {
+                var cachedRedis = await _redisCache.GetAsync<string[]>(redisKey);
+                if (cachedRedis != null && cachedRedis.Length > 0)
+                    return cachedRedis;
+            }
 
             if (!_cache.TryGetValue(cacheKey, out string[]? requiredDocs) || requiredDocs == null)
             {
@@ -245,6 +253,11 @@ namespace TaxKeepVN.Application.Service.Implementations
 
                 _cache.Set(cacheKey, requiredDocs,
                     new MemoryCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromHours(1)));
+
+                if (_redisCache != null)
+                {
+                    await _redisCache.SetAsync(redisKey, requiredDocs, TimeSpan.FromHours(24));
+                }
             }
 
             return requiredDocs;
@@ -261,8 +274,15 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             var groupString = group.ToString();
             var cacheKey = $"DependentRules_Active_{groupString}";
+            var redisKey = $"taxkeep:dependent_rules:active:{groupString}";
 
-            if (!_cache.TryGetValue(cacheKey, out List<DependentDocumentRule>? activeRules) || activeRules == null)
+            List<DependentDocumentRule>? activeRules = null;
+            if (_redisCache != null)
+            {
+                activeRules = await _redisCache.GetAsync<List<DependentDocumentRule>>(redisKey);
+            }
+
+            if (activeRules == null && (!_cache.TryGetValue(cacheKey, out activeRules) || activeRules == null))
             {
                 var ruleRepo = _unitOfWork.Repository<DependentDocumentRule>();
                 activeRules = ruleRepo != null
@@ -271,6 +291,11 @@ namespace TaxKeepVN.Application.Service.Implementations
 
                 _cache.Set(cacheKey, activeRules,
                     new MemoryCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromHours(1)));
+
+                if (_redisCache != null)
+                {
+                    await _redisCache.SetAsync(redisKey, activeRules, TimeSpan.FromHours(24));
+                }
             }
 
             var uploadedNames = uploadedDocTypes.ToHashSet(StringComparer.OrdinalIgnoreCase);

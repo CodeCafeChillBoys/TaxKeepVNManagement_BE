@@ -49,14 +49,14 @@ public class RolePermissionServiceTests
     }
 
     [Fact]
-    public async Task Save_InvalidatesPermissionCache_WhenCacheServiceProvided()
+    public async Task Save_WarmsUpPermissionCache_WhenCacheServiceProvided()
     {
         var mockCache = new Mock<IPermissionCacheService>();
         var (service, unit, assignments) = Create(mockCache.Object);
 
         await service.UpdatePermissionsAsync(3, new() { PermissionIds = new List<int> { 1 } });
 
-        mockCache.Verify(c => c.InvalidateRolePermissionsAsync(3), Times.Once);
+        mockCache.Verify(c => c.WarmupRolePermissionsAsync(3), Times.Once);
     }
 
     private static (RolePermissionService, Mock<IUnitOfWork>, Mock<IGenericRepository<RolePermission>>) Create(IPermissionCacheService? cacheService = null)

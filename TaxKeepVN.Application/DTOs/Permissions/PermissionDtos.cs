@@ -1,7 +1,10 @@
 using System.ComponentModel.DataAnnotations;
 
+
 namespace TaxKeepVN.Application.DTOs.Permissions
 {
+
+    [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class PermissionDto
     {
         public int Id { get; set; }
@@ -9,7 +12,7 @@ namespace TaxKeepVN.Application.DTOs.Permissions
         public string Name { get; set; } = string.Empty;
         public string GroupName { get; set; } = string.Empty;
     }
-
+    [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class CreatePermissionDto
     {
         [Required(ErrorMessage = "Mã quyền không được để trống.")]
@@ -27,7 +30,7 @@ namespace TaxKeepVN.Application.DTOs.Permissions
         [StringLength(100)]
         public string GroupName { get; set; } = string.Empty;
     }
-
+    [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class UpdatePermissionDto
     {
         [Required(ErrorMessage = "Tên quyền không được để trống.")]

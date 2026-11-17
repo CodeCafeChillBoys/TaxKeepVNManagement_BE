@@ -13,17 +13,40 @@ namespace TaxKeepVN.Application.Service.Implementations
 {
     public class ExpertCertificateConfigService : IExpertCertificateConfigService
     {
+        private const string CachePrefix = "taxkeep:certificate_configs:";
         private readonly IUnitOfWork _unitOfWork;
         private readonly ILogger<ExpertCertificateConfigService> _logger;
+        private readonly IRedisCacheService? _redisCache;
 
-        public ExpertCertificateConfigService(IUnitOfWork unitOfWork, ILogger<ExpertCertificateConfigService> logger)
+        public ExpertCertificateConfigService(
+            IUnitOfWork unitOfWork,
+            ILogger<ExpertCertificateConfigService> logger,
+            IRedisCacheService? redisCache = null)
         {
             _unitOfWork = unitOfWork;
             _logger = logger;
+            _redisCache = redisCache;
         }
 
         public async Task<IEnumerable<ExpertCertificateConfigDto>> GetAllAsync(ExpertCertificateConfigQueryParameters? query = null)
         {
+            string? cacheKey = null;
+            if (query == null || (!query.IsActive.HasValue && string.IsNullOrWhiteSpace(query.Search)))
+            {
+                cacheKey = $"{CachePrefix}all";
+            }
+            else if (query.IsActive == true && string.IsNullOrWhiteSpace(query.Search))
+            {
+                cacheKey = $"{CachePrefix}active";
+            }
+
+            if (cacheKey != null && _redisCache != null)
+            {
+                var cached = await _redisCache.GetAsync<List<ExpertCertificateConfigDto>>(cacheKey);
+                if (cached != null && cached.Count > 0)
+                    return cached;
+            }
+
             var repo = _unitOfWork.Repository<ExpertCertificateConfiguration>();
             var all = await repo.GetAllAsync();
             var queryable = all.AsQueryable();
@@ -42,11 +65,18 @@ namespace TaxKeepVN.Application.Service.Implementations
                 }
             }
 
-            return queryable
+            var result = queryable
                 .OrderBy(c => c.DisplayOrder)
                 .ThenBy(c => c.Id)
                 .Select(c => MapToDto(c))
                 .ToList();
+
+            if (cacheKey != null && _redisCache != null && result.Count > 0)
+            {
+                await _redisCache.SetAsync(cacheKey, result, TimeSpan.FromHours(24));
+            }
+
+            return result;
         }
 
         public async Task<ExpertCertificateConfigDto> GetByIdAsync(int id)
@@ -88,6 +118,7 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             await repo.AddAsync(entity);
             await _unitOfWork.SaveChangesAsync();
+            if (_redisCache != null) await _redisCache.RemoveByPrefixAsync(CachePrefix);
 
             _logger.LogInformation("Admin tạo mới loại chứng chỉ chuyên gia: {Code} - {Name}", entity.Code, entity.Name);
             return MapToDto(entity);
@@ -114,6 +145,7 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             repo.Update(item);
             await _unitOfWork.SaveChangesAsync();
+            if (_redisCache != null) await _redisCache.RemoveByPrefixAsync(CachePrefix);
 
             _logger.LogInformation("Admin cập nhật loại chứng chỉ chuyên gia Id {Id}: {Code} - {Name}", item.Id, item.Code, item.Name);
             return MapToDto(item);
@@ -134,6 +166,7 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             repo.Update(item);
             await _unitOfWork.SaveChangesAsync();
+            if (_redisCache != null) await _redisCache.RemoveByPrefixAsync(CachePrefix);
 
             _logger.LogInformation("Admin thay đổi trạng thái loại chứng chỉ Id {Id} ({Code}) thành {IsActive}", item.Id, item.Code, item.IsActive);
             return MapToDto(item);
@@ -160,6 +193,7 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             repo.Remove(item);
             await _unitOfWork.SaveChangesAsync();
+            if (_redisCache != null) await _redisCache.RemoveByPrefixAsync(CachePrefix);
 
             _logger.LogInformation("Admin xóa loại chứng chỉ chuyên gia Id {Id}: {Code}", item.Id, item.Code);
         }

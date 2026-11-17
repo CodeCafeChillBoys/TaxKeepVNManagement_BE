@@ -1,5 +1,9 @@
+using System;
+using System.Collections.Generic;
 using System.Net;
+using System.Net.Http;
 using System.Net.Http.Json;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using TaxKeepVN.Application.DTOs.TaxAI;
 using TaxKeepVN.Application.Service.Interfaces;
@@ -8,20 +12,32 @@ namespace TaxKeepVN.Application.Service.Implementations
 {
     public class UrlRuleService : IUrlRuleService
     {
+        private const string CachePrefix = "taxkeep:url_rules:";
         private readonly HttpClient _httpClient;
         private readonly ILogger<UrlRuleService> _logger;
+        private readonly IRedisCacheService? _redisCache;
 
         public UrlRuleService(
             IHttpClientFactory httpClientFactory,
-            ILogger<UrlRuleService> logger)
+            ILogger<UrlRuleService> logger,
+            IRedisCacheService? redisCache = null)
         {
             _httpClient = httpClientFactory.CreateClient("TaxAIService");
             _logger = logger;
+            _redisCache = redisCache;
         }
 
         // 1. GET /api/url-rules
         public async Task<List<UrlRuleResponse>> GetUrlRulesAsync(bool activeOnly = false)
         {
+            var cacheKey = $"{CachePrefix}{(activeOnly ? "active" : "all")}";
+            if (_redisCache != null)
+            {
+                var cached = await _redisCache.GetAsync<List<UrlRuleResponse>>(cacheKey);
+                if (cached != null && cached.Count > 0)
+                    return cached;
+            }
+
             var url = $"/api/url-rules?active_only={activeOnly.ToString().ToLower()}";
             var response = await _httpClient.GetAsync(url);
             if (!response.IsSuccessStatusCode)
@@ -31,8 +47,14 @@ namespace TaxKeepVN.Application.Service.Implementations
                 throw new HttpRequestException($"AI Service error: {response.StatusCode} - {error}");
             }
 
-            var result = await response.Content.ReadFromJsonAsync<List<UrlRuleResponse>>();
-            return result ?? new List<UrlRuleResponse>();
+            var result = await response.Content.ReadFromJsonAsync<List<UrlRuleResponse>>() ?? new List<UrlRuleResponse>();
+
+            if (_redisCache != null && result.Count > 0)
+            {
+                await _redisCache.SetAsync(cacheKey, result, TimeSpan.FromHours(24));
+            }
+
+            return result;
         }
 
         // 2. GET /api/url-rules/{id}
@@ -78,6 +100,8 @@ namespace TaxKeepVN.Application.Service.Implementations
                 throw new HttpRequestException($"AI Service error: {response.StatusCode} - {error}");
             }
 
+            if (_redisCache != null) await _redisCache.RemoveByPrefixAsync(CachePrefix);
+
             var result = await response.Content.ReadFromJsonAsync<UrlRuleResponse>();
             return result!;
         }
@@ -110,6 +134,8 @@ namespace TaxKeepVN.Application.Service.Implementations
                 throw new HttpRequestException($"AI Service error: {response.StatusCode} - {error}");
             }
 
+            if (_redisCache != null) await _redisCache.RemoveByPrefixAsync(CachePrefix);
+
             return await response.Content.ReadFromJsonAsync<UrlRuleResponse>();
         }
 
@@ -128,6 +154,8 @@ namespace TaxKeepVN.Application.Service.Implementations
                 _logger.LogError("Lỗi khi xóa UrlRule {Id}: {StatusCode} - {Error}", id, response.StatusCode, error);
                 throw new HttpRequestException($"AI Service error: {response.StatusCode} - {error}");
             }
+
+            if (_redisCache != null) await _redisCache.RemoveByPrefixAsync(CachePrefix);
 
             return true;
         }

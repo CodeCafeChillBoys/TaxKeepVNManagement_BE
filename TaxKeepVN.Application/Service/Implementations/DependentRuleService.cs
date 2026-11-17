@@ -19,15 +19,18 @@ namespace TaxKeepVN.Application.Service.Implementations
         private readonly IUnitOfWork _unitOfWork;
         private readonly IMemoryCache _cache;
         private readonly IConfiguration _configuration;
+        private readonly IRedisCacheService? _redisCache;
 
         public DependentRuleService(
             IUnitOfWork unitOfWork,
             IMemoryCache cache,
-            IConfiguration configuration)
+            IConfiguration configuration,
+            IRedisCacheService? redisCache = null)
         {
             _unitOfWork = unitOfWork;
             _cache = cache;
             _configuration = configuration;
+            _redisCache = redisCache;
         }
 
         #region Public Methods
@@ -293,8 +296,15 @@ namespace TaxKeepVN.Application.Service.Implementations
         public async Task<IEnumerable<string>> GetActiveGroupsAsync(string? relationshipFilter = null)
         {
             const string CacheKey = "ActiveDependentGroups";
+            const string RedisKey = "taxkeep:dependent_rules:groups";
 
-            if (!_cache.TryGetValue(CacheKey, out IEnumerable<string>? groups) || groups == null)
+            IEnumerable<string>? groups = null;
+            if (_redisCache != null)
+            {
+                groups = await _redisCache.GetAsync<List<string>>(RedisKey);
+            }
+
+            if (groups == null && (!_cache.TryGetValue(CacheKey, out groups) || groups == null))
             {
                 var repo = _unitOfWork.Repository<DependentDocumentRule>();
                 var allActive = await repo.FindAsync(r => r.IsActive);
@@ -306,6 +316,11 @@ namespace TaxKeepVN.Application.Service.Implementations
 
                 _cache.Set(CacheKey, groups,
                     new MemoryCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromHours(1)));
+
+                if (_redisCache != null)
+                {
+                    await _redisCache.SetAsync(RedisKey, groups, TimeSpan.FromHours(24));
+                }
             }
 
             if (!string.IsNullOrWhiteSpace(relationshipFilter))
@@ -409,6 +424,11 @@ namespace TaxKeepVN.Application.Service.Implementations
             _cache.Remove($"DependentRules_Required_{normGroup}");
             _cache.Remove($"DependentRules_Active_{normGroup}");
             _cache.Remove("ActiveDependentGroups");
+
+            _redisCache?.RemoveAsync($"taxkeep:dependent_rules:{normGroup}");
+            _redisCache?.RemoveAsync($"taxkeep:dependent_rules:required:{normGroup}");
+            _redisCache?.RemoveAsync($"taxkeep:dependent_rules:active:{normGroup}");
+            _redisCache?.RemoveAsync("taxkeep:dependent_rules:groups");
         }
 
         public static string NormalizeDocType(string rawDocType)

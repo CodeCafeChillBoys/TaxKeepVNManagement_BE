@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace TaxKeepVN.Application.DTOs.Permissions
 {
+    [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class RoleDto
     {
         public int Id { get; set; }

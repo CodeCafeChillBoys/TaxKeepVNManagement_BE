@@ -63,7 +63,7 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             if (_permissionCacheService != null)
             {
-                await _permissionCacheService.InvalidateRolePermissionsAsync(roleId);
+                await _permissionCacheService.WarmupRolePermissionsAsync(roleId);
             }
 
             return Map(role, permissions, selectedIds);

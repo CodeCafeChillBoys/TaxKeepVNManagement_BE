@@ -13,17 +13,40 @@ namespace TaxKeepVN.Application.Service.Implementations
 {
     public class SpecializationService : ISpecializationService
     {
+        private const string CachePrefix = "taxkeep:specializations:";
         private readonly IUnitOfWork _unitOfWork;
         private readonly ILogger<SpecializationService> _logger;
+        private readonly IRedisCacheService? _redisCache;
 
-        public SpecializationService(IUnitOfWork unitOfWork, ILogger<SpecializationService> logger)
+        public SpecializationService(
+            IUnitOfWork unitOfWork,
+            ILogger<SpecializationService> logger,
+            IRedisCacheService? redisCache = null)
         {
             _unitOfWork = unitOfWork;
             _logger = logger;
+            _redisCache = redisCache;
         }
 
         public async Task<IEnumerable<SpecializationDto>> GetAllAsync(SpecializationQueryParameters? query = null)
         {
+            string? cacheKey = null;
+            if (query == null || (query.IsActive == null && string.IsNullOrWhiteSpace(query.Search)))
+            {
+                cacheKey = $"{CachePrefix}all";
+            }
+            else if (query.IsActive == true && string.IsNullOrWhiteSpace(query.Search))
+            {
+                cacheKey = $"{CachePrefix}active";
+            }
+
+            if (cacheKey != null && _redisCache != null)
+            {
+                var cached = await _redisCache.GetAsync<List<SpecializationDto>>(cacheKey);
+                if (cached != null && cached.Count > 0)
+                    return cached;
+            }
+
             var repo = _unitOfWork.Repository<Specialization>();
             var all = await repo.GetAllAsync();
             var queryable = all.AsQueryable();
@@ -44,7 +67,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 }
             }
 
-            return queryable
+            var result = queryable
                 .OrderBy(s => s.Name)
                 .Select(s => new SpecializationDto
                 {
@@ -54,6 +77,13 @@ namespace TaxKeepVN.Application.Service.Implementations
                     Description = s.Description,
                     IsActive = s.IsActive
                 }).ToList();
+
+            if (cacheKey != null && _redisCache != null && result.Count > 0)
+            {
+                await _redisCache.SetAsync(cacheKey, result, TimeSpan.FromHours(24));
+            }
+
+            return result;
         }
 
         public async Task<SpecializationDto> GetByIdAsync(int id)
@@ -124,6 +154,7 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             await repo.AddAsync(entity);
             await _unitOfWork.SaveChangesAsync();
+            if (_redisCache != null) await _redisCache.RemoveByPrefixAsync(CachePrefix);
 
             _logger.LogInformation("Đã tạo mới lĩnh vực chuyên môn: {Code} - {Name}", entity.Code, entity.Name);
 
@@ -154,6 +185,7 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             repo.Update(entity);
             await _unitOfWork.SaveChangesAsync();
+            if (_redisCache != null) await _redisCache.RemoveByPrefixAsync(CachePrefix);
 
             _logger.LogInformation("Đã cập nhật lĩnh vực chuyên môn Id = {Id}", id);
 
@@ -188,6 +220,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 entity.IsActive = false;
                 repo.Update(entity);
                 await _unitOfWork.SaveChangesAsync();
+                if (_redisCache != null) await _redisCache.RemoveByPrefixAsync(CachePrefix);
                 _logger.LogInformation("Lĩnh vực Id = {Id} đang có hồ sơ sử dụng, chuyển sang IsActive = false.", id);
                 return true;
             }
@@ -195,6 +228,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             // Nếu chưa ai dùng, cho phép xóa hẳn khỏi DB
             repo.Remove(entity);
             await _unitOfWork.SaveChangesAsync();
+            if (_redisCache != null) await _redisCache.RemoveByPrefixAsync(CachePrefix);
             _logger.LogInformation("Đã xóa hoàn toàn lĩnh vực Id = {Id}", id);
             return true;
         }

@@ -1,3 +1,7 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 using TaxKeepVN.Application.DTOs.ConsultationFeeConfigurations;
 using TaxKeepVN.Application.Exceptions;
@@ -9,17 +13,44 @@ namespace TaxKeepVN.Application.Service.Implementations
 {
     public class ConsultationFeeConfigService : IConsultationFeeConfigService
     {
+        private const string CachePrefix = "taxkeep:fee_configs:";
         private readonly IUnitOfWork _unitOfWork;
         private readonly ILogger<ConsultationFeeConfigService> _logger;
+        private readonly IRedisCacheService? _redisCache;
 
-        public ConsultationFeeConfigService(IUnitOfWork unitOfWork, ILogger<ConsultationFeeConfigService> logger)
+        public ConsultationFeeConfigService(
+            IUnitOfWork unitOfWork,
+            ILogger<ConsultationFeeConfigService> logger,
+            IRedisCacheService? redisCache = null)
         {
             _unitOfWork = unitOfWork;
             _logger = logger;
+            _redisCache = redisCache;
         }
 
         public async Task<IEnumerable<ConsultationFeeConfigDto>> GetAllAsync(ConsultationFeeConfigQueryParameters? query = null)
         {
+            string? cacheKey = null;
+            if (query == null || (!query.SessionType.HasValue && !query.IsActive.HasValue))
+            {
+                cacheKey = $"{CachePrefix}all";
+            }
+            else if (!query.SessionType.HasValue && query.IsActive == true)
+            {
+                cacheKey = $"{CachePrefix}active";
+            }
+            else if (query.SessionType.HasValue && query.IsActive == true)
+            {
+                cacheKey = $"{CachePrefix}active:{query.SessionType.Value}";
+            }
+
+            if (cacheKey != null && _redisCache != null)
+            {
+                var cached = await _redisCache.GetAsync<List<ConsultationFeeConfigDto>>(cacheKey);
+                if (cached != null && cached.Count > 0)
+                    return cached;
+            }
+
             var repo = _unitOfWork.Repository<ConsultationFeeConfiguration>();
             var all = await repo.GetAllAsync();
             var queryable = all.AsQueryable();
@@ -37,7 +68,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 }
             }
 
-            return queryable
+            var result = queryable
                 .OrderBy(c => c.SessionType)
                 .ThenBy(c => c.DurationMinutes)
                 .Select(c => new ConsultationFeeConfigDto
@@ -50,6 +81,13 @@ namespace TaxKeepVN.Application.Service.Implementations
                     IsActive = c.IsActive
                 })
                 .ToList();
+
+            if (cacheKey != null && _redisCache != null && result.Count > 0)
+            {
+                await _redisCache.SetAsync(cacheKey, result, TimeSpan.FromHours(24));
+            }
+
+            return result;
         }
 
         public async Task<ConsultationFeeConfigDto> GetByIdAsync(int id)
@@ -99,6 +137,7 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             await repo.AddAsync(entity);
             await _unitOfWork.SaveChangesAsync();
+            if (_redisCache != null) await _redisCache.RemoveByPrefixAsync(CachePrefix);
 
             _logger.LogInformation("Đã tạo mới cấu hình mức phí: Id={Id}, {SessionType} - {DurationMinutes}m, Min={MinFee}, Max={MaxFee}",
                 entity.Id, entity.SessionType, entity.DurationMinutes, entity.MinFee, entity.MaxFee);
@@ -145,6 +184,7 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             repo.Update(entity);
             await _unitOfWork.SaveChangesAsync();
+            if (_redisCache != null) await _redisCache.RemoveByPrefixAsync(CachePrefix);
 
             _logger.LogInformation("Đã cập nhật cấu hình mức phí Id={Id}: {SessionType} - {DurationMinutes}m, Min={MinFee}, Max={MaxFee}",
                 entity.Id, entity.SessionType, entity.DurationMinutes, entity.MinFee, entity.MaxFee);
@@ -181,6 +221,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 entity.IsActive = false;
                 repo.Update(entity);
                 await _unitOfWork.SaveChangesAsync();
+                if (_redisCache != null) await _redisCache.RemoveByPrefixAsync(CachePrefix);
                 _logger.LogInformation("Cấu hình mức phí Id={Id} đang được hồ sơ sử dụng, chuyển sang IsActive = false.", id);
                 return true;
             }
@@ -188,6 +229,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             // Nếu chưa hồ sơ nào dùng, cho phép xóa hẳn khỏi DB
             repo.Remove(entity);
             await _unitOfWork.SaveChangesAsync();
+            if (_redisCache != null) await _redisCache.RemoveByPrefixAsync(CachePrefix);
             _logger.LogInformation("Đã xóa hoàn toàn cấu hình mức phí Id={Id}.", id);
             return true;
         }
