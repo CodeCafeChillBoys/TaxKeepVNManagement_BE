@@ -9,12 +9,14 @@ using TaxKeepVN.Application.DTOs.Responses;
 using TaxKeepVN.Application.DTOs.TaxAI;
 using TaxKeepVN.Application.Exceptions;
 using TaxKeepVN.Application.Service.Interfaces;
+using TaxKeepVNManagementSystem.Attributes;
 
 namespace TaxKeepVNManagementSystem.Controllers
 {
     [ApiController]
     [Route("api/v1/tax-chat")]
     [Authorize]
+    [HasPermission("tax_chat.use")]
     [Produces("application/json")]
     public class TaxChatController : ControllerBase
     {

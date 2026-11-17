@@ -4,6 +4,7 @@ using TaxKeepVN.Application.DTOs.Common;
 using TaxKeepVN.Application.DTOs.ExpertApplications;
 using TaxKeepVN.Application.DTOs.Responses;
 using TaxKeepVN.Application.Service.Interfaces;
+using TaxKeepVNManagementSystem.Attributes;
 
 namespace TaxKeepVNManagementSystem.Controllers
 {
@@ -30,6 +31,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// GET /api/v1/admin/expert-applications?status=PendingReview&page=1&size=10&search=Chuyen
         /// </summary>
         [HttpGet]
+        [HasPermission("admin.expert_app.view")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -44,6 +46,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// GET /api/v1/admin/expert-applications/{id}
         /// </summary>
         [HttpGet("{id:guid}")]
+        [HasPermission("admin.expert_app.view")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -59,6 +62,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// PUT /api/v1/admin/expert-applications/{id}/certificates/{certificateId}/verify
         /// </summary>
         [HttpPut("{id:guid}/certificates/{certificateId:guid}/verify")]
+        [HasPermission("admin.expert_app.audit")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -83,6 +87,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// POST /api/v1/admin/expert-applications/{id}/approve
         /// </summary>
         [HttpPost("{id:guid}/approve")]
+        [HasPermission("admin.expert_app.audit")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -101,6 +106,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// POST /api/v1/admin/expert-applications/{id}/reject
         /// </summary>
         [HttpPost("{id:guid}/reject")]
+        [HasPermission("admin.expert_app.audit")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -124,6 +130,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// POST /api/v1/admin/expert-applications/{id}/request-supplement
         /// </summary>
         [HttpPost("{id:guid}/request-supplement")]
+        [HasPermission("admin.expert_app.audit")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]

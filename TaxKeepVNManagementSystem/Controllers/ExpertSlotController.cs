@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using TaxKeepVN.Application.DTOs.Experts;
 using TaxKeepVN.Application.DTOs.Responses;
 using TaxKeepVN.Application.Service.Interfaces;
+using TaxKeepVNManagementSystem.Attributes;
 
 namespace TaxKeepVNManagementSystem.Controllers
 {
@@ -13,6 +14,7 @@ namespace TaxKeepVNManagementSystem.Controllers
     [ApiController]
     [Route("api/v1/expert/slots")]
     [Authorize]
+    [HasPermission("expert.slot_manage")]
     public class ExpertSlotController : ControllerBase
     {
         private readonly IExpertSlotService _expertSlotService;
@@ -40,7 +42,6 @@ namespace TaxKeepVNManagementSystem.Controllers
 
 
         [HttpPost("{id:guid}/emergency-cancel")]
-        [Authorize(Roles = "expert")]
         [ProducesResponseType(typeof(ApiResponse<EmergencyCancelSlotResponse>), StatusCodes.Status200OK)]
         public async Task<IActionResult> EmergencyCancelSlot(Guid id, [FromBody] EmergencyCancelSlotRequest request)
         {

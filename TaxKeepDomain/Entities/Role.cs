@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using TaxKeepDomain.Entities;
 
 namespace TaxKeepVN.Domain.Entities
 {
@@ -26,5 +27,6 @@ namespace TaxKeepVN.Domain.Entities
 
         // Navigation property (1 Role có nhiều User)
         public ICollection<User> Users { get; set; } = new List<User>();
+        public ICollection<RolePermission> RolePermissions { get; set; } = new List<RolePermission>();
     }
 }

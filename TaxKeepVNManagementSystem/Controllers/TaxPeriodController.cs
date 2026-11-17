@@ -6,6 +6,7 @@ using TaxKeepVN.Application.DTOs.Responses;
 using TaxKeepVN.Application.DTOs.TaxPeriods;
 using TaxKeepVN.Application.Exceptions;
 using TaxKeepVN.Application.Service.Interfaces;
+using TaxKeepVNManagementSystem.Attributes;
 
 namespace TaxKeepVNManagementSystem.Controllers
 {
@@ -21,6 +22,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         }
 
         [HttpPost]
+        [HasPermission("tax_period.manage")]
         public async Task<IActionResult> InitializePeriod([FromBody] InitTaxPeriodRequest request)
         {
             if (!ModelState.IsValid)
@@ -37,6 +39,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// GET /api/v1/tax-periods
         /// </summary>
         [HttpGet]
+        [HasPermission("tax_period.view")]
         public async Task<IActionResult> GetTaxPeriods()
         {
             var userId = GetUserIdFromToken();
@@ -49,6 +52,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// POST /api/v1/tax-periods/{periodId}/submit
         /// </summary>
         [HttpPost("{periodId:guid}/submit")]
+        [HasPermission("tax_period.submit")]
         public async Task<IActionResult> SubmitTaxPeriod([FromRoute] Guid periodId)
         {
             var userId = GetUserIdFromToken();
@@ -62,6 +66,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// POST /api/v1/tax-periods/{periodId}/documents/upload
         /// </summary>
         [HttpPost("{periodId:guid}/documents/upload")]
+        [HasPermission("document.upload")]
         [Consumes("multipart/form-data")]
         public async Task<IActionResult> BatchUploadDocuments(
             [FromRoute] Guid periodId,
@@ -78,6 +83,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// PUT /api/v1/tax-periods/{periodId}/documents/{documentId}/confirm
         /// </summary>
         [HttpPut("{periodId:guid}/documents/{documentId:guid}/confirm")]
+        [HasPermission("document.review")]
         public async Task<IActionResult> ConfirmDocumentReview(
             [FromRoute] Guid periodId,
             [FromRoute] Guid documentId,
@@ -93,6 +99,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// POST /api/v1/tax-periods/{periodId}/documents/{documentId}/extract
         /// </summary>
         [HttpPost("{periodId:guid}/documents/{documentId:guid}/extract")]
+        [HasPermission("document.ocr")]
         public async Task<IActionResult> TriggerDocumentOcr(
             [FromRoute] Guid periodId,
             [FromRoute] Guid documentId)
@@ -107,6 +114,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// DELETE /api/v1/tax-periods/{periodId}/documents/{documentId}
         /// </summary>
         [HttpDelete("{periodId:guid}/documents/{documentId:guid}")]
+        [HasPermission("document.delete")]
         public async Task<IActionResult> DeleteDocument(
             [FromRoute] Guid periodId,
             [FromRoute] Guid documentId)
@@ -122,6 +130,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// GET /api/v1/tax-periods/{periodId}/documents
         /// </summary>
         [HttpGet("{periodId:guid}/documents")]
+        [HasPermission("document.view")]
         public async Task<IActionResult> GetDocumentsByPeriod(
             [FromRoute] Guid periodId)
         {
@@ -135,6 +144,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// GET /api/v1/tax-periods/{periodId}/documents/{documentId}
         /// </summary>
         [HttpGet("{periodId:guid}/documents/{documentId:guid}")]
+        [HasPermission("document.view")]
         public async Task<IActionResult> GetDocumentById(
             [FromRoute] Guid periodId,
             [FromRoute] Guid documentId)

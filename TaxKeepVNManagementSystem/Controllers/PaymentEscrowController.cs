@@ -11,6 +11,7 @@ using TaxKeepVN.Application.DTOs.Responses;
 using TaxKeepVN.Application.DTOs.Wallets;
 using TaxKeepVN.Application.Exceptions;
 using TaxKeepVN.Application.Service.Interfaces;
+using TaxKeepVNManagementSystem.Attributes;
 
 namespace TaxKeepVNManagementSystem.Controllers
 {
@@ -56,6 +57,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         [HttpPost("api/v1/bookings/{bookingId:guid}/payment-link", Name = "CreateOrGetBookingPaymentLink")]
         [HttpPost("api/v1/payments/create-link", Name = "CreateOrGetPaymentLinkAlternative")]
         [Authorize]
+        [HasPermission("payment.pay")]
         [EndpointSummary("Khởi tạo hoặc lấy lại Link thanh toán VNPay và mã VietQR cho lịch hẹn tư vấn")]
         [ProducesResponseType(typeof(ApiResponse<PaymentLinkResponse>), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -141,6 +143,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// </summary>
         [HttpGet("api/v1/bookings/{bookingId:guid}/escrow", Name = "GetEscrowByBookingId")]
         [Authorize]
+        [HasPermission("wallet.view")]
         [EndpointSummary("Xem chi tiết giao dịch tạm giữ tiền bảo đảm (Escrow) theo Booking ID")]
         [ProducesResponseType(typeof(ApiResponse<EscrowTransactionResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -160,6 +163,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// </summary>
         [HttpGet("api/v1/escrow-transactions", Name = "GetEscrowTransactions")]
         [Authorize]
+        [HasPermission("wallet.view")]
         [EndpointSummary("Lấy danh sách giao dịch ký quỹ Escrow (Hỗ trợ Lọc, Tìm kiếm, Sắp xếp, Phân trang)")]
         [ProducesResponseType(typeof(ApiResponse<PagedResult<EscrowTransactionResponse>>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -178,6 +182,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// </summary>
         [HttpGet("api/v1/admin/platform-wallet", Name = "GetAdminPlatformWallet")]
         [Authorize]
+        [HasPermission("admin.withdrawal_manage")]
         [EndpointSummary("Xem tổng quan Ví Nền Tảng & Báo cáo tài chính Admin (Platform Wallet & Escrow Summary)")]
         [ProducesResponseType(typeof(ApiResponse<AdminPlatformWalletResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -196,6 +201,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// </summary>
         [HttpPost("api/v1/admin/platform-wallet/withdraw", Name = "RequestAdminPlatformWithdrawal")]
         [Authorize]
+        [HasPermission("admin.withdrawal_manage")]
         [EndpointSummary("Admin rút doanh thu hoa hồng sàn về tài khoản ngân hàng thực tế")]
         [ProducesResponseType(typeof(ApiResponse<WithdrawalResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -219,6 +225,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// </summary>
         [HttpGet("api/v1/admin/platform-wallet/withdrawals", Name = "GetAdminPlatformWithdrawals")]
         [Authorize]
+        [HasPermission("admin.withdrawal_manage")]
         [EndpointSummary("Admin xem danh sách các lần rút doanh thu hoa hồng hệ thống")]
         [ProducesResponseType(typeof(ApiResponse<PagedResult<WithdrawalResponse>>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]

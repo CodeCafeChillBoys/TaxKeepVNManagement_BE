@@ -11,6 +11,7 @@ using TaxKeepVN.Application.DTOs.Requests.Dependent;
 using TaxKeepVN.Application.DTOs.Responses;
 using TaxKeepVN.Application.Exceptions;
 using TaxKeepVN.Application.Service.Interfaces;
+using TaxKeepVNManagementSystem.Attributes;
 
 namespace TaxKeepVNManagementSystem.Controllers
 {
@@ -41,6 +42,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// Tự động gợi ý nhóm điều kiện (CHILD_UNDER_18,...) và kiểm tra người này đã được đăng ký NPT chưa.
         /// </summary>
         [HttpPost("ocr-extractions", Name = "ExtractDependentOcr")]
+        [HasPermission("dependent.manage")]
         [Consumes("multipart/form-data")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -110,6 +112,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// giấy tờ minh chứng qua endpoint: POST /api/v1/dependents/{dependentId}/documents
         /// </summary>
         [HttpPost(Name = "CreateDependent")]
+        [HasPermission("dependent.manage")]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -129,6 +132,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// GET /api/v1/dependents/reminders/age-transitions?taxYear=2026&page=1&size=10&search=Nguyen&sort=daysRemaining
         /// </summary>
         [HttpGet("reminders/age-transitions", Name = "GetAgeTransitionReminders")]
+        [HasPermission("dependent.reminder_view")]
         public async Task<IActionResult> GetAgeTransitionReminders(
             [FromQuery][Range(2000, 2100, ErrorMessage = "Năm tính thuế phải từ 2000 đến 2100.")] int taxYear = 2026,
             [FromQuery] QueryParameters query = null!)
@@ -149,6 +153,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// GET /api/v1/dependents?page=1&amp;size=10&amp;search=Nguyen&amp;status=ACTIVE&amp;relationship=CHILD&amp;sort=fullName
         /// </summary>
         [HttpGet(Name = "GetDependents")]
+        [HasPermission("dependent.view")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         public async Task<IActionResult> GetDependents([FromQuery] DependentQueryParameters query)
@@ -165,6 +170,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// GET /api/v1/dependents/{id}
         /// </summary>
         [HttpGet("{dependentId:guid}", Name = "GetDependentById")]
+        [HasPermission("dependent.view")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -198,6 +204,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// PATCH /api/v1/dependents/{dependentId}/group
         /// </summary>
         [HttpPatch("{dependentId:guid}/group", Name = "UpdateDependentGroup")]
+        [HasPermission("dependent.manage")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -225,6 +232,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// DELETE /api/v1/dependents/{dependentId}
         /// </summary>
         [HttpDelete("{dependentId:guid}", Name = "DeleteDependent")]
+        [HasPermission("dependent.manage")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]

@@ -7,6 +7,7 @@ using TaxKeepVN.Application.DTOs.Common;
 using TaxKeepVN.Application.DTOs.Responses;
 using TaxKeepVN.Application.DTOs.Reviews;
 using TaxKeepVN.Application.Service.Interfaces;
+using TaxKeepVNManagementSystem.Attributes;
 
 namespace TaxKeepVNManagementSystem.Controllers
 {
@@ -15,7 +16,7 @@ namespace TaxKeepVNManagementSystem.Controllers
     /// </summary>
     [ApiController]
     [Route("api/v1/admin/reviews")]
-    [Authorize]
+    [HasPermission("admin.review.moderate")]
     [Produces("application/json")]
     public class AdminReviewController : ControllerBase
     {

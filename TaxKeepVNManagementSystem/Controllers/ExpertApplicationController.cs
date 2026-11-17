@@ -7,12 +7,14 @@ using System.Threading.Tasks;
 using TaxKeepVN.Application.DTOs.ExpertApplications;
 using TaxKeepVN.Application.DTOs.Responses;
 using TaxKeepVN.Application.Service.Interfaces;
+using TaxKeepVNManagementSystem.Attributes;
 
 namespace TaxKeepVNManagementSystem.Controllers
 {
     [ApiController]
     [Route("api/v1/expert-applications")]
     [Authorize] // Yêu cầu người dùng phải đăng nhập
+    [HasPermission("expert.apply")]
     public class ExpertApplicationController : ControllerBase
     {
         private readonly IExpertApplicationService _service;

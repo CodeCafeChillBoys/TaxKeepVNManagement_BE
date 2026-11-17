@@ -14,12 +14,14 @@ using System.Linq;
 using TaxKeepVN.Application.DTOs.OcrAI;
 using TaxKeepVN.Application.DTOs.Responses;
 using TaxKeepVN.Application.Service.Interfaces;
+using TaxKeepVNManagementSystem.Attributes;
 
 namespace TaxKeepVNManagementSystem.Controllers
 {
     [ApiController]
     [Route("api/v1/ocr")]
     [Authorize]
+    [HasPermission("document.ocr")]
     public class OcrController : ControllerBase
     {
         private readonly IOcrAIProducerService _ocrProducerService;

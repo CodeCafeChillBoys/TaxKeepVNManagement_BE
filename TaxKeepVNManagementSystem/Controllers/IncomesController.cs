@@ -8,6 +8,7 @@ using TaxKeepVN.Application.DTOs.Responses;
 using TaxKeepVN.Application.DTOs.Responses.Income;
 using TaxKeepVN.Application.Exceptions;
 using TaxKeepVN.Application.Service.Interfaces;
+using TaxKeepVNManagementSystem.Attributes;
 
 namespace TaxKeepVNManagementSystem.Controllers
 {
@@ -34,6 +35,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         }
 
         [HttpPost]
+        [HasPermission("income.manage")]
         [Consumes("multipart/form-data")]
         [ProducesResponseType(StatusCodes.Status201Created)]
         public async Task<IActionResult> CreateIncome([FromForm] CreateIncomeRequest request)
@@ -44,6 +46,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         }
 
         [HttpGet("my-incomes")]
+        [HasPermission("income.view")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetMyIncomes([FromQuery] int year)
         {
@@ -53,6 +56,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         }
 
         [HttpGet("{id}")]
+        [HasPermission("income.view")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> GetIncomeById(Guid id)
         {
@@ -62,6 +66,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         }
 
         [HttpPut("{id}")]
+        [HasPermission("income.manage")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> UpdateIncome(Guid id, [FromBody] UpdateIncomeRequest request)
         {
@@ -71,6 +76,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         }
 
         [HttpDelete("{id}")]
+        [HasPermission("income.manage")]
         [ProducesResponseType(StatusCodes.Status204NoContent)]
         public async Task<IActionResult> DeleteIncome(Guid id)
         {

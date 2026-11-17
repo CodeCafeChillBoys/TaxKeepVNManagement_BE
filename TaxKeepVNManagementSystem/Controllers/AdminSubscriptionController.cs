@@ -8,6 +8,7 @@ using TaxKeepVN.Application.DTOs.Common;
 using TaxKeepVN.Application.DTOs.Responses;
 using TaxKeepVN.Application.DTOs.Subscriptions;
 using TaxKeepVN.Application.Service.Interfaces;
+using TaxKeepVNManagementSystem.Attributes;
 
 namespace TaxKeepVNManagementSystem.Controllers
 {
@@ -17,7 +18,7 @@ namespace TaxKeepVNManagementSystem.Controllers
     /// </summary>
     [ApiController]
     [Route("api/v1/admin/subscription/plans")]
-    [Authorize(Roles = "admin")]
+    [HasPermission("admin.subscription_plan.manage")]
     [Produces("application/json")]
     [Tags("Admin - Subscription Plans (Quản lý các gói dịch vụ)")]
     public class AdminSubscriptionController : ControllerBase

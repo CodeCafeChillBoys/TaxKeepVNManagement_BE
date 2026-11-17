@@ -5,12 +5,13 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using TaxKeepVN.Application.DTOs.TaxAI;
 using TaxKeepVN.Application.Service.Interfaces;
+using TaxKeepVNManagementSystem.Attributes;
 
 namespace TaxKeepVNManagementSystem.Controllers
 {
     [ApiController]
     [Route("api/v1/admin/prompt-templates")]
-    [Authorize(Roles = "admin")]
+    [HasPermission("admin.prompt_template.manage")]
     [Produces("application/json")]
     [Tags("Admin - AI Prompt Templates (Quản lý System Prompt động)")]
     public class AdminPromptTemplateController : ControllerBase

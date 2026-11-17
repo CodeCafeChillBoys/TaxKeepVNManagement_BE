@@ -11,12 +11,13 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Logging;
 using TaxKeepVN.Application.DTOs.TaxAI;
 using TaxKeepVN.Application.Service.Interfaces;
+using TaxKeepVNManagementSystem.Attributes;
 
 namespace TaxKeepVNManagementSystem.Controllers
 {
     [ApiController]
     [Route("api/admin/tax-rules")]
-    [Authorize]
+    [HasPermission("admin.tax_rule.manage")]
     public class TaxAdminController : ControllerBase
     {
         private readonly ITaxAIProducerService _producerService;

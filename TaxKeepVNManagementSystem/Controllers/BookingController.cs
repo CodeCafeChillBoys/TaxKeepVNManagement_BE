@@ -11,6 +11,7 @@ using TaxKeepVN.Application.DTOs.Experts;
 using TaxKeepVN.Application.DTOs.Responses;
 using TaxKeepVN.Application.Service.Interfaces;
 using TaxKeepVN.Domain.Enums;
+using TaxKeepVNManagementSystem.Attributes;
 
 namespace TaxKeepVNManagementSystem.Controllers
 {
@@ -67,6 +68,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// </summary>
         [HttpPost("preview")]
         [Authorize]
+        [HasPermission("booking.create")]
         [ProducesResponseType(typeof(ApiResponse<BookingPreviewResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -84,6 +86,8 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// POST /api/v1/bookings
         /// </summary>
         [HttpPost]
+        [Authorize]
+        [HasPermission("booking.create")]
         [ProducesResponseType(typeof(ApiResponse<BookingDetailResponse>), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -102,6 +106,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// </summary>
         [HttpGet("{id:guid}")]
         [Authorize]
+        [HasPermission("booking.view")]
         [ProducesResponseType(typeof(ApiResponse<BookingDetailResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -120,6 +125,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// </summary>
         [HttpGet("my-bookings")]
         [Authorize]
+        [HasPermission("booking.view")]
         [ProducesResponseType(typeof(ApiResponse<PagedResult<BookingListItemResponse>>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetMyBookings(
             [FromQuery] BookingStatus? status = null,
@@ -137,6 +143,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// </summary>
         [HttpPost("{id:guid}/cancel")]
         [Authorize]
+        [HasPermission("booking.cancel")]
         [ProducesResponseType(typeof(ApiResponse<BookingDetailResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]

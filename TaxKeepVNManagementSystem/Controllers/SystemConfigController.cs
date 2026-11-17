@@ -6,12 +6,13 @@ using TaxKeepVN.Application.DTOs.Common;
 using TaxKeepVN.Application.DTOs.Responses;
 using TaxKeepVN.Application.DTOs.SystemConfigs;
 using TaxKeepVN.Application.Service.Interfaces;
+using TaxKeepVNManagementSystem.Attributes;
 
 namespace TaxKeepVNManagementSystem.Controllers
 {
     [ApiController]
     [Route("api/v1/system-configs")]
-    [Authorize(Roles = "admin")]
+    [HasPermission("admin.system_config.manage")]
     public class SystemConfigController : ControllerBase
     {
         private readonly ISystemConfigService _service;
