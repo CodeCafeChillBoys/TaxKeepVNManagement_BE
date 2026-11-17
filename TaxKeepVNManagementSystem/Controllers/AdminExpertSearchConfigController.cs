@@ -5,12 +5,13 @@ using Microsoft.AspNetCore.Mvc;
 using TaxKeepVN.Application.DTOs.Responses;
 using TaxKeepVN.Application.DTOs.SearchConfigs;
 using TaxKeepVN.Application.Service.Interfaces;
+using TaxKeepVNManagementSystem.Attributes;
 
 namespace TaxKeepVNManagementSystem.Controllers
 {
     [ApiController]
     [Route("api/v1/admin/expert-search-configs")]
-    [Authorize(Roles = "admin")]
+    [HasPermission("admin.search_config.manage")]
     public class AdminExpertSearchConfigController : ControllerBase
     {
         private readonly IExpertSearchConfigService _service;

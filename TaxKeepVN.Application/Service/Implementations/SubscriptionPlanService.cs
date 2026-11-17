@@ -12,19 +12,36 @@ namespace TaxKeepVN.Application.Service.Implementations
 {
     public class SubscriptionPlanService : ISubscriptionPlanService
     {
+        private const string CacheKey = "taxkeep:subscription:plans";
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IRedisCacheService? _redisCache;
 
-        public SubscriptionPlanService(IUnitOfWork unitOfWork)
+        public SubscriptionPlanService(IUnitOfWork unitOfWork, IRedisCacheService? redisCache = null)
         {
             _unitOfWork = unitOfWork;
+            _redisCache = redisCache;
         }
 
         public async Task<List<SubscriptionPlanResponse>> GetAllActivePlansAsync()
         {
+            if (_redisCache != null)
+            {
+                var cached = await _redisCache.GetAsync<List<SubscriptionPlanResponse>>(CacheKey);
+                if (cached != null && cached.Count > 0)
+                    return cached;
+            }
+
             await SeedDefaultPlansIfEmptyAsync();
 
             var plans = await _unitOfWork.Repository<SubscriptionPlan>().FindAsync(p => p.IsActive);
-            return plans.OrderBy(p => p.DisplayOrder).Select(MapToResponse).ToList();
+            var result = plans.OrderBy(p => p.DisplayOrder).Select(MapToResponse).ToList();
+
+            if (_redisCache != null && result.Count > 0)
+            {
+                await _redisCache.SetAsync(CacheKey, result, TimeSpan.FromHours(24));
+            }
+
+            return result;
         }
 
         public async Task<List<SubscriptionPlanResponse>> GetAllPlansForAdminAsync()
@@ -77,6 +94,7 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             await repo.AddAsync(plan);
             await _unitOfWork.SaveChangesAsync();
+            if (_redisCache != null) await _redisCache.RemoveAsync(CacheKey);
             return MapToResponse(plan);
         }
 
@@ -106,6 +124,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             plan.UpdatedAt = DateTimeOffset.UtcNow;
             repo.Update(plan);
             await _unitOfWork.SaveChangesAsync();
+            if (_redisCache != null) await _redisCache.RemoveAsync(CacheKey);
 
             return MapToResponse(plan);
         }
@@ -126,6 +145,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             plan.UpdatedAt = DateTimeOffset.UtcNow;
             repo.Update(plan);
             await _unitOfWork.SaveChangesAsync();
+            if (_redisCache != null) await _redisCache.RemoveAsync(CacheKey);
             return true;
         }
 

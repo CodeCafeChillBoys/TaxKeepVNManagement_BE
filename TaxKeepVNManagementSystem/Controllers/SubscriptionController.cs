@@ -9,6 +9,7 @@ using TaxKeepVN.Application.DTOs.Common;
 using TaxKeepVN.Application.DTOs.Responses;
 using TaxKeepVN.Application.DTOs.Subscriptions;
 using TaxKeepVN.Application.Service.Interfaces;
+using TaxKeepVNManagementSystem.Attributes;
 
 namespace TaxKeepVNManagementSystem.Controllers
 {
@@ -54,6 +55,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// GET /api/v1/subscription/my
         /// </summary>
         [Authorize]
+        [HasPermission("subscription.view")]
         [HttpGet("api/v1/subscription/my")]
         [ProducesResponseType(typeof(ApiResponse<UserSubscriptionResponse>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetMySubscription()
@@ -68,6 +70,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// GET /api/v1/subscription/quota
         /// </summary>
         [Authorize]
+        [HasPermission("subscription.view")]
         [HttpGet("api/v1/subscription/quota")]
         [ProducesResponseType(typeof(ApiResponse<SubscriptionQuotaStatusResponse>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetQuotaStatus()
@@ -83,6 +86,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// </summary>
         [Authorize]
         [HttpPost("api/v1/subscription/purchase")]
+        [HasPermission("subscription.purchase")]
         [ProducesResponseType(typeof(ApiResponse<SubscriptionPurchaseResponse>), StatusCodes.Status200OK)]
         public async Task<IActionResult> Purchase([FromBody] PurchaseSubscriptionRequest request)
         {
@@ -97,6 +101,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// </summary>
         [Authorize]
         [HttpGet("api/v1/subscription/history")]
+        [HasPermission("subscription.view")]
         [ProducesResponseType(typeof(ApiResponse<List<UserSubscriptionResponse>>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetHistory()
         {

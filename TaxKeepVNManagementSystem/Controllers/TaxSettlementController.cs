@@ -13,6 +13,7 @@ using TaxKeepVN.Application.Exceptions;
 using TaxKeepVN.Application.Service.Interfaces;
 using TaxKeepVN.Domain.Entities;
 using TaxKeepVN.Domain.IRepositories;
+using TaxKeepVNManagementSystem.Attributes;
 
 namespace TaxKeepVNManagementSystem.Controllers
 {
@@ -367,6 +368,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// </summary>
         // POST /api/v1/tax-settlements/preview
         [HttpPost("preview", Name = "PreviewTaxSettlement")]
+        [HasPermission("settlement.calculate")]
         [EndpointSummary("Xem trước kết quả quyết toán thuế TNCN theo năm và ngày chốt (không lưu DB)")]
         public async Task<IActionResult> Preview([FromBody] TaxSettlementPreviewRequest request)
         {
@@ -384,6 +386,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// </summary>
         // POST /api/v1/tax-settlements/export
         [HttpPost("export", Name = "ExportTaxSettlement")]
+        [HasPermission("settlement.confirm")]
         [EndpointSummary("Chốt và lưu hồ sơ quyết toán thuế TNCN chính thức (Lưu DB - Trạng thái LOCKED)")]
         public async Task<IActionResult> Export([FromBody] TaxSettlementExportRequest request)
         {
@@ -401,6 +404,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// </summary>
         // GET /api/v1/tax-settlements
         [HttpGet(Name = "GetTaxSettlements")]
+        [HasPermission("settlement.view")]
         [EndpointSummary("Lấy danh sách tất cả các hồ sơ quyết toán thuế đã chốt của người nộp thuế")]
         public async Task<IActionResult> GetList()
         {
@@ -414,6 +418,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// </summary>
         // GET /api/v1/tax-settlements/{id}
         [HttpGet("{id:guid}", Name = "GetTaxSettlementById")]
+        [HasPermission("settlement.view")]
         [EndpointSummary("Xem chi tiết một hồ sơ quyết toán thuế TNCN theo UUID (kèm snapshot biểu thuế)")]
         public async Task<IActionResult> GetById(Guid id)
         {
@@ -428,6 +433,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// </summary>
         // POST /api/v1/tax-settlements/{id}/export-pdf
         [HttpPost("{id:guid}/export-pdf", Name = "ExportTaxSettlementPdf")]
+        [HasPermission("settlement.export_pdf")]
         [EndpointSummary("Kết xuất Tờ khai Quyết toán thuế TNCN Mẫu 02/QTT-TNCN và các Phụ lục dạng PDF")]
         public async Task<IActionResult> ExportPdf(Guid id, [FromBody] TaxSettlementExportPdfRequest? request = null)
         {
@@ -446,6 +452,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// </summary>
         // POST /api/v1/tax-settlements/{id}/export-zip
         [HttpPost("{id:guid}/export-zip", Name = "ExportTaxSettlementZip")]
+        [HasPermission("settlement.export_package")]
         [EndpointSummary("Đóng gói toàn bộ hồ sơ quyết toán (PDF + chứng từ gốc) thành file ZIP")]
         public async Task<IActionResult> ExportZip(Guid id, [FromBody] TaxSettlementExportZipRequest? request = null)
         {
@@ -508,7 +515,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         // GET /api/v1/tax-settlements/admin/brackets
         [HttpGet("admin/brackets", Name = "GetPitBrackets")]
         [EndpointSummary("[Admin] Lấy danh sách các bậc thuế lũy tiến từng phần theo năm")]
-        [Authorize(Roles = "admin")]
+        [HasPermission("settlement.policy_manage")]
         public async Task<IActionResult> GetBrackets([FromQuery] int? taxYear = null)
         {
             int year = taxYear ?? DateTime.UtcNow.Year;
@@ -536,7 +543,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         // GET /api/v1/tax-settlements/admin/deductions
         [HttpGet("admin/deductions", Name = "GetDeductionRates")]
         [EndpointSummary("[Admin] Lấy chính sách mức giảm trừ gia cảnh và tỷ lệ bảo hiểm theo năm")]
-        [Authorize(Roles = "admin")]
+        [HasPermission("settlement.policy_manage")]
         public async Task<IActionResult> GetDeductions([FromQuery] int? taxYear = null)
         {
             int year = taxYear ?? DateTime.UtcNow.Year;
@@ -559,7 +566,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         // PUT /api/v1/tax-settlements/admin/brackets
         [HttpPut("admin/brackets", Name = "UpdatePitBrackets")]
         [EndpointSummary("[Admin] Cập nhật biểu thuế lũy tiến từng phần theo năm (5 bậc hoặc 7 bậc)")]
-        [Authorize(Roles = "admin")]
+        [HasPermission("settlement.policy_manage")]
         public async Task<IActionResult> UpdateBrackets([FromBody] UpdatePitBracketsRequest request)
         {
             if (!ModelState.IsValid)
@@ -639,7 +646,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         // PUT /api/v1/tax-settlements/admin/deductions
         [HttpPut("admin/deductions", Name = "UpdateDeductionRates")]
         [EndpointSummary("[Admin] Cập nhật mức giảm trừ bản thân, người phụ thuộc và tỷ lệ bảo hiểm bắt buộc")]
-        [Authorize(Roles = "admin")]
+        [HasPermission("settlement.policy_manage")]
         public async Task<IActionResult> UpdateDeductions([FromBody] UpdateDeductionRatesRequest request)
         {
             if (!ModelState.IsValid)

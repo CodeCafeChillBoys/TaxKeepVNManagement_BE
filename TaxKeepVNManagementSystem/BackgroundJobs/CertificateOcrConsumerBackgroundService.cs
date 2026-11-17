@@ -6,6 +6,7 @@ using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using TaxKeepVN.Application.DTOs.OcrAI;
 using TaxKeepVN.Application.Helpers;
+using TaxKeepVN.Application.Service.Interfaces;
 using TaxKeepVN.Domain.Entities;
 using TaxKeepVN.Domain.Enums;
 using TaxKeepVN.Domain.IRepositories;
@@ -18,6 +19,7 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
         private readonly IConfiguration _config;
         private readonly IHubContext<TaxAIHub> _hubContext;
         private readonly IMemoryCache _cache;
+        private readonly IRedisCacheService? _redisCache;
         private readonly IServiceScopeFactory _scopeFactory;
         private readonly ILogger<CertificateOcrConsumerBackgroundService> _logger;
         private const string ResponseQueueName = "certificate.ocr.ai.response.queue";
@@ -27,13 +29,15 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
             IHubContext<TaxAIHub> hubContext,
             IMemoryCache cache,
             IServiceScopeFactory scopeFactory,
-            ILogger<CertificateOcrConsumerBackgroundService> logger)
+            ILogger<CertificateOcrConsumerBackgroundService> logger,
+            IRedisCacheService? redisCache = null)
         {
             _config = config;
             _hubContext = hubContext;
             _cache = cache;
             _scopeFactory = scopeFactory;
             _logger = logger;
+            _redisCache = redisCache;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -81,8 +85,12 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
 
                             if (response != null)
                             {
-                                // 1. Lưu kết quả vào Cache trong 30 phút để FE polling nếu không dùng SignalR
+                                // 1. Lưu kết quả vào Cache và Redis trong 30 phút để FE polling nếu không dùng SignalR
                                 _cache.Set($"cert_ocr_task_{response.TaskId}", response, TimeSpan.FromMinutes(30));
+                                if (_redisCache != null)
+                                {
+                                    await _redisCache.SetAsync($"taxkeep:cert_ocr_task:{response.TaskId}", response, TimeSpan.FromMinutes(30));
+                                }
 
                                 // 2. Tự động đối chiếu chéo (Cross-Verification) với tài khoản User và Hồ sơ chuyên gia
                                 if (response.UserId.HasValue || response.CertificateId.HasValue || response.ApplicationId.HasValue)

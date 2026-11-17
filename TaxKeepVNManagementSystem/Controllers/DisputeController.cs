@@ -9,6 +9,7 @@ using TaxKeepVN.Application.DTOs.Disputes;
 using TaxKeepVN.Application.DTOs.Responses;
 using TaxKeepVN.Application.Exceptions;
 using TaxKeepVN.Application.Service.Interfaces;
+using TaxKeepVNManagementSystem.Attributes;
 
 namespace TaxKeepVNManagementSystem.Controllers
 {
@@ -51,6 +52,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// POST /api/v1/bookings/{bookingId}/confirm-satisfaction
         /// </summary>
         [HttpPost("api/v1/bookings/{bookingId:guid}/confirm-satisfaction")]
+        [HasPermission("dispute.create")]
         [ProducesResponseType(typeof(ApiResponse<string>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -68,6 +70,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// GET /api/v1/bookings/{bookingId}/dispute-eligibility
         /// </summary>
         [HttpGet("api/v1/bookings/{bookingId:guid}/dispute-eligibility")]
+        [HasPermission("dispute.create")]
         [ProducesResponseType(typeof(ApiResponse<DisputeEligibilityResponse>), StatusCodes.Status200OK)]
         public async Task<IActionResult> CheckDisputeEligibility([FromRoute] Guid bookingId)
         {
@@ -82,6 +85,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// POST /api/v1/bookings/{bookingId}/disputes
         /// </summary>
         [HttpPost("api/v1/bookings/{bookingId:guid}/disputes")]
+        [HasPermission("dispute.create")]
         [ProducesResponseType(typeof(ApiResponse<DisputeDetailResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -100,6 +104,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// GET /api/v1/bookings/{bookingId}/dispute
         /// </summary>
         [HttpGet("api/v1/bookings/{bookingId:guid}/dispute")]
+        [HasPermission("dispute.view")]
         [ProducesResponseType(typeof(ApiResponse<DisputeDetailResponse>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetDisputeByBookingId([FromRoute] Guid bookingId)
         {
@@ -118,6 +123,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// POST /api/v1/expert/disputes/{id}/respond
         /// </summary>
         [HttpPost("api/v1/expert/disputes/{id:guid}/respond")]
+        [HasPermission("dispute.expert_respond")]
         [ProducesResponseType(typeof(ApiResponse<DisputeDetailResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -140,6 +146,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// GET /api/v1/disputes/{id}
         /// </summary>
         [HttpGet("api/v1/disputes/{id:guid}")]
+        [HasPermission("dispute.view")]
         [ProducesResponseType(typeof(ApiResponse<DisputeDetailResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -156,6 +163,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// GET /api/v1/disputes?status=PENDING_EXPERT_RESPONSE&page=1&size=10
         /// </summary>
         [HttpGet("api/v1/disputes")]
+        [HasPermission("dispute.view")]
         [ProducesResponseType(typeof(ApiResponse<PagedResult<DisputeListItemResponse>>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetDisputes(
             [FromQuery] string? status = null,
@@ -178,6 +186,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// POST /api/v1/admin/disputes/{id}/resolve
         /// </summary>
         [HttpPost("api/v1/admin/disputes/{id:guid}/resolve")]
+        [HasPermission("dispute.admin_resolve")]
         [ProducesResponseType(typeof(ApiResponse<DisputeDetailResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]

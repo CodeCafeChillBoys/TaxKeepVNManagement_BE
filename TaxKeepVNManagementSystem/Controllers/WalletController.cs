@@ -9,6 +9,7 @@ using TaxKeepVN.Application.DTOs.Responses;
 using TaxKeepVN.Application.DTOs.Wallets;
 using TaxKeepVN.Application.Exceptions;
 using TaxKeepVN.Application.Service.Interfaces;
+using TaxKeepVNManagementSystem.Attributes;
 
 namespace TaxKeepVNManagementSystem.Controllers
 {
@@ -56,6 +57,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// GET /api/v1/wallets/me?walletType=EXPERT
         /// </summary>
         [HttpGet("api/v1/wallets/me")]
+        [HasPermission("wallet.view")]
         [ProducesResponseType(typeof(ApiResponse<WalletResponse>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetMyWallet([FromQuery] string? walletType = null)
         {
@@ -69,6 +71,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// GET /api/v1/wallets/me/transactions?page=1&size=10&transactionType=DISBURSEMENT
         /// </summary>
         [HttpGet("api/v1/wallets/me/transactions")]
+        [HasPermission("wallet.view")]
         [ProducesResponseType(typeof(ApiResponse<PagedResult<WalletTransactionResponse>>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetMyWalletTransactions(
             [FromQuery] int page = 1,
@@ -85,6 +88,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// POST /api/v1/wallets/top-up
         /// </summary>
         [HttpPost("api/v1/wallets/top-up")]
+        [HasPermission("wallet.topup")]
         [ProducesResponseType(typeof(ApiResponse<WalletTopUpResponse>), StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> TopUpWallet([FromBody] WalletTopUpRequest request)
@@ -115,6 +119,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// POST /api/v1/expert/wallets/withdraw
         /// </summary>
         [HttpPost("api/v1/expert/wallets/withdraw")]
+        [HasPermission("expert.withdraw")]
         [ProducesResponseType(typeof(ApiResponse<WithdrawalResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
@@ -130,6 +135,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// GET /api/v1/expert/wallets/withdrawals?status=PENDING&page=1&size=10
         /// </summary>
         [HttpGet("api/v1/expert/wallets/withdrawals")]
+        [HasPermission("expert.withdraw")]
         [ProducesResponseType(typeof(ApiResponse<PagedResult<WithdrawalResponse>>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetMyWithdrawals(
             [FromQuery] string? status = null,
@@ -146,6 +152,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// GET /api/v1/expert/wallets/pending-escrow
         /// </summary>
         [HttpGet("api/v1/expert/wallets/pending-escrow")]
+        [HasPermission("expert.wallet_view")]
         [ProducesResponseType(typeof(ApiResponse<List<PendingEscrowDetailResponse>>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetExpertPendingEscrow()
         {
@@ -163,6 +170,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// POST /api/v1/user/wallets/withdraw
         /// </summary>
         [HttpPost("api/v1/user/wallets/withdraw")]
+        [HasPermission("wallet.user_withdraw")]
         [ProducesResponseType(typeof(ApiResponse<WithdrawalResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> RequestUserRefundWithdrawal([FromBody] CreateWithdrawalRequest request)
@@ -182,6 +190,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// GET /api/v1/user/wallets/withdrawals?status=PENDING&page=1&size=10
         /// </summary>
         [HttpGet("api/v1/user/wallets/withdrawals")]
+        [HasPermission("wallet.user_withdraw")]
         [ProducesResponseType(typeof(ApiResponse<PagedResult<WithdrawalResponse>>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetUserWithdrawals(
             [FromQuery] string? status = null,
@@ -202,6 +211,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// GET /api/v1/admin/withdrawals?status=PENDING&page=1&size=10
         /// </summary>
         [HttpGet("api/v1/admin/withdrawals")]
+        [HasPermission("admin.withdrawal_manage")]
         [ProducesResponseType(typeof(ApiResponse<PagedResult<WithdrawalResponse>>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]
         public async Task<IActionResult> GetAdminWithdrawals(
@@ -227,6 +237,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// POST /api/v1/admin/withdrawals/{id}/process
         /// </summary>
         [HttpPost("api/v1/admin/withdrawals/{id:guid}/process")]
+        [HasPermission("admin.withdrawal_manage")]
         [ProducesResponseType(typeof(ApiResponse<WithdrawalResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status403Forbidden)]

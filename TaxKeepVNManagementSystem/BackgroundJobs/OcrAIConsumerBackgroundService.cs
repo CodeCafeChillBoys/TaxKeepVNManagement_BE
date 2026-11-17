@@ -11,6 +11,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Caching.Memory;
 using TaxKeepVN.Application.DTOs.OcrAI;
+using TaxKeepVN.Application.Service.Interfaces;
 using TaxKeepVNManagementSystem.Hubs;
 
 namespace TaxKeepVNManagementSystem.BackgroundJobs
@@ -20,6 +21,7 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
         private readonly IConfiguration _config;
         private readonly IHubContext<TaxAIHub> _hubContext;
         private readonly IMemoryCache _cache;
+        private readonly IRedisCacheService? _redisCache;
         private readonly ILogger<OcrAIConsumerBackgroundService> _logger;
         private const string ResponseQueueName = "ocr.ai.response.queue";
 
@@ -27,12 +29,14 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
             IConfiguration config,
             IHubContext<TaxAIHub> hubContext,
             IMemoryCache cache,
-            ILogger<OcrAIConsumerBackgroundService> logger)
+            ILogger<OcrAIConsumerBackgroundService> logger,
+            IRedisCacheService? redisCache = null)
         {
             _config = config;
             _hubContext = hubContext;
             _cache = cache;
             _logger = logger;
+            _redisCache = redisCache;
         }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -80,8 +84,12 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
 
                             if (response != null)
                             {
-                                // Lưu vào In-Memory Cache trong 30 phút để BE/FE có thể tra cứu theo taskId
+                                // Lưu vào In-Memory Cache và Redis trong 30 phút để BE/FE tra cứu theo taskId
                                 _cache.Set($"ocr_task_{response.TaskId}", response, TimeSpan.FromMinutes(30));
+                                if (_redisCache != null)
+                                {
+                                    await _redisCache.SetAsync($"taxkeep:ocr_task:{response.TaskId}", response, TimeSpan.FromMinutes(30));
+                                }
 
                                 var eventName = response.Success
                                     ? "OnOcrExtractionCompleted"

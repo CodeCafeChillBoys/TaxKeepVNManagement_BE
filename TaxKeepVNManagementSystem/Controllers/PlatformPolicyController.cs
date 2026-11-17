@@ -8,12 +8,13 @@ using TaxKeepVN.Application.DTOs.PlatformPolicy;
 using TaxKeepVN.Application.DTOs.Responses;
 using TaxKeepVN.Domain.Entities;
 using TaxKeepVN.Domain.IRepositories;
+using TaxKeepVNManagementSystem.Attributes;
 
 namespace TaxKeepVNManagementSystem.Controllers
 {
     [ApiController]
     [Route("api/v1/admin/platform-policy")]
-    [Authorize(Roles = "admin")]
+    [HasPermission("admin.platform_policy.manage")]
     [Tags("Admin - Platform Policy (Chính sách sàn tư vấn & Escrow)")]
     public class PlatformPolicyController : ControllerBase
     {

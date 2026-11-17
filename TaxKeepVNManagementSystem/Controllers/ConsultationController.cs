@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Mvc;
 using TaxKeepVN.Application.DTOs.Consultations;
 using TaxKeepVN.Application.DTOs.Responses;
 using TaxKeepVN.Application.Service.Interfaces;
+using TaxKeepVNManagementSystem.Attributes;
 
 namespace TaxKeepVNManagementSystem.Controllers
 {
@@ -49,6 +50,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// POST /api/v1/consultations/{bookingId}/join
         /// </summary>
         [HttpPost("{bookingId:guid}/join", Name = "JoinConsultationSession")]
+        [HasPermission("consultation.join")]
         [EndpointSummary("Điểm danh và lấy đường dẫn phòng họp trực tuyến Jitsi Meet")]
         [ProducesResponseType(typeof(ApiResponse<JoinConsultationResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -69,6 +71,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// GET /api/v1/consultations/{bookingId}/session
         /// </summary>
         [HttpGet("{bookingId:guid}/session", Name = "GetConsultationSession")]
+        [HasPermission("consultation.join")]
         [EndpointSummary("Xem trạng thái chi tiết của phòng tư vấn trực tuyến")]
         [ProducesResponseType(typeof(ApiResponse<ConsultationSessionResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -89,6 +92,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// GET /api/v1/consultations/{bookingId}/shared-dossier
         /// </summary>
         [HttpGet("{bookingId:guid}/shared-dossier", Name = "GetSharedTaxDossier")]
+        [HasPermission("consultation.join")]
         [EndpointSummary("Xem toàn bộ hồ sơ thuế được chia sẻ của khách hàng (Read-only)")]
         [ProducesResponseType(typeof(ApiResponse<SharedTaxDossierResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -107,6 +111,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// PUT /api/v1/consultations/{bookingId}/notes
         /// </summary>
         [HttpPut("{bookingId:guid}/notes", Name = "UpdateConsultationNotes")]
+        [HasPermission("consultation.complete")]
         [EndpointSummary("Chuyên gia cập nhật biên bản ghi chú tư vấn trong phòng họp")]
         [ProducesResponseType(typeof(ApiResponse<ConsultationSessionResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -135,6 +140,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// POST /api/v1/consultations/{bookingId}/complete
         /// </summary>
         [HttpPost("{bookingId:guid}/complete", Name = "CompleteConsultationSession")]
+        [HasPermission("consultation.complete")]
         [EndpointSummary("Chuyên gia chốt biên bản kết luận và kết thúc phiên tư vấn")]
         [ProducesResponseType(typeof(ApiResponse<ConsultationSessionResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -163,6 +169,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// POST /api/v1/consultations/{bookingId}/report-no-show
         /// </summary>
         [HttpPost("{bookingId:guid}/report-no-show", Name = "ReportConsultationNoShow")]
+        [HasPermission("consultation.complete")]
         [EndpointSummary("Báo cáo đối phương vắng mặt không phép (No-Show quá 15 phút)")]
         [ProducesResponseType(typeof(ApiResponse<ConsultationSessionResponse>), StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
@@ -184,6 +191,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// GET /api/v1/consultations/upcoming-reminder
         /// </summary>
         [HttpGet("upcoming-reminder", Name = "GetUpcomingMeetingReminder")]
+        [HasPermission("consultation.join")]
         [EndpointSummary("Xem thông tin nhắc nhở lịch hẹn meeting sắp tới (User & Expert)")]
         [ProducesResponseType(typeof(ApiResponse<UpcomingMeetingReminderDto>), StatusCodes.Status200OK)]
         public async Task<IActionResult> GetUpcomingMeetingReminder()

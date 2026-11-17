@@ -6,6 +6,7 @@ using TaxKeepVN.Application.DTOs.Common;
 using TaxKeepVN.Application.DTOs.Responses;
 using TaxKeepVN.Application.DTOs.Rules;
 using TaxKeepVN.Application.Service.Interfaces;
+using TaxKeepVNManagementSystem.Attributes;
 
 namespace TaxKeepVNManagementSystem.Controllers
 {
@@ -40,6 +41,7 @@ namespace TaxKeepVNManagementSystem.Controllers
 
         // POST /api/v1/dependent-rules
         [HttpPost(Name = "CreateDependentRule")]
+        [HasPermission("dependent.rule_manage")]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -55,6 +57,7 @@ namespace TaxKeepVNManagementSystem.Controllers
 
         // PUT /api/v1/dependent-rules/{id}
         [HttpPut("{id:guid}", Name = "UpdateDependentRule")]
+        [HasPermission("dependent.rule_manage")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -69,6 +72,7 @@ namespace TaxKeepVNManagementSystem.Controllers
 
         // DELETE /api/v1/dependent-rules/{id}
         [HttpDelete("{id:guid}", Name = "DeleteDependentRule")]
+        [HasPermission("dependent.rule_manage")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> Delete([FromRoute] Guid id)

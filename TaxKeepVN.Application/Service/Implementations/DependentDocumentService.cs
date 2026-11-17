@@ -20,17 +20,20 @@ namespace TaxKeepVN.Application.Service.Implementations
         private readonly IFileStorageService _fileStorageService;
         private readonly IMemoryCache _cache;
         private readonly IOcrService _ocrService;
+        private readonly IRedisCacheService? _redisCache;
 
         public DependentDocumentService(
             IUnitOfWork unitOfWork, 
             IFileStorageService fileStorageService, 
             IMemoryCache cache,
-            IOcrService ocrService)
+            IOcrService ocrService,
+            IRedisCacheService? redisCache = null)
         {
             _unitOfWork = unitOfWork;
             _fileStorageService = fileStorageService;
             _cache = cache;
             _ocrService = ocrService;
+            _redisCache = redisCache;
         }
 
         public async Task<UploadDocumentResultDto> UploadDocumentAsync(Guid userId, Guid dependentId, string docTypeString, IFormFile file)
@@ -141,9 +144,15 @@ namespace TaxKeepVN.Application.Service.Implementations
         {
             var groupString = group.ToString();
             var cacheKey = $"DependentRules_{groupString}";
+            var redisKey = $"taxkeep:dependent_rules:active:{groupString}";
 
-            // Lấy từ IMemoryCache (hết hạn sau 1 tiếng) để tối ưu hiệu năng mili-giây, tránh query DB liên tục
-            if (!_cache.TryGetValue(cacheKey, out List<DependentDocumentRule>? activeRules) || activeRules == null)
+            List<DependentDocumentRule>? activeRules = null;
+            if (_redisCache != null)
+            {
+                activeRules = await _redisCache.GetAsync<List<DependentDocumentRule>>(redisKey);
+            }
+
+            if (activeRules == null && (!_cache.TryGetValue(cacheKey, out activeRules) || activeRules == null))
             {
                 var ruleRepo = _unitOfWork.Repository<DependentDocumentRule>();
                 activeRules = (await ruleRepo.FindAsync(r => r.TargetGroup == groupString && r.IsActive)).ToList();
@@ -152,6 +161,11 @@ namespace TaxKeepVN.Application.Service.Implementations
                     .SetAbsoluteExpiration(TimeSpan.FromHours(1));
 
                 _cache.Set(cacheKey, activeRules, cacheOptions);
+
+                if (_redisCache != null)
+                {
+                    await _redisCache.SetAsync(redisKey, activeRules, TimeSpan.FromHours(24));
+                }
             }
 
             if (activeRules.Any())

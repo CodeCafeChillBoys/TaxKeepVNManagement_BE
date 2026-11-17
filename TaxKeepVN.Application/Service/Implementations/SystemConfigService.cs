@@ -12,11 +12,14 @@ namespace TaxKeepVN.Application.Service.Implementations
 {
     public class SystemConfigService : ISystemConfigService
     {
+        private const string CachePrefix = "taxkeep:config:";
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IRedisCacheService? _redisCache;
 
-        public SystemConfigService(IUnitOfWork unitOfWork)
+        public SystemConfigService(IUnitOfWork unitOfWork, IRedisCacheService? redisCache = null)
         {
             _unitOfWork = unitOfWork;
+            _redisCache = redisCache;
         }
 
         public async Task<PagedResult<SystemConfigResponseDto>> GetAllAsync(SystemConfigQueryParameters query)
@@ -144,6 +147,14 @@ namespace TaxKeepVN.Application.Service.Implementations
         /// </summary>
         public async Task<string> GetRequiredConfigValueAsync(string key)
         {
+            var cacheKey = $"{CachePrefix}{key}";
+            if (_redisCache != null)
+            {
+                var cached = await _redisCache.GetAsync<string>(cacheKey);
+                if (!string.IsNullOrEmpty(cached))
+                    return cached;
+            }
+
             var repo = _unitOfWork.Repository<SystemConfig>();
             var configs = await repo.FindAsync(c => c.ConfigKey == key && c.IsActive);
             // Ưu tiên row chung (AppliesFromYear = null); nếu không có thì lấy row mới nhất
@@ -162,7 +173,12 @@ namespace TaxKeepVN.Application.Service.Implementations
                     $"Lỗi cấu hình hệ thống: Không tìm thấy tham số '{key}' trong CSDL hoặc giá trị bị rỗng. " +
                     "Vui lòng thiết lập cấu hình trước khi chạy tiến trình.");
 
-            return config.ConfigValue.Trim();
+            var val = config.ConfigValue.Trim();
+            if (_redisCache != null)
+            {
+                await _redisCache.SetAsync(cacheKey, val, TimeSpan.FromHours(24));
+            }
+            return val;
         }
 
         /// <summary>
@@ -175,6 +191,14 @@ namespace TaxKeepVN.Application.Service.Implementations
         /// </summary>
         public async Task<string> GetRequiredConfigValueAsync(string key, int taxYear)
         {
+            var cacheKey = $"{CachePrefix}{key}:{taxYear}";
+            if (_redisCache != null)
+            {
+                var cached = await _redisCache.GetAsync<string>(cacheKey);
+                if (!string.IsNullOrEmpty(cached))
+                    return cached;
+            }
+
             var repo = _unitOfWork.Repository<SystemConfig>();
             var allConfigs = await repo.FindAsync(c => c.ConfigKey == key && c.IsActive);
 
@@ -201,7 +225,12 @@ namespace TaxKeepVN.Application.Service.Implementations
                     $"Lỗi cấu hình hệ thống: Không tìm thấy tham số '{key}' phù hợp với năm thuế {taxYear}. " +
                     "Vui lòng thiết lập cấu hình trong Admin.");
 
-            return bestMatch.ConfigValue.Trim();
+            var val = bestMatch.ConfigValue.Trim();
+            if (_redisCache != null)
+            {
+                await _redisCache.SetAsync(cacheKey, val, TimeSpan.FromHours(24));
+            }
+            return val;
         }
 
         public async Task<SystemConfigResponseDto> CreateAsync(SystemConfigCreateDto dto)
@@ -235,6 +264,7 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             await repo.AddAsync(config);
             await _unitOfWork.SaveChangesAsync();
+            if (_redisCache != null) await _redisCache.RemoveByPrefixAsync(CachePrefix);
 
             return ToDto(config);
         }
@@ -281,6 +311,7 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             repo.Update(config);
             await _unitOfWork.SaveChangesAsync();
+            if (_redisCache != null) await _redisCache.RemoveByPrefixAsync(CachePrefix);
             return ToDto(config);
         }
 
@@ -292,6 +323,7 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             repo.Remove(config);
             await _unitOfWork.SaveChangesAsync();
+            if (_redisCache != null) await _redisCache.RemoveByPrefixAsync(CachePrefix);
             return true;
         }
 
@@ -335,6 +367,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             }
 
             await _unitOfWork.SaveChangesAsync();
+            if (_redisCache != null) await _redisCache.RemoveByPrefixAsync(CachePrefix);
             return ToDto(config);
         }
 

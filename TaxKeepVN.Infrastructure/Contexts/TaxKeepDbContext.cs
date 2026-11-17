@@ -1,5 +1,6 @@
-using Microsoft.EntityFrameworkCore;
+﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using TaxKeepDomain.Entities;
 using TaxKeepVN.Domain.Entities;
 using TaxKeepVN.Domain.Enums;
 
@@ -61,6 +62,10 @@ namespace TaxKeepVN.Infrastructure.Contexts
         public DbSet<SubscriptionPlan> SubscriptionPlans { get; set; }
         public DbSet<UserSubscription> UserSubscriptions { get; set; }
         public DbSet<SubscriptionQuotaUsage> SubscriptionQuotaUsages { get; set; }
+
+        public DbSet<Permission> Permissions { get; set; }
+
+        public DbSet<RolePermission> RolePermissions { get; set; }
 
         protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
         {
@@ -1327,6 +1332,61 @@ namespace TaxKeepVN.Infrastructure.Contexts
 
                 entity.HasIndex(q => new { q.UserId, q.PeriodMonth }).IsUnique()
                     .HasDatabaseName("uq_subscription_quota_usages_user_period");
+            });
+
+
+            modelBuilder.Entity<Permission>(entity =>
+        {
+            entity.ToTable("permissions");
+
+            entity.HasKey(p => p.Id);
+
+            entity.Property(p => p.Id)
+                .HasColumnName("id")
+                .UseIdentityByDefaultColumn();
+
+            entity.Property(p => p.Code)
+                .HasColumnName("code")
+                .HasMaxLength(100)
+                .IsRequired();
+
+            entity.Property(p => p.Name)
+                .HasColumnName("name")
+                .HasMaxLength(150)
+                .IsRequired();
+
+            entity.Property(p => p.GroupName)
+                .HasColumnName("group_name")
+                .HasMaxLength(100)
+                .IsRequired();
+
+            entity.HasIndex(p => p.Code)
+                .IsUnique()
+                .HasDatabaseName("idx_permissions_code");
+        });
+
+            modelBuilder.Entity<RolePermission>(entity =>
+            {
+                entity.ToTable("role_permissions");
+
+                // Không cho gán trùng một permission cho cùng role
+                entity.HasKey(rp => new { rp.RoleId, rp.PermissionId });
+
+                entity.Property(rp => rp.RoleId)
+                    .HasColumnName("role_id");
+
+                entity.Property(rp => rp.PermissionId)
+                    .HasColumnName("permission_id");
+
+                entity.HasOne(rp => rp.Role)
+                    .WithMany(r => r.RolePermissions)
+                    .HasForeignKey(rp => rp.RoleId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(rp => rp.Permission)
+                    .WithMany(p => p.RolePermissions)
+                    .HasForeignKey(rp => rp.PermissionId)
+                    .OnDelete(DeleteBehavior.Restrict);
             });
 
             // Chuẩn hóa toàn bộ các trường DateTime và DateTimeOffset sang UTC để tương thích triệt để với PostgreSQL (timestamp with time zone)

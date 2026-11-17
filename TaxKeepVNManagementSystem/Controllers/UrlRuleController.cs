@@ -3,12 +3,13 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using TaxKeepVN.Application.DTOs.TaxAI;
 using TaxKeepVN.Application.Service.Interfaces;
+using TaxKeepVNManagementSystem.Attributes;
 
 namespace TaxKeepVNManagementSystem.Controllers
 {
     [ApiController]
     [Route("api/v1/admin/url-rules")]
-    [Authorize]
+    [HasPermission("admin.url_rule.manage")]
     [Produces("application/json")]
     public class UrlRuleController : ControllerBase
     {

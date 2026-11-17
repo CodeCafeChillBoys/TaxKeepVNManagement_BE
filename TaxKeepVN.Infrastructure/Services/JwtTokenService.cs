@@ -42,6 +42,7 @@ namespace TaxKeepVN.Infrastructure.Services
                 new Claim("fullName", user.FullName),
                 new Claim("email", user.Email),
                 new Claim(ClaimTypes.Role, user.UserRole),
+                new Claim("roleId", user.RoleId.ToString()),
             };
 
             var token = new JwtSecurityToken(

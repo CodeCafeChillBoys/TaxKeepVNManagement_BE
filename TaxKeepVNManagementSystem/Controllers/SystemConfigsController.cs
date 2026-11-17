@@ -1,11 +1,13 @@
 using Microsoft.AspNetCore.Mvc;
 using TaxKeepVN.Application.DTOs.SystemConfig;
 using TaxKeepVN.Application.Service.Interfaces;
+using TaxKeepVNManagementSystem.Attributes;
 
 namespace TaxKeepVNManagementSystem.Controllers;
 
 [ApiController]
 [Route("api/admin/system-configs")]
+[HasPermission("admin.system_config.manage")]
 public class SystemConfigsController : ControllerBase
 {
     private readonly ITaxAiConfigService _configClient;

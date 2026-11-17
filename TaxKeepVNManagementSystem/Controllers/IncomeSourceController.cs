@@ -7,6 +7,7 @@ using TaxKeepVN.Application.DTOs.Common;
 using TaxKeepVN.Application.DTOs.IncomeSources;
 using TaxKeepVN.Application.DTOs.Responses;
 using TaxKeepVN.Application.Service.Interfaces;
+using TaxKeepVNManagementSystem.Attributes;
 
 namespace TaxKeepVNManagementSystem.Controllers
 {
@@ -24,6 +25,7 @@ namespace TaxKeepVNManagementSystem.Controllers
 
         // GET /api/v1/income-sources?taxYear=2026&page=1&size=10&search=cty&sort=-createdAt
         [HttpGet(Name = "GetIncomeSources")]
+        [HasPermission("income.view")]
         public async Task<IActionResult> GetAll([FromQuery] IncomeSourceQueryParameters query)
         {
             Guid userId = GetUserIdFromToken();
@@ -33,6 +35,7 @@ namespace TaxKeepVNManagementSystem.Controllers
 
         // GET /api/v1/income-sources/summary?taxYear=2026
         [HttpGet("summary", Name = "GetIncomeSourcesSummary")]
+        [HasPermission("income.view")]
         public async Task<IActionResult> GetSummary([FromQuery] int taxYear = 2026)
         {
             Guid userId = GetUserIdFromToken();
@@ -42,6 +45,7 @@ namespace TaxKeepVNManagementSystem.Controllers
 
         // GET /api/v1/income-sources/{id}
         [HttpGet("{id:guid}", Name = "GetIncomeSourceById")]
+        [HasPermission("income.view")]
         public async Task<IActionResult> GetById(Guid id)
         {
             Guid userId = GetUserIdFromToken();
@@ -51,6 +55,7 @@ namespace TaxKeepVNManagementSystem.Controllers
 
         // POST /api/v1/income-sources
         [HttpPost(Name = "CreateIncomeSource")]
+        [HasPermission("income_source.manage")]
         public async Task<IActionResult> Create([FromBody] IncomeSourceCreateDto dto)
         {
             if (!ModelState.IsValid)
@@ -64,6 +69,7 @@ namespace TaxKeepVNManagementSystem.Controllers
 
         // PUT /api/v1/income-sources/{id}
         [HttpPut("{id:guid}", Name = "UpdateIncomeSource")]
+        [HasPermission("income_source.manage")]
         public async Task<IActionResult> Update(Guid id, [FromBody] IncomeSourceUpdateDto dto)
         {
             if (!ModelState.IsValid)
@@ -76,6 +82,7 @@ namespace TaxKeepVNManagementSystem.Controllers
 
         // DELETE /api/v1/income-sources/{id}
         [HttpDelete("{id:guid}", Name = "DeleteIncomeSource")]
+        [HasPermission("income_source.manage")]
         public async Task<IActionResult> Delete(Guid id)
         {
             Guid userId = GetUserIdFromToken();
@@ -97,6 +104,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         }
 
         [HttpPost("cross-check", Name = "CrossCheckIncomeSource")]
+        [HasPermission("income.view")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> CrossCheck([FromBody] IncomeSourceCrossCheckRequestDto request)
         {

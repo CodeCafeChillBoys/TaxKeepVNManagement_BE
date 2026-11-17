@@ -6,6 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 using TaxKeepVN.Application.DTOs.ExpertCertificateConfigurations;
 using TaxKeepVN.Application.DTOs.Responses;
 using TaxKeepVN.Application.Service.Interfaces;
+using TaxKeepVNManagementSystem.Attributes;
 
 namespace TaxKeepVNManagementSystem.Controllers
 {
@@ -36,7 +37,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// GET /api/v1/admin/expert-certificate-configs
         /// </summary>
         [HttpGet("api/v1/admin/expert-certificate-configs")]
-        [Authorize(Roles = "admin")]
+        [HasPermission("admin.certificate_config.manage")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         public async Task<IActionResult> AdminGetAll([FromQuery] ExpertCertificateConfigQueryParameters query)
         {
@@ -49,7 +50,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// GET /api/v1/admin/expert-certificate-configs/{id}
         /// </summary>
         [HttpGet("api/v1/admin/expert-certificate-configs/{id:int}")]
-        [Authorize(Roles = "admin")]
+        [HasPermission("admin.certificate_config.manage")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> GetById([FromRoute] int id)
@@ -63,7 +64,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// POST /api/v1/admin/expert-certificate-configs
         /// </summary>
         [HttpPost("api/v1/admin/expert-certificate-configs")]
-        [Authorize(Roles = "admin")]
+        [HasPermission("admin.certificate_config.manage")]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -82,7 +83,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// PUT /api/v1/admin/expert-certificate-configs/{id}
         /// </summary>
         [HttpPut("api/v1/admin/expert-certificate-configs/{id:int}")]
-        [Authorize(Roles = "admin")]
+        [HasPermission("admin.certificate_config.manage")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -100,7 +101,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// PATCH /api/v1/admin/expert-certificate-configs/{id}/toggle-active
         /// </summary>
         [HttpPatch("api/v1/admin/expert-certificate-configs/{id:int}/toggle-active")]
-        [Authorize(Roles = "admin")]
+        [HasPermission("admin.certificate_config.manage")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> ToggleActive([FromRoute] int id)
@@ -114,7 +115,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// DELETE /api/v1/admin/expert-certificate-configs/{id}
         /// </summary>
         [HttpDelete("api/v1/admin/expert-certificate-configs/{id:int}")]
-        [Authorize(Roles = "admin")]
+        [HasPermission("admin.certificate_config.manage")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]

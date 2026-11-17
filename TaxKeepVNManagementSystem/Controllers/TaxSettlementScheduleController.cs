@@ -11,12 +11,13 @@ using TaxKeepVN.Application.DTOs.TaxSettlement;
 using TaxKeepVN.Application.Service.Interfaces;
 using TaxKeepVN.Domain.Entities;
 using TaxKeepVN.Domain.IRepositories;
+using TaxKeepVNManagementSystem.Attributes;
 
 namespace TaxKeepVNManagementSystem.Controllers
 {
     [ApiController]
     [Route("api/v1/admin/tax-settlement-schedule")]
-    [Authorize(Roles = "admin")]
+    [HasPermission("settlement.schedule_manage")]
     [Produces("application/json")]
     [Tags("Admin - Tax Settlement Schedule (Lịch trình quyết toán thuế)")]
     public class TaxSettlementScheduleController : ControllerBase

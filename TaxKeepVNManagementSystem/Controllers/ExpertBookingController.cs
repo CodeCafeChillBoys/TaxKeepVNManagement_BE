@@ -9,6 +9,7 @@ using TaxKeepVN.Application.DTOs.Common;
 using TaxKeepVN.Application.DTOs.Responses;
 using TaxKeepVN.Application.Service.Interfaces;
 using TaxKeepVN.Domain.Enums;
+using TaxKeepVNManagementSystem.Attributes;
 
 namespace TaxKeepVNManagementSystem.Controllers
 {
@@ -18,6 +19,7 @@ namespace TaxKeepVNManagementSystem.Controllers
     [ApiController]
     [Route("api/v1/expert/bookings")]
     [Authorize]
+    [HasPermission("expert.booking_manage")]
     [Produces("application/json")]
     public class ExpertBookingController : ControllerBase
     {

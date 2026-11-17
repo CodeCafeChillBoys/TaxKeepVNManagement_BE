@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using TaxKeepVN.Application.DTOs.Responses;
 using TaxKeepVN.Application.DTOs.Specializations;
 using TaxKeepVN.Application.Service.Interfaces;
+using TaxKeepVNManagementSystem.Attributes;
 
 namespace TaxKeepVNManagementSystem.Controllers
 {
@@ -48,7 +49,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// POST /api/v1/specializations
         /// </summary>
         [HttpPost]
-        [Authorize(Roles = "admin")]
+        [HasPermission("admin.specialization.manage")]
         [ProducesResponseType(StatusCodes.Status201Created)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status409Conflict)]
@@ -67,7 +68,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// PUT /api/v1/specializations/{id}
         /// </summary>
         [HttpPut("{id:int}")]
-        [Authorize(Roles = "admin")]
+        [HasPermission("admin.specialization.manage")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
@@ -85,7 +86,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// DELETE /api/v1/specializations/{id}
         /// </summary>
         [HttpDelete("{id:int}")]
-        [Authorize(Roles = "admin")]
+        [HasPermission("admin.specialization.manage")]
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         public async Task<IActionResult> Delete([FromRoute] int id)

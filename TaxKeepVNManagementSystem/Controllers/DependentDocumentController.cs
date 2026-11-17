@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using TaxKeepVN.Application.DTOs.Documents;
 using TaxKeepVN.Application.DTOs.Responses;
 using TaxKeepVN.Application.Service.Interfaces;
+using TaxKeepVNManagementSystem.Attributes;
 
 namespace TaxKeepVNManagementSystem.Controllers
 {
@@ -25,6 +26,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         /// POST /api/v1/dependents/{dependentId}/documents
         /// </summary>
         [HttpPost("{dependentId:guid}/documents", Name = "UploadDependentDocument")]
+        [HasPermission("dependent.document_manage")]
         public async Task<IActionResult> UploadDocument(
             [FromRoute] Guid dependentId,
             [FromForm] UploadDocumentRequestDto dto)
