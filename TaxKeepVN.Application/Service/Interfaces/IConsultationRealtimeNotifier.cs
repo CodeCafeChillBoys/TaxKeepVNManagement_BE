@@ -1,5 +1,6 @@
 using System;
 using System.Threading.Tasks;
+using TaxKeepVN.Application.DTOs.Consultations;
 
 namespace TaxKeepVN.Application.Service.Interfaces
 {
@@ -13,5 +14,7 @@ namespace TaxKeepVN.Application.Service.Interfaces
         Task NotifyNotesUpdatedAsync(Guid bookingId, string notes);
         Task NotifySessionCompletedAsync(Guid bookingId, int actualDurationMinutes, string sharedNotes);
         Task NotifyCountdownWarningAsync(Guid bookingId, int remainingMinutes);
+        Task NotifyChatMessageReceivedAsync(Guid bookingId, ConsultationMessageDto message);
+        Task NotifyTypingAsync(Guid bookingId, Guid userId, string role, bool isTyping);
     }
 }

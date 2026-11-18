@@ -151,6 +151,12 @@ namespace TaxKeepVNManagementSystem.Controllers
             if (request.ExpertLateCancelPenaltyVnd.HasValue) policy.ExpertLateCancelPenaltyVnd = request.ExpertLateCancelPenaltyVnd.Value;
             if (request.DisputeWindowHours.HasValue) policy.DisputeWindowHours = request.DisputeWindowHours.Value;
             if (request.DisputeExpertReplyHours.HasValue) policy.DisputeExpertReplyHours = request.DisputeExpertReplyHours.Value;
+            if (request.ChatMessageMaxLength.HasValue) policy.ChatMessageMaxLength = request.ChatMessageMaxLength.Value;
+            if (!string.IsNullOrWhiteSpace(request.ChatAllowedAttachmentTypes)) policy.ChatAllowedAttachmentTypes = request.ChatAllowedAttachmentTypes.Trim();
+            if (request.ChatMaxAttachmentUrlLength.HasValue) policy.ChatMaxAttachmentUrlLength = request.ChatMaxAttachmentUrlLength.Value;
+            if (request.ChatHistoryDefaultPageSize.HasValue) policy.ChatHistoryDefaultPageSize = request.ChatHistoryDefaultPageSize.Value;
+            if (request.ChatHistoryMaxPageSize.HasValue) policy.ChatHistoryMaxPageSize = request.ChatHistoryMaxPageSize.Value;
+            if (!string.IsNullOrWhiteSpace(request.ChatRoomUrlBase)) policy.ChatRoomUrlBase = request.ChatRoomUrlBase.Trim();
 
             policy.UpdatedAt = DateTimeOffset.UtcNow;
 
@@ -197,6 +203,12 @@ namespace TaxKeepVNManagementSystem.Controllers
                 ExpertLateCancelPenaltyVnd = p.ExpertLateCancelPenaltyVnd,
                 DisputeWindowHours = p.DisputeWindowHours,
                 DisputeExpertReplyHours = p.DisputeExpertReplyHours,
+                ChatMessageMaxLength = p.ChatMessageMaxLength,
+                ChatAllowedAttachmentTypes = p.ChatAllowedAttachmentTypes,
+                ChatMaxAttachmentUrlLength = p.ChatMaxAttachmentUrlLength,
+                ChatHistoryDefaultPageSize = p.ChatHistoryDefaultPageSize,
+                ChatHistoryMaxPageSize = p.ChatHistoryMaxPageSize,
+                ChatRoomUrlBase = p.ChatRoomUrlBase,
                 IsActive = p.IsActive,
                 UpdatedAt = p.UpdatedAt
             };
