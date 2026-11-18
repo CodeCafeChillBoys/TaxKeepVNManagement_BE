@@ -52,7 +52,76 @@ namespace TaxKeepVNManagementSystem.Controllers
         {
             var result = await _authService.RegisterAsync(request);
             return StatusCode(StatusCodes.Status201Created,
-                ApiResponse<object>.Ok(result, "Đăng ký tài khoản thành công."));
+                ApiResponse<object>.Ok(result, "Đăng ký tài khoản thành công. Vui lòng kiểm tra email để xác minh tài khoản."));
+        }
+
+        /// <summary>
+        /// Xác minh email qua token trong link được gửi sau khi đăng ký.
+        /// FE truyền token qua query string: GET /api/v1/auth/verify-email?token=...
+        /// </summary>
+        [HttpGet("verify-email")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> VerifyEmail([FromQuery] string token)
+        {
+            await _authService.VerifyEmailAsync(token);
+            return Ok(ApiResponse<object>.Ok(new { }, "Xác minh email thành công. Bạn có thể đăng nhập ngay bây giờ."));
+        }
+
+        /// <summary>
+        /// Gửi lại email xác minh cho tài khoản chưa được xác minh.
+        /// Body: { "email": "user@example.com" }
+        /// </summary>
+        [HttpPost("resend-verification")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> ResendVerification([FromBody] ResendVerificationRequest request)
+        {
+            await _authService.ResendVerificationEmailAsync(request.Email);
+            return Ok(ApiResponse<object>.Ok(new { }, "Nếu email tồn tại và chưa được xác minh, chúng tôi đã gửi lại email xác minh."));
+        }
+
+        /// <summary>
+        /// Yêu cầu đặt lại mật khẩu qua email.
+        /// Body: { "email": "user@example.com" }
+        /// </summary>
+        [HttpPost("forgot-password")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> ForgotPassword([FromBody] ForgotPasswordRequest request)
+        {
+            await _authService.ForgotPasswordAsync(request);
+            return Ok(ApiResponse<object>.Ok(new { }, "Nếu email tồn tại trong hệ thống, chúng tôi đã gửi liên kết đặt lại mật khẩu đến hộp thư của bạn."));
+        }
+
+        /// <summary>
+        /// Kiểm tra tính hợp lệ và thời hạn của token đặt lại mật khẩu trước khi người dùng nhập form mới.
+        /// GET /api/v1/auth/validate-reset-token?token=...
+        /// </summary>
+        [HttpGet("validate-reset-token")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> ValidateResetToken([FromQuery] string token)
+        {
+            var isValid = await _authService.ValidateResetTokenAsync(token);
+            if (!isValid)
+            {
+                return BadRequest(ApiResponse<object>.Fail("INVALID_OR_EXPIRED_TOKEN", "Liên kết đặt lại mật khẩu không hợp lệ hoặc đã hết hạn."));
+            }
+            return Ok(ApiResponse<object>.Ok(new { valid = true }, "Token đặt lại mật khẩu hợp lệ."));
+        }
+
+        /// <summary>
+        /// Đặt lại mật khẩu mới bằng token đã nhận được từ email.
+        /// Body: { "token": "...", "newPassword": "...", "confirmNewPassword": "..." }
+        /// </summary>
+        [HttpPost("reset-password")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        public async Task<IActionResult> ResetPassword([FromBody] ResetPasswordRequest request)
+        {
+            await _authService.ResetPasswordAsync(request);
+            return Ok(ApiResponse<object>.Ok(new { }, "Đặt lại mật khẩu thành công. Bạn có thể đăng nhập bằng mật khẩu mới."));
         }
 
         /// <summary>Đăng nhập bằng số CCCD và mật khẩu, nhận JWT token</summary>

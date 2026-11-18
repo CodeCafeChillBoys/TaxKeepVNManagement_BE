@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace TaxKeepVN.Application.DTOs.Responses.Auth
 {
@@ -11,5 +11,11 @@ namespace TaxKeepVN.Application.DTOs.Responses.Auth
         public string CitizenId { get; set; } = string.Empty;
         public string UserRole { get; set; } = string.Empty;
         public bool IsVerified { get; set; }
+
+        /// <summary>
+        /// True nếu hệ thống đã gửi email xác minh — FE hiển thị thông báo "Vui lòng kiểm tra hộp thư".
+        /// </summary>
+        public bool RequiresEmailVerification { get; set; }
     }
 }
+

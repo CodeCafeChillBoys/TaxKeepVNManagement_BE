@@ -15,5 +15,20 @@ namespace TaxKeepVN.Application.Service.Interfaces
 
         /// <summary>Đổi mật khẩu — yêu cầu đăng nhập, xác minh mật khẩu hiện tại</summary>
         Task ChangePasswordAsync(Guid userId, ChangePasswordRequest request);
+
+        /// <summary>Xác minh email qua token trong link được gửi sau khi đăng ký</summary>
+        Task VerifyEmailAsync(string token);
+
+        /// <summary>Gửi lại email xác minh cho tài khoản chưa được xác minh</summary>
+        Task ResendVerificationEmailAsync(string email);
+
+        /// <summary>Yêu cầu đặt lại mật khẩu — gửi email hướng dẫn chứa token</summary>
+        Task ForgotPasswordAsync(ForgotPasswordRequest request);
+
+        /// <summary>Đặt lại mật khẩu mới sử dụng token được gửi qua email</summary>
+        Task ResetPasswordAsync(ResetPasswordRequest request);
+
+        /// <summary>Kiểm tra tính hợp lệ và thời hạn của token đặt lại mật khẩu</summary>
+        Task<bool> ValidateResetTokenAsync(string token);
     }
 }
