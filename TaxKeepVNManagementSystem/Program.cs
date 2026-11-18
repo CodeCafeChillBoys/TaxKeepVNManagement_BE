@@ -161,6 +161,7 @@ builder.Services.AddScoped<ISubscriptionQuotaService, SubscriptionQuotaService>(
 builder.Services.AddScoped<IAdminSubscriptionService, AdminSubscriptionService>();
 builder.Services.AddScoped<IConsultationRealtimeNotifier, TaxKeepVNManagementSystem.Services.ConsultationRealtimeNotifier>();
 builder.Services.AddScoped<IConsultationService, ConsultationService>();
+builder.Services.AddScoped<IConsultationChatService, ConsultationChatService>();
 builder.Services.AddScoped<IExpertSlotService, ExpertSlotService>();
 builder.Services.AddScoped<IDisbursementDisputeService, DisbursementDisputeService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>();

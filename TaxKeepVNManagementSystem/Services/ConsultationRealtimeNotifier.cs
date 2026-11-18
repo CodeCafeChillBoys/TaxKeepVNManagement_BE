@@ -2,6 +2,7 @@ using System;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Logging;
+using TaxKeepVN.Application.DTOs.Consultations;
 using TaxKeepVN.Application.Service.Interfaces;
 using TaxKeepVNManagementSystem.Hubs;
 
@@ -104,6 +105,37 @@ namespace TaxKeepVNManagementSystem.Services
             catch (Exception ex)
             {
                 _logger.LogWarning(ex, "Lỗi khi gửi SignalR cảnh báo đếm ngược {BookingId}", bookingId);
+            }
+        }
+
+        public async Task NotifyChatMessageReceivedAsync(Guid bookingId, ConsultationMessageDto message)
+        {
+            try
+            {
+                await _hubContext.Clients.Group($"Booking_{bookingId}").SendAsync("ReceiveChatMessage", message);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Lỗi khi gửi SignalR tin nhắn chat mới {BookingId}", bookingId);
+            }
+        }
+
+        public async Task NotifyTypingAsync(Guid bookingId, Guid userId, string role, bool isTyping)
+        {
+            try
+            {
+                await _hubContext.Clients.Group($"Booking_{bookingId}").SendAsync("UserTyping", new
+                {
+                    BookingId = bookingId,
+                    UserId = userId,
+                    Role = role,
+                    IsTyping = isTyping,
+                    Timestamp = DateTimeOffset.UtcNow
+                });
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Lỗi khi gửi SignalR trạng thái typing {BookingId}", bookingId);
             }
         }
     }

@@ -63,6 +63,24 @@ namespace TaxKeepVN.Domain.Entities
         /// <summary>Thời hạn chuyên gia phải phản hồi khiếu nại (Giờ)</summary>
         public int DisputeExpertReplyHours { get; set; } = 24;
 
+        /// <summary>Số ký tự tối đa cho phép trong một tin nhắn chat tư vấn (ký tự)</summary>
+        public int ChatMessageMaxLength { get; set; } = 4000;
+
+        /// <summary>Danh sách định dạng tệp đính kèm được phép trong chat (cách nhau bởi dấu phẩy, ví dụ: IMAGE,PDF,DOCUMENT)</summary>
+        public string ChatAllowedAttachmentTypes { get; set; } = "IMAGE,PDF,DOCUMENT";
+
+        /// <summary>Độ dài tối đa của URL tệp đính kèm (ký tự)</summary>
+        public int ChatMaxAttachmentUrlLength { get; set; } = 1000;
+
+        /// <summary>Số lượng tin nhắn mặc định hiển thị trên một trang lịch sử chat</summary>
+        public int ChatHistoryDefaultPageSize { get; set; } = 50;
+
+        /// <summary>Số lượng tin nhắn tối đa cho phép lấy trên một trang lịch sử chat</summary>
+        public int ChatHistoryMaxPageSize { get; set; } = 100;
+
+        /// <summary>URL gốc của hệ thống phòng họp trực tuyến (mặc định: https://meet.jit.si)</summary>
+        public string ChatRoomUrlBase { get; set; } = "https://meet.jit.si";
+
         public bool IsActive { get; set; } = true;
 
         public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;

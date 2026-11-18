@@ -64,5 +64,26 @@ namespace TaxKeepVNManagementSystem.Hubs
                 Timestamp = DateTimeOffset.UtcNow
             });
         }
+
+        /// <summary>
+        /// Bắn tín hiệu đang gõ tin nhắn (Typing Indicator)
+        /// </summary>
+        public async Task SendTypingIndicator(string bookingId, bool isTyping)
+        {
+            var userId = Context.User?.FindFirst("userId")?.Value 
+                      ?? Context.User?.FindFirst(ClaimTypes.NameIdentifier)?.Value;
+            var role = Context.User?.FindFirst(ClaimTypes.Role)?.Value 
+                    ?? Context.User?.FindFirst("role")?.Value 
+                    ?? "taxpayer";
+
+            await Clients.OthersInGroup($"Booking_{bookingId}").SendAsync("UserTyping", new
+            {
+                BookingId = bookingId,
+                UserId = userId,
+                Role = role,
+                IsTyping = isTyping,
+                Timestamp = DateTimeOffset.UtcNow
+            });
+        }
     }
 }
