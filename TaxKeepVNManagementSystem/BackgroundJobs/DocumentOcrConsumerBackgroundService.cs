@@ -225,6 +225,9 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
             document.TotalAmountInWords = data.TotalAmountInWords;
             document.LookupUrl = data.LookupUrl;
             document.LookupCode = data.LookupCode;
+            document.OverallConfidence = data.OverallConfidence.HasValue ? (decimal)data.OverallConfidence.Value : null;
+            document.AppliedThreshold = data.AppliedThreshold.HasValue ? (decimal)data.AppliedThreshold.Value : null;
+            document.IsPassedThreshold = data.IsPassedThreshold;
 
             // 1. Cập nhật trạng thái năm tính thuế từ AI
             if (data.ValidationStatus != null)
@@ -295,10 +298,19 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
                 data.ValidationErrors.Add("Thông tin người mua không khớp với người nộp thuế hoặc người phụ thuộc.");
             }
 
+            if (data.ValidationStatus?.IsPassedThreshold == false)
+            {
+                data.ValidationErrors ??= new System.Collections.Generic.List<string>();
+                var confText = data.OverallConfidence.HasValue ? $"{data.OverallConfidence:P0}" : "thấp";
+                var threshText = data.AppliedThreshold.HasValue ? $"{data.AppliedThreshold:P0}" : "yêu cầu";
+                data.ValidationErrors.Add($"Chất lượng ảnh/độ nét không đạt ngưỡng quy định của hệ thống ({confText} < {threshText}).");
+            }
+
             document.Status = string.Equals(data.Status, "FAILED", StringComparison.OrdinalIgnoreCase) ||
                 data.ValidationStatus?.IsYearValid == false ||
                 data.ValidationStatus?.IsDocTypeValid == false ||
-                data.ValidationStatus?.IsIdentityValid == false
+                data.ValidationStatus?.IsIdentityValid == false ||
+                data.ValidationStatus?.IsPassedThreshold == false
                 ? "FAILED"
                 : "EXTRACTED";
 

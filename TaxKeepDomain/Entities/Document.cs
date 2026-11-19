@@ -91,6 +91,15 @@ namespace TaxKeepVN.Domain.Entities
         /// <summary>Cam kết: Khoản chi phí này chưa được bồi hoàn từ bảo hiểm y tế hoặc nguồn tài trợ khác</summary>
         public bool? IsNotReimbursed { get; set; } = false;
 
+        /// <summary>Điểm tin cậy OCR tổng thể (0.0 đến 1.0)</summary>
+        public decimal? OverallConfidence { get; set; }
+
+        /// <summary>Ngưỡng tin cậy áp dụng</summary>
+        public decimal? AppliedThreshold { get; set; }
+
+        /// <summary>Vượt qua ngưỡng tin cậy</summary>
+        public bool? IsPassedThreshold { get; set; }
+
         /// <summary>UPLOADED, EXTRACTED, CONFIRMED</summary>
         public string Status { get; set; } = "UPLOADED";
 

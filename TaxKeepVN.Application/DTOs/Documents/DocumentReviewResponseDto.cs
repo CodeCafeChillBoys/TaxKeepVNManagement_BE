@@ -42,6 +42,9 @@ namespace TaxKeepVN.Application.DTOs.Documents
         public decimal? TotalIncome { get; set; }
         public decimal? TaxWithheld { get; set; }
         public decimal? InsuranceDeducted { get; set; }
+        public decimal? OverallConfidence { get; set; }
+        public decimal? AppliedThreshold { get; set; }
+        public bool? IsPassedThreshold { get; set; }
     }
 [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
 

@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TaxKeepDomain.Entities;
 using TaxKeepVN.Domain.Entities;
@@ -105,6 +105,11 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(u => u.RoleId).HasColumnName("role_id").HasDefaultValue(1);
                 entity.Property(u => u.UserRole).HasColumnName("user_role").HasDefaultValue("taxpayer");
                 entity.Property(u => u.IsVerified).HasColumnName("is_verified").HasDefaultValue(false);
+                entity.Property(u => u.IsEmailVerified).HasColumnName("is_email_verified").HasDefaultValue(false);
+                entity.Property(u => u.EmailVerificationToken).HasColumnName("email_verification_token").IsRequired(false);
+                entity.Property(u => u.EmailVerificationTokenExpiry).HasColumnName("email_verification_token_expiry").IsRequired(false);
+                entity.Property(u => u.PasswordResetToken).HasColumnName("password_reset_token").IsRequired(false);
+                entity.Property(u => u.PasswordResetTokenExpiry).HasColumnName("password_reset_token_expiry").IsRequired(false);
                 entity.Property(u => u.CreatedAt).HasColumnName("created_at");
                 entity.Property(u => u.UpdatedAt).HasColumnName("updated_at");
                 entity.Property(u => u.DateOfBirth).HasColumnName("date_of_birth");
@@ -121,6 +126,8 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 // Unique indexes
                 entity.HasIndex(u => u.CitizenId).IsUnique().HasDatabaseName("idx_users_citizen_id");
                 entity.HasIndex(u => u.Email).IsUnique().HasDatabaseName("idx_users_email");
+                entity.HasIndex(u => u.EmailVerificationToken).HasDatabaseName("idx_users_email_verification_token");
+                entity.HasIndex(u => u.PasswordResetToken).HasDatabaseName("idx_users_password_reset_token");
             });
 
             // ── Role ────────────────────────────────────────────────────────────
@@ -313,6 +320,9 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(d => d.IsYearValid).HasColumnName("is_year_valid");
                 entity.Property(d => d.IsIdentityValid).HasColumnName("is_identity_valid");
                 entity.Property(d => d.IsNotReimbursed).HasColumnName("is_not_reimbursed").HasDefaultValue(false);
+                entity.Property(d => d.OverallConfidence).HasColumnName("overall_confidence").HasColumnType("numeric(5,4)");
+                entity.Property(d => d.AppliedThreshold).HasColumnName("applied_threshold").HasColumnType("numeric(5,4)");
+                entity.Property(d => d.IsPassedThreshold).HasColumnName("is_passed_threshold");
                 entity.Property(d => d.Status).HasColumnName("status").HasMaxLength(50).HasDefaultValue("UPLOADED").IsRequired();
                 entity.Property(d => d.CreatedAt).HasColumnName("created_at");
 

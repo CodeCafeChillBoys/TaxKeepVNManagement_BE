@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace TaxKeepVN.Domain.Entities
 {
@@ -26,7 +26,17 @@ namespace TaxKeepVN.Domain.Entities
         /// <summary>taxpayer | admin | expert</summary>
         public string UserRole { get; set; } = "taxpayer";
 
+        /// <summary>
+        /// True khi user đã xác minh đây là mã số thuế cá nhân hợp lệ (eKYC hoặc nhập MST).
+        /// Được set bởi ProfileService khi user cập nhật TaxIdNumber.
+        /// </summary>
         public bool IsVerified { get; set; } = false;
+
+        /// <summary>
+        /// True khi user đã click link xác minh trong email đăng ký.
+        /// Khác với IsVerified (xác minh MST) — đây là xác minh email.
+        /// </summary>
+        public bool IsEmailVerified { get; set; } = false;
 
         public DateTimeOffset CreatedAt { get; set; } = DateTimeOffset.UtcNow;
 
@@ -38,6 +48,26 @@ namespace TaxKeepVN.Domain.Entities
 
         /// <summary>active | inactive | suspended</summary>
         public string Status { get; set; } = "active";
+
+        /// <summary>
+        /// Token xác minh email (GUID ngẫu nhiên). Null sau khi đã xác minh thành công.
+        /// </summary>
+        public string? EmailVerificationToken { get; set; }
+
+        /// <summary>
+        /// Thời điểm hết hạn của token xác minh email (mặc định 24 giờ).
+        /// </summary>
+        public DateTimeOffset? EmailVerificationTokenExpiry { get; set; }
+
+        /// <summary>
+        /// Token đặt lại mật khẩu (GUID ngẫu nhiên). Null sau khi đã đổi mật khẩu thành công.
+        /// </summary>
+        public string? PasswordResetToken { get; set; }
+
+        /// <summary>
+        /// Thời điểm hết hạn của token đặt lại mật khẩu (mặc định 15 phút).
+        /// </summary>
+        public DateTimeOffset? PasswordResetTokenExpiry { get; set; }
 
         // Navigation properties
         public Role? Role { get; set; }
