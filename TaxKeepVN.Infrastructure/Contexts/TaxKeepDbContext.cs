@@ -320,6 +320,9 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(d => d.IsYearValid).HasColumnName("is_year_valid");
                 entity.Property(d => d.IsIdentityValid).HasColumnName("is_identity_valid");
                 entity.Property(d => d.IsNotReimbursed).HasColumnName("is_not_reimbursed").HasDefaultValue(false);
+                entity.Property(d => d.OverallConfidence).HasColumnName("overall_confidence").HasColumnType("numeric(5,4)");
+                entity.Property(d => d.AppliedThreshold).HasColumnName("applied_threshold").HasColumnType("numeric(5,4)");
+                entity.Property(d => d.IsPassedThreshold).HasColumnName("is_passed_threshold");
                 entity.Property(d => d.Status).HasColumnName("status").HasMaxLength(50).HasDefaultValue("UPLOADED").IsRequired();
                 entity.Property(d => d.CreatedAt).HasColumnName("created_at");
 

@@ -85,6 +85,15 @@ namespace TaxKeepVN.Application.DTOs.TaxAI
         [JsonPropertyName("insuranceDeducted")]
         public decimal? InsuranceDeducted { get; set; }  // Mục 14b: Bảo hiểm bắt buộc
 
+        [JsonPropertyName("overallConfidence")]
+        public double? OverallConfidence { get; set; }
+
+        [JsonPropertyName("appliedThreshold")]
+        public double? AppliedThreshold { get; set; }
+
+        [JsonPropertyName("isPassedThreshold")]
+        public bool? IsPassedThreshold { get; set; }
+
 
        
 
@@ -146,5 +155,8 @@ namespace TaxKeepVN.Application.DTOs.TaxAI
 
         [JsonPropertyName("isIdentityValid")]
         public bool? IsIdentityValid { get; set; }
+
+        [JsonPropertyName("isPassedThreshold")]
+        public bool? IsPassedThreshold { get; set; }
     }
 }
