@@ -122,6 +122,9 @@ namespace TaxKeepVN.Application.Mappers
                 TaxWithheld = doc.TaxWithheld,
                 TotalIncome = doc.TotalIncome,
                 InsuranceDeducted = doc.InsuranceDeducted,
+                OverallConfidence = doc.OverallConfidence,
+                AppliedThreshold = doc.AppliedThreshold,
+                IsPassedThreshold = doc.IsPassedThreshold,
             };
         }
 
