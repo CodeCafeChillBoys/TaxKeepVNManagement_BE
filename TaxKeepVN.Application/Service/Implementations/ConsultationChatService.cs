@@ -157,9 +157,25 @@ namespace TaxKeepVN.Application.Service.Implementations
             };
 
             // Bắn SignalR realtime tới tất cả client trong room Booking_{bookingId}
+            // LƯU Ý BẢO MẬT/UX: Client đối phương nhận tin qua SignalR luôn nhận IsMine = false
             if (_realtimeNotifier != null)
             {
-                await _realtimeNotifier.NotifyChatMessageReceivedAsync(bookingId, messageDto);
+                var broadcastDto = new ConsultationMessageDto
+                {
+                    Id = messageEntity.Id,
+                    BookingId = messageEntity.BookingId,
+                    SenderId = messageEntity.SenderId,
+                    SenderRole = messageEntity.SenderRole,
+                    SenderName = messageEntity.SenderName,
+                    SenderAvatarUrl = messageEntity.SenderAvatarUrl,
+                    Content = messageEntity.Content,
+                    AttachmentUrl = messageEntity.AttachmentUrl,
+                    AttachmentType = messageEntity.AttachmentType,
+                    IsRead = messageEntity.IsRead,
+                    CreatedAt = messageEntity.CreatedAt,
+                    IsMine = false // Người nhận qua SignalR luôn là false
+                };
+                await _realtimeNotifier.NotifyChatMessageReceivedAsync(bookingId, broadcastDto);
             }
 
             _logger.LogInformation("Đã lưu và phát tin nhắn chat trong ca tư vấn {BookingId} bởi {SenderId} ({Role}).", bookingId, senderId, actualRole);
@@ -311,13 +327,24 @@ namespace TaxKeepVN.Application.Service.Implementations
                 return true;
             }
 
+            var readAt = DateTimeOffset.UtcNow;
+            var readMessageIds = new List<Guid>();
+
             foreach (var msg in unreadMessages)
             {
                 msg.IsRead = true;
+                readMessageIds.Add(msg.Id);
                 _unitOfWork.Repository<ConsultationMessage>().Update(msg);
             }
 
             await _unitOfWork.SaveChangesAsync();
+
+            // Bắn SignalR realtime thông báo trạng thái "Đã xem" cho người gửi
+            if (_realtimeNotifier != null)
+            {
+                await _realtimeNotifier.NotifyMessagesReadAsync(bookingId, userId, readMessageIds, readAt);
+            }
+
             return true;
         }
 

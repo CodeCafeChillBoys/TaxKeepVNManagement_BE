@@ -176,7 +176,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             result.AttachmentUrl.Should().Be(request.AttachmentUrl);
             result.IsMine.Should().BeTrue();
 
-            _mockNotifier.Verify(n => n.NotifyChatMessageReceivedAsync(_bookingId, It.IsAny<ConsultationMessageDto>()), Times.Once);
+            _mockNotifier.Verify(n => n.NotifyChatMessageReceivedAsync(_bookingId, It.Is<ConsultationMessageDto>(m => m.IsMine == false)), Times.Once);
             _mockUnitOfWork.Verify(u => u.SaveChangesAsync(), Times.AtLeastOnce);
         }
 
@@ -402,6 +402,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             result.Should().BeTrue();
             unreadMsg.IsRead.Should().BeTrue();
             _mockUnitOfWork.Verify(u => u.SaveChangesAsync(), Times.Once);
+            _mockNotifier.Verify(n => n.NotifyMessagesReadAsync(_bookingId, _taxpayerId, It.IsAny<List<Guid>>(), It.IsAny<DateTimeOffset>()), Times.Once);
         }
 
         [Fact]

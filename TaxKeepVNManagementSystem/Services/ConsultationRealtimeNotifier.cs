@@ -138,5 +138,28 @@ namespace TaxKeepVNManagementSystem.Services
                 _logger.LogWarning(ex, "Lỗi khi gửi SignalR trạng thái typing {BookingId}", bookingId);
             }
         }
+
+        public async Task NotifyMessagesReadAsync(Guid bookingId, Guid readerId, System.Collections.Generic.List<Guid> messageIds, DateTimeOffset readAt)
+        {
+            try
+            {
+                var payload = new
+                {
+                    BookingId = bookingId,
+                    ReaderId = readerId,
+                    MessageIds = messageIds,
+                    ReadAt = readAt
+                };
+
+                // Phát sự kiện MessagesRead
+                await _hubContext.Clients.Group($"Booking_{bookingId}").SendAsync("MessagesRead", payload);
+                // Đồng thời phát ReceiveMessagesRead để tương thích mọi naming convention của Mobile
+                await _hubContext.Clients.Group($"Booking_{bookingId}").SendAsync("ReceiveMessagesRead", payload);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Lỗi khi gửi SignalR thông báo đã xem {BookingId}", bookingId);
+            }
+        }
     }
 }
