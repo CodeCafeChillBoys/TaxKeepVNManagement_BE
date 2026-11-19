@@ -117,6 +117,7 @@ builder.Services.AddScoped<IDependentDocumentService, DependentDocumentService>(
 builder.Services.AddScoped<IDependentReminderService, DependentReminderService>();
 builder.Services.AddScoped<INotificationService, NotificationService>();
 builder.Services.AddScoped<IIncomeSourceService, IncomeSourceService>();
+builder.Services.AddScoped<IEmailService, EmailService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IJwtTokenService, JwtTokenService>();
 builder.Services.AddScoped<IPasswordHasher, BcryptPasswordHasher>();
@@ -160,6 +161,7 @@ builder.Services.AddScoped<ISubscriptionQuotaService, SubscriptionQuotaService>(
 builder.Services.AddScoped<IAdminSubscriptionService, AdminSubscriptionService>();
 builder.Services.AddScoped<IConsultationRealtimeNotifier, TaxKeepVNManagementSystem.Services.ConsultationRealtimeNotifier>();
 builder.Services.AddScoped<IConsultationService, ConsultationService>();
+builder.Services.AddScoped<IConsultationChatService, ConsultationChatService>();
 builder.Services.AddScoped<IExpertSlotService, ExpertSlotService>();
 builder.Services.AddScoped<IDisbursementDisputeService, DisbursementDisputeService>();
 builder.Services.AddScoped<IPermissionService, PermissionService>();

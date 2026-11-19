@@ -68,6 +68,24 @@ namespace TaxKeepVN.Application.DTOs.PlatformPolicy
         /// <summary>Thời hạn chuyên gia phải phản hồi khiếu nại (Giờ)</summary>
         public int DisputeExpertReplyHours { get; set; }
 
+        /// <summary>Số ký tự tối đa cho phép trong một tin nhắn chat tư vấn (ký tự)</summary>
+        public int ChatMessageMaxLength { get; set; }
+
+        /// <summary>Danh sách định dạng tệp đính kèm được phép trong chat (cách nhau bởi dấu phẩy)</summary>
+        public string ChatAllowedAttachmentTypes { get; set; } = string.Empty;
+
+        /// <summary>Độ dài tối đa của URL tệp đính kèm (ký tự)</summary>
+        public int ChatMaxAttachmentUrlLength { get; set; }
+
+        /// <summary>Số lượng tin nhắn mặc định hiển thị trên một trang lịch sử chat</summary>
+        public int ChatHistoryDefaultPageSize { get; set; }
+
+        /// <summary>Số lượng tin nhắn tối đa cho phép lấy trên một trang lịch sử chat</summary>
+        public int ChatHistoryMaxPageSize { get; set; }
+
+        /// <summary>URL gốc của hệ thống phòng họp trực tuyến</summary>
+        public string ChatRoomUrlBase { get; set; } = string.Empty;
+
         public bool IsActive { get; set; }
 
         public DateTimeOffset UpdatedAt { get; set; }
@@ -154,5 +172,27 @@ namespace TaxKeepVN.Application.DTOs.PlatformPolicy
         /// <summary>Thời hạn chuyên gia phải phản hồi khiếu nại (Giờ)</summary>
         [Range(1, 720, ErrorMessage = "Thời hạn phản hồi khiếu nại phải từ 1 đến 720 giờ")]
         public int? DisputeExpertReplyHours { get; set; }
+
+        /// <summary>Số ký tự tối đa cho phép trong một tin nhắn chat tư vấn (ký tự)</summary>
+        [Range(10, 20000, ErrorMessage = "Độ dài tin nhắn tối đa phải từ 10 đến 20,000 ký tự")]
+        public int? ChatMessageMaxLength { get; set; }
+
+        /// <summary>Danh sách định dạng tệp đính kèm được phép trong chat (cách nhau bởi dấu phẩy, ví dụ: IMAGE,PDF,DOCUMENT)</summary>
+        public string? ChatAllowedAttachmentTypes { get; set; }
+
+        /// <summary>Độ dài tối đa của URL tệp đính kèm (ký tự)</summary>
+        [Range(10, 4000, ErrorMessage = "Độ dài URL đính kèm phải từ 10 đến 4000 ký tự")]
+        public int? ChatMaxAttachmentUrlLength { get; set; }
+
+        /// <summary>Số lượng tin nhắn mặc định hiển thị trên một trang lịch sử chat</summary>
+        [Range(1, 100, ErrorMessage = "Kích thước trang mặc định phải từ 1 đến 100")]
+        public int? ChatHistoryDefaultPageSize { get; set; }
+
+        /// <summary>Số lượng tin nhắn tối đa cho phép lấy trên một trang lịch sử chat</summary>
+        [Range(1, 500, ErrorMessage = "Kích thước trang tối đa phải từ 1 đến 500")]
+        public int? ChatHistoryMaxPageSize { get; set; }
+
+        /// <summary>URL gốc của hệ thống phòng họp trực tuyến</summary>
+        public string? ChatRoomUrlBase { get; set; }
     }
 }

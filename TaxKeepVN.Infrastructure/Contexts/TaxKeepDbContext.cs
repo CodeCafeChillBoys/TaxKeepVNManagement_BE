@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using TaxKeepDomain.Entities;
 using TaxKeepVN.Domain.Entities;
@@ -53,6 +53,7 @@ namespace TaxKeepVN.Infrastructure.Contexts
         public DbSet<Booking> Bookings { get; set; }
         public DbSet<EscrowTransaction> EscrowTransactions { get; set; }
         public DbSet<ConsultationSession> ConsultationSessions { get; set; }
+        public DbSet<ConsultationMessage> ConsultationMessages { get; set; }
         public DbSet<UserWallet> UserWallets { get; set; }
         public DbSet<WalletTransaction> WalletTransactions { get; set; }
         public DbSet<WithdrawalRequest> WithdrawalRequests { get; set; }
@@ -104,6 +105,11 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(u => u.RoleId).HasColumnName("role_id").HasDefaultValue(1);
                 entity.Property(u => u.UserRole).HasColumnName("user_role").HasDefaultValue("taxpayer");
                 entity.Property(u => u.IsVerified).HasColumnName("is_verified").HasDefaultValue(false);
+                entity.Property(u => u.IsEmailVerified).HasColumnName("is_email_verified").HasDefaultValue(false);
+                entity.Property(u => u.EmailVerificationToken).HasColumnName("email_verification_token").IsRequired(false);
+                entity.Property(u => u.EmailVerificationTokenExpiry).HasColumnName("email_verification_token_expiry").IsRequired(false);
+                entity.Property(u => u.PasswordResetToken).HasColumnName("password_reset_token").IsRequired(false);
+                entity.Property(u => u.PasswordResetTokenExpiry).HasColumnName("password_reset_token_expiry").IsRequired(false);
                 entity.Property(u => u.CreatedAt).HasColumnName("created_at");
                 entity.Property(u => u.UpdatedAt).HasColumnName("updated_at");
                 entity.Property(u => u.DateOfBirth).HasColumnName("date_of_birth");
@@ -120,6 +126,8 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 // Unique indexes
                 entity.HasIndex(u => u.CitizenId).IsUnique().HasDatabaseName("idx_users_citizen_id");
                 entity.HasIndex(u => u.Email).IsUnique().HasDatabaseName("idx_users_email");
+                entity.HasIndex(u => u.EmailVerificationToken).HasDatabaseName("idx_users_email_verification_token");
+                entity.HasIndex(u => u.PasswordResetToken).HasDatabaseName("idx_users_password_reset_token");
             });
 
             // ── Role ────────────────────────────────────────────────────────────
@@ -402,7 +410,13 @@ namespace TaxKeepVN.Infrastructure.Contexts
                     new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000016"), ConfigKey = "DISPUTE_WINDOW_HOURS", ConfigValue = "24", Description = "Thời hạn cho phép người nộp thuế gửi khiếu nại sau khi kết thúc ca (Giờ)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
                     new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000017"), ConfigKey = "DISPUTE_EXPERT_REPLY_HOURS", ConfigValue = "24", Description = "Thời hạn Chuyên gia phải gửi phản biện khiếu nại (Giờ)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
                     new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000018"), ConfigKey = "EXPERT_LATE_CANCEL_HOURS", ConfigValue = "12", Description = "Mốc thời gian hủy sát giờ của Chuyên gia bị ghi nhận vi phạm/phạt (Giờ)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
-                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000019"), ConfigKey = "EXPERT_LATE_CANCEL_PENALTY_VND", ConfigValue = "100000", Description = "Mức tiền phạt Chuyên gia khi hủy lịch sát giờ hẹn (VNĐ)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime }
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000019"), ConfigKey = "EXPERT_LATE_CANCEL_PENALTY_VND", ConfigValue = "100000", Description = "Mức tiền phạt Chuyên gia khi hủy lịch sát giờ hẹn (VNĐ)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000020"), ConfigKey = "CHAT_MESSAGE_MAX_LENGTH", ConfigValue = "4000", Description = "Số ký tự tối đa cho phép trong một tin nhắn chat tư vấn", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000021"), ConfigKey = "CHAT_ALLOWED_ATTACHMENT_TYPES", ConfigValue = "IMAGE,PDF,DOCUMENT", Description = "Danh sách định dạng tệp đính kèm được phép trong chat tư vấn", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000022"), ConfigKey = "CHAT_MAX_ATTACHMENT_URL_LENGTH", ConfigValue = "1000", Description = "Độ dài tối đa của URL tệp đính kèm trong chat tư vấn", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000023"), ConfigKey = "CHAT_HISTORY_DEFAULT_PAGE_SIZE", ConfigValue = "50", Description = "Số lượng tin nhắn mặc định hiển thị trên một trang lịch sử chat", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000024"), ConfigKey = "CHAT_HISTORY_MAX_PAGE_SIZE", ConfigValue = "100", Description = "Số lượng tin nhắn tối đa cho phép lấy trên một trang lịch sử chat", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000025"), ConfigKey = "CONSULTATION_ROOM_URL_BASE", ConfigValue = "https://meet.jit.si", Description = "URL gốc của hệ thống phòng họp trực tuyến", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime }
                 );
             });
 
@@ -478,6 +492,12 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(p => p.ExpertLateCancelPenaltyVnd).HasColumnName("expert_late_cancel_penalty_vnd").HasPrecision(18, 2).IsRequired();
                 entity.Property(p => p.DisputeWindowHours).HasColumnName("dispute_window_hours").IsRequired();
                 entity.Property(p => p.DisputeExpertReplyHours).HasColumnName("dispute_expert_reply_hours").IsRequired();
+                entity.Property(p => p.ChatMessageMaxLength).HasColumnName("chat_message_max_length").HasDefaultValue(4000);
+                entity.Property(p => p.ChatAllowedAttachmentTypes).HasColumnName("chat_allowed_attachment_types").HasMaxLength(100).HasDefaultValue("IMAGE,PDF,DOCUMENT");
+                entity.Property(p => p.ChatMaxAttachmentUrlLength).HasColumnName("chat_max_attachment_url_length").HasDefaultValue(1000);
+                entity.Property(p => p.ChatHistoryDefaultPageSize).HasColumnName("chat_history_default_page_size").HasDefaultValue(50);
+                entity.Property(p => p.ChatHistoryMaxPageSize).HasColumnName("chat_history_max_page_size").HasDefaultValue(100);
+                entity.Property(p => p.ChatRoomUrlBase).HasColumnName("chat_room_url_base").HasMaxLength(500).HasDefaultValue("https://meet.jit.si");
                 entity.Property(p => p.IsActive).HasColumnName("is_active").HasDefaultValue(true);
                 entity.Property(p => p.CreatedAt).HasColumnName("created_at");
                 entity.Property(p => p.UpdatedAt).HasColumnName("updated_at");
@@ -1122,6 +1142,33 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(s => s.UpdatedAt).HasColumnName("updated_at");
 
                 entity.HasIndex(s => s.BookingId).IsUnique().HasDatabaseName("uq_consultation_sessions_booking_id");
+            });
+
+            // ── ConsultationMessage (Đặc tả 5 & Flow 4 - Chat tư vấn 1-1) ───────────
+            modelBuilder.Entity<ConsultationMessage>(entity =>
+            {
+                entity.ToTable("consultation_messages");
+                entity.HasKey(m => m.Id);
+
+                entity.Property(m => m.Id).HasColumnName("id");
+                entity.Property(m => m.BookingId).HasColumnName("booking_id").IsRequired();
+                entity.Property(m => m.SenderId).HasColumnName("sender_id").IsRequired();
+                entity.Property(m => m.SenderRole).HasColumnName("sender_role").HasMaxLength(50).IsRequired();
+                entity.Property(m => m.SenderName).HasColumnName("sender_name").HasMaxLength(255).IsRequired();
+                entity.Property(m => m.SenderAvatarUrl).HasColumnName("sender_avatar_url").HasMaxLength(1000);
+                entity.Property(m => m.Content).HasColumnName("content").HasMaxLength(4000).IsRequired();
+                entity.Property(m => m.AttachmentUrl).HasColumnName("attachment_url").HasMaxLength(1000);
+                entity.Property(m => m.AttachmentType).HasColumnName("attachment_type").HasMaxLength(50);
+                entity.Property(m => m.IsRead).HasColumnName("is_read").HasDefaultValue(false).IsRequired();
+                entity.Property(m => m.CreatedAt).HasColumnName("created_at").IsRequired();
+
+                entity.HasIndex(m => m.BookingId).HasDatabaseName("ix_consultation_messages_booking_id");
+                entity.HasIndex(m => m.CreatedAt).HasDatabaseName("ix_consultation_messages_created_at");
+
+                entity.HasOne(m => m.Booking)
+                      .WithMany()
+                      .HasForeignKey(m => m.BookingId)
+                      .OnDelete(DeleteBehavior.Cascade);
             });
 
             // ── UserWallet (Đặc tả 7) ───────────────────────────────────────────
