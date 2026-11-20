@@ -24,6 +24,7 @@ namespace TaxKeepVN.Infrastructure.Contexts
         public DbSet<Document> Documents { get; set; }
         public DbSet<DocumentItem> DocumentItems { get; set; }
         public DbSet<Income> Incomes { get; set; }
+        public DbSet<BhytCoverageCatalog> BhytCoverageCatalogs { get; set; }
 
         // Tax Settlement & Domain-Specific Configurations
         public DbSet<SystemConfig> SystemConfigs { get; set; }
@@ -324,6 +325,15 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(d => d.AppliedThreshold).HasColumnName("applied_threshold").HasColumnType("numeric(5,4)");
                 entity.Property(d => d.IsPassedThreshold).HasColumnName("is_passed_threshold");
                 entity.Property(d => d.Status).HasColumnName("status").HasMaxLength(50).HasDefaultValue("UPLOADED").IsRequired();
+                entity.Property(d => d.ParentDocumentId).HasColumnName("parent_document_id");
+                entity.Property(d => d.PatientName).HasColumnName("patient_name").HasMaxLength(255);
+                entity.Property(d => d.PatientDependentId).HasColumnName("patient_dependent_id");
+                entity.Property(d => d.FacilityName).HasColumnName("facility_name").HasMaxLength(255);
+                entity.Property(d => d.HasInsuranceCard).HasColumnName("has_insurance_card");
+                entity.Property(d => d.InsuranceBenefitRate).HasColumnName("insurance_benefit_rate").HasColumnType("numeric(5,4)");
+                entity.Property(d => d.ServiceDate).HasColumnName("service_date");
+                entity.Property(d => d.EligibleAmount).HasColumnName("eligible_amount").HasColumnType("numeric(18,2)");
+                entity.Property(d => d.MedicalClaimStatus).HasColumnName("medical_claim_status").HasMaxLength(50);
                 entity.Property(d => d.CreatedAt).HasColumnName("created_at");
 
                 entity.HasOne(d => d.Period)
@@ -337,8 +347,20 @@ namespace TaxKeepVN.Infrastructure.Contexts
                     .IsRequired(false)
                     .OnDelete(DeleteBehavior.Restrict);
 
+                entity.HasOne(d => d.ParentDocument)
+                    .WithMany(p => p.ChildDocuments)
+                    .HasForeignKey(d => d.ParentDocumentId)
+                    .OnDelete(DeleteBehavior.Restrict);
+
+                entity.HasOne(d => d.PatientDependent)
+                    .WithMany()
+                    .HasForeignKey(d => d.PatientDependentId)
+                    .OnDelete(DeleteBehavior.SetNull);
+
                 entity.HasIndex(d => d.PeriodId).HasDatabaseName("idx_documents_period_id");
                 entity.HasIndex(d => d.DocTypeCode).HasDatabaseName("idx_documents_doc_type_code");
+                entity.HasIndex(d => d.ParentDocumentId).HasDatabaseName("idx_documents_parent_document_id");
+                entity.HasIndex(d => d.PatientDependentId).HasDatabaseName("idx_documents_patient_dependent_id");
             });
 
             // ── Income ───────────────────────────────────────────────────────────
@@ -364,12 +386,58 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(i => i.UnitPrice).HasColumnName("unit_price").HasColumnType("numeric(18,2)").HasDefaultValue(0m);
                 entity.Property(i => i.TotalPrice).HasColumnName("total_price").HasColumnType("numeric(18,2)").HasDefaultValue(0m);
 
+                entity.Property(i => i.SectionIndex).HasColumnName("section_index");
+                entity.Property(i => i.HasInsuranceCard).HasColumnName("has_insurance_card");
+                entity.Property(i => i.BenefitRate).HasColumnName("benefit_rate").HasColumnType("numeric(5,4)");
+                entity.Property(i => i.GroupCode).HasColumnName("group_code").HasMaxLength(20);
+                entity.Property(i => i.GroupName).HasColumnName("group_name").HasMaxLength(255);
+                entity.Property(i => i.IsPackageSubLine).HasColumnName("is_package_sub_line").HasDefaultValue(false);
+                entity.Property(i => i.UnitPriceInsurance).HasColumnName("unit_price_insurance").HasColumnType("numeric(18,2)");
+                entity.Property(i => i.ServiceRate).HasColumnName("service_rate").HasColumnType("numeric(5,2)");
+                entity.Property(i => i.HospitalAmount).HasColumnName("hospital_amount").HasColumnType("numeric(18,2)");
+                entity.Property(i => i.InsuranceRate).HasColumnName("insurance_rate").HasColumnType("numeric(5,2)");
+                entity.Property(i => i.InsuranceAmount).HasColumnName("insurance_amount").HasColumnType("numeric(18,2)");
+                entity.Property(i => i.InsuranceFundPaid).HasColumnName("insurance_fund_paid").HasColumnType("numeric(18,2)");
+                entity.Property(i => i.PatientCoPay).HasColumnName("patient_co_pay").HasColumnType("numeric(18,2)");
+                entity.Property(i => i.OtherSourcePaid).HasColumnName("other_source_paid").HasColumnType("numeric(18,2)");
+                entity.Property(i => i.PatientSelfPay).HasColumnName("patient_self_pay").HasColumnType("numeric(18,2)");
+                entity.Property(i => i.DeductionStatus).HasColumnName("deduction_status").HasMaxLength(50);
+                entity.Property(i => i.DeductionReason).HasColumnName("deduction_reason").HasMaxLength(100);
+                entity.Property(i => i.EligibleAmount).HasColumnName("eligible_amount").HasColumnType("numeric(18,2)");
+                entity.Property(i => i.SelfPayAmount).HasColumnName("self_pay_amount").HasColumnType("numeric(18,2)");
+                entity.Property(i => i.SelfPayReason).HasColumnName("self_pay_reason").HasMaxLength(100);
+                entity.Property(i => i.SelfPayOptIn).HasColumnName("self_pay_opt_in").HasDefaultValue(false);
+                entity.Property(i => i.IsUserOverridden).HasColumnName("is_user_overridden").HasDefaultValue(false);
+
                 entity.HasOne(i => i.Document)
                     .WithMany(d => d.Items)
                     .HasForeignKey(i => i.DocumentId)
                     .OnDelete(DeleteBehavior.Cascade);
 
                 entity.HasIndex(i => i.DocumentId).HasDatabaseName("idx_document_items_document_id");
+            });
+
+            // ── BhytCoverageCatalog ──────────────────────────────────────────────
+            modelBuilder.Entity<BhytCoverageCatalog>(entity =>
+            {
+                entity.ToTable("bhyt_coverage_catalogs");
+                entity.HasKey(c => c.Id);
+                entity.Property(c => c.Id).HasColumnName("id");
+                entity.Property(c => c.CatalogType).HasColumnName("catalog_type").HasMaxLength(50).IsRequired();
+                entity.Property(c => c.Code).HasColumnName("code").HasMaxLength(100);
+                entity.Property(c => c.Name).HasColumnName("name").HasMaxLength(500).IsRequired();
+                entity.Property(c => c.NormalizedName).HasColumnName("normalized_name").HasMaxLength(500).IsRequired();
+                entity.Property(c => c.ActiveIngredient).HasColumnName("active_ingredient").HasMaxLength(500);
+                entity.Property(c => c.LegalDocumentRef).HasColumnName("legal_document_ref").HasMaxLength(255);
+                entity.Property(c => c.EffectiveFrom).HasColumnName("effective_from");
+                entity.Property(c => c.EffectiveTo).HasColumnName("effective_to");
+                entity.Property(c => c.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+                entity.Property(c => c.CreatedAt).HasColumnName("created_at");
+                entity.Property(c => c.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasIndex(c => c.Code).HasDatabaseName("idx_bhyt_catalog_code");
+                entity.HasIndex(c => c.NormalizedName).HasDatabaseName("idx_bhyt_catalog_normalized_name");
+                entity.HasIndex(c => new { c.CatalogType, c.Code }).HasDatabaseName("idx_bhyt_catalog_type_code");
             });
 
             // ── SystemConfig ─────────────────────────────────────────────────────
