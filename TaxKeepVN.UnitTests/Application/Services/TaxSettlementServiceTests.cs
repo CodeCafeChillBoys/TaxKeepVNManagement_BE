@@ -248,6 +248,187 @@ namespace TaxKeepVN.UnitTests.Application.Services
         }
 
         [Fact]
+        public async Task UTCID05b_PreviewAsync_2026_MedicalCappedAtMaxYearly_WhenExceedsLimit()
+        {
+            // TC6: Tổng eligible y tế 25 triệu -> Quyết toán cap tối đa ở mức trần luật (23 triệu / MedicalMaxYearly)
+            var taxpayerId = Guid.NewGuid();
+            var mockBracketRepo = new Mock<IGenericRepository<TaxBracket>>();
+            _mockUnitOfWork.Setup(u => u.Repository<TaxBracket>()).Returns(mockBracketRepo.Object);
+
+            _mockPolicyRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<TaxDeductionPolicy, bool>>>()))
+                .ReturnsAsync(new List<TaxDeductionPolicy>
+                {
+                    new TaxDeductionPolicy
+                    {
+                        AppliesFromYear = 2026,
+                        PersonalMonthly = 15000000m,
+                        DependentMonthly = 6000000m,
+                        MedicalMaxYearly = 23000000m, // Trần 23 triệu/năm
+                        IsActive = true
+                    }
+                });
+
+            mockBracketRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<TaxBracket, bool>>>()))
+                .ReturnsAsync(new List<TaxBracket>
+                {
+                    new TaxBracket { BracketNo = 1, FromMonthly = 0, ToMonthly = 10000000, Rate = 0.05m, QuickDeduct = 0, AppliesFromYear = 2026, IsActive = true }
+                });
+
+            _mockIncomeRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<IncomeSource, bool>>>()))
+                .ReturnsAsync(new List<IncomeSource>());
+            _mockDependentRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Dependent, bool>>>()))
+                .ReturnsAsync(new List<Dependent>());
+
+            var period = new TaxPeriod { UserId = taxpayerId, TaxYear = 2026 };
+            var docs = new List<Document>
+            {
+                new Document
+                {
+                    DocTypeCode = "MEDICAL_RECEIPT",
+                    Status = "CONFIRMED",
+                    MedicalClaimStatus = "ELIGIBLE",
+                    EligibleAmount = 25000000m,
+                    TotalAmount = 25000000m,
+                    Period = period
+                }
+            };
+            _mockDocumentRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Document, bool>>>()))
+                .ReturnsAsync(docs);
+
+            var request = new TaxSettlementPreviewRequest
+            {
+                TaxYear = 2026,
+                CutoffDate = "2026-12-31"
+            };
+
+            var result = await _service.PreviewAsync(taxpayerId, request);
+
+            result.Should().NotBeNull();
+            result.MedicalDeduction.Should().Be(23000000m); // Cap at 23 million
+        }
+
+        [Fact]
+        public async Task UTCID05c_PreviewAsync_2026_MedicalReceiptMissingStatement_NotIncludedAndAddsWarning()
+        {
+            // TC2: Hóa đơn y tế trạng thái MISSING_STATEMENT không được cộng vào quyết toán và sinh cảnh báo
+            var taxpayerId = Guid.NewGuid();
+            var mockBracketRepo = new Mock<IGenericRepository<TaxBracket>>();
+            _mockUnitOfWork.Setup(u => u.Repository<TaxBracket>()).Returns(mockBracketRepo.Object);
+
+            _mockPolicyRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<TaxDeductionPolicy, bool>>>()))
+                .ReturnsAsync(new List<TaxDeductionPolicy>
+                {
+                    new TaxDeductionPolicy
+                    {
+                        AppliesFromYear = 2026,
+                        PersonalMonthly = 15000000m,
+                        DependentMonthly = 6000000m,
+                        MedicalMaxYearly = 23000000m,
+                        IsActive = true
+                    }
+                });
+
+            mockBracketRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<TaxBracket, bool>>>()))
+                .ReturnsAsync(new List<TaxBracket>
+                {
+                    new TaxBracket { BracketNo = 1, FromMonthly = 0, ToMonthly = 10000000, Rate = 0.05m, QuickDeduct = 0, AppliesFromYear = 2026, IsActive = true }
+                });
+
+            _mockIncomeRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<IncomeSource, bool>>>()))
+                .ReturnsAsync(new List<IncomeSource>());
+            _mockDependentRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Dependent, bool>>>()))
+                .ReturnsAsync(new List<Dependent>());
+
+            var period = new TaxPeriod { UserId = taxpayerId, TaxYear = 2026 };
+            var docs = new List<Document>
+            {
+                new Document
+                {
+                    DocTypeCode = "MEDICAL_RECEIPT",
+                    Status = "CONFIRMED",
+                    MedicalClaimStatus = "MISSING_STATEMENT",
+                    TotalAmount = 5000000m,
+                    EligibleAmount = 0m,
+                    Period = period
+                }
+            };
+            _mockDocumentRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Document, bool>>>()))
+                .ReturnsAsync(docs);
+
+            var request = new TaxSettlementPreviewRequest
+            {
+                TaxYear = 2026,
+                CutoffDate = "2026-12-31"
+            };
+
+            var result = await _service.PreviewAsync(taxpayerId, request);
+
+            result.Should().NotBeNull();
+            result.MedicalDeduction.Should().Be(0m); // Không được tính
+            result.Warnings.Should().NotBeEmpty();
+            result.Warnings.First().Should().Contain("thiếu Bảng kê chi phí KCB");
+        }
+
+        [Fact]
+        public async Task UTCID05d_PreviewAsync_2025_MedicalReceiptNotIncluded()
+        {
+            // TC9: Kỳ tính thuế 2025 -> Chi phí y tế không được giảm trừ (Luật chỉ áp dụng từ 2026)
+            var taxpayerId = Guid.NewGuid();
+            var mockBracketRepo = new Mock<IGenericRepository<TaxBracket>>();
+            _mockUnitOfWork.Setup(u => u.Repository<TaxBracket>()).Returns(mockBracketRepo.Object);
+
+            _mockPolicyRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<TaxDeductionPolicy, bool>>>()))
+                .ReturnsAsync(new List<TaxDeductionPolicy>
+                {
+                    new TaxDeductionPolicy
+                    {
+                        AppliesFromYear = 2025,
+                        PersonalMonthly = 11000000m,
+                        DependentMonthly = 4400000m,
+                        IsActive = true
+                    }
+                });
+
+            mockBracketRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<TaxBracket, bool>>>()))
+                .ReturnsAsync(new List<TaxBracket>
+                {
+                    new TaxBracket { BracketNo = 1, FromMonthly = 0, ToMonthly = 5000000, Rate = 0.05m, QuickDeduct = 0, AppliesFromYear = 2025, IsActive = true }
+                });
+
+            _mockIncomeRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<IncomeSource, bool>>>()))
+                .ReturnsAsync(new List<IncomeSource>());
+            _mockDependentRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Dependent, bool>>>()))
+                .ReturnsAsync(new List<Dependent>());
+
+            var period = new TaxPeriod { UserId = taxpayerId, TaxYear = 2025 };
+            var docs = new List<Document>
+            {
+                new Document
+                {
+                    DocTypeCode = "MEDICAL_RECEIPT",
+                    Status = "CONFIRMED",
+                    MedicalClaimStatus = "ELIGIBLE",
+                    TotalAmount = 5000000m,
+                    EligibleAmount = 5000000m,
+                    Period = period
+                }
+            };
+            _mockDocumentRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Document, bool>>>()))
+                .ReturnsAsync(docs);
+
+            var request = new TaxSettlementPreviewRequest
+            {
+                TaxYear = 2025,
+                CutoffDate = "2025-12-31"
+            };
+
+            var result = await _service.PreviewAsync(taxpayerId, request);
+
+            result.Should().NotBeNull();
+            result.MedicalDeduction.Should().Be(0m);
+        }
+
+        [Fact]
         public async Task UTCID06_ExportAsync_Valid_CreatesDossierAndReturnsLockedPreview()
         {
             var taxpayerId = Guid.NewGuid();
