@@ -103,11 +103,42 @@ namespace TaxKeepVN.Domain.Entities
         /// <summary>UPLOADED, EXTRACTED, CONFIRMED</summary>
         public string Status { get; set; } = "UPLOADED";
 
+        // ── Thông tin hồ sơ y tế (Medical Claim) theo QĐ 697/QĐ-BYT & NĐ 253/2026/NĐ-CP ──
+        /// <summary>ID của chứng từ cha (Bảng kê MEDICAL_COST_STATEMENT trỏ về hóa đơn MEDICAL_RECEIPT)</summary>
+        public Guid? ParentDocumentId { get; set; }
+
+        /// <summary>Họ tên người bệnh đọc từ Bảng kê / Hóa đơn KCB</summary>
+        public string? PatientName { get; set; }
+
+        /// <summary>ID người phụ thuộc nếu người bệnh là người phụ thuộc (null = chính NNT)</summary>
+        public Guid? PatientDependentId { get; set; }
+
+        /// <summary>Tên cơ sở khám chữa bệnh</summary>
+        public string? FacilityName { get; set; }
+
+        /// <summary>Người bệnh có sử dụng thẻ BHYT hay không</summary>
+        public bool? HasInsuranceCard { get; set; }
+
+        /// <summary>Mức hưởng BHYT (0.8, 0.95, 1.0...)</summary>
+        public decimal? InsuranceBenefitRate { get; set; }
+
+        /// <summary>Ngày khám / kết thúc điều trị</summary>
+        public DateOnly? ServiceDate { get; set; }
+
+        /// <summary>Số tiền chi phí y tế đủ điều kiện giảm trừ thuế (do Rule Engine tính)</summary>
+        public decimal? EligibleAmount { get; set; }
+
+        /// <summary>Trạng thái hồ sơ y tế: ELIGIBLE, MISSING_STATEMENT, NEED_REVIEW, REJECTED</summary>
+        public string? MedicalClaimStatus { get; set; }
+
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
         // Navigation properties
         public TaxPeriod? Period { get; set; }
         public TaxDocumentType? DocType { get; set; }
+        public Document? ParentDocument { get; set; }
+        public Dependent? PatientDependent { get; set; }
+        public ICollection<Document> ChildDocuments { get; set; } = new List<Document>();
         public ICollection<DocumentItem> Items { get; set; } = new List<DocumentItem>();
     }
 }
