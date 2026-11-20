@@ -263,6 +263,46 @@ namespace TaxKeepVN.Application.Service.Implementations
                 }
             }
 
+            // =========================================================================
+            // NẾU LÀ HÓA ĐƠN Y TẾ (MEDICAL_RECEIPT) -> XÁC ĐỊNH BẢNG KÊ & CHẠY RULE ENGINE
+            // =========================================================================
+            if (string.Equals(document.DocTypeCode, MedicalDocTypes.MedicalReceipt, StringComparison.OrdinalIgnoreCase))
+            {
+                var childStatements = await docRepo.FindAsync(d => d.ParentDocumentId == document.Id && d.DocTypeCode == MedicalDocTypes.MedicalCostStatement);
+                var statement = childStatements.FirstOrDefault();
+
+                if (_medicalRuleEngine != null)
+                {
+                    await _medicalRuleEngine.EvaluateClaimAsync(document, statement, userId, period.TaxYear);
+                    await _unitOfWork.SaveChangesAsync();
+                }
+
+                if (string.Equals(document.MedicalClaimStatus, MedicalClaimStatus.MISSING_STATEMENT, StringComparison.OrdinalIgnoreCase))
+                {
+                    try
+                    {
+                        var notifRepo = _unitOfWork.Repository<SystemNotification>();
+                        var notif = new SystemNotification
+                        {
+                            NotificationId = Guid.NewGuid(),
+                            UserId = userId,
+                            NotificationType = "MEDICAL_STATEMENT_REQUIRED",
+                            Title = "Yêu cầu bổ sung Bảng kê chi phí KCB",
+                            Message = $"Hóa đơn y tế tại '{document.SellerName}' ngày {document.InvoiceDate?.ToString("dd/MM/yyyy") ?? "không xác định"} (số tiền {document.TotalAmount:N0} VNĐ) cần bổ sung Bảng kê chi phí KCB (Mẫu 01/KBCB) để đủ điều kiện giảm trừ thuế.",
+                            TargetActionUrl = $"/tax-periods/{periodId}/documents/{documentId}/medical-statement",
+                            IsRead = false,
+                            CreatedAt = DateTime.UtcNow
+                        };
+                        await notifRepo.AddAsync(notif);
+                        await _unitOfWork.SaveChangesAsync();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogError(ex, "Failed to create medical statement notification for document {DocId}", documentId);
+                    }
+                }
+            }
+
             _logger.LogInformation("Document {DocId} has been reviewed and CONFIRMED by user {UserId}", documentId, userId);
 
             TaxDocumentType? docTypeEntity = null;
