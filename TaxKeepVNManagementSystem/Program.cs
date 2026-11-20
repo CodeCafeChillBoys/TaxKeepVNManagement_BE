@@ -131,6 +131,9 @@ builder.Services.AddScoped<IDependentRuleService, DependentRuleService>();
 // Services từ feature/CalculateTaxFinalization
 builder.Services.AddScoped<ISystemConfigService, SystemConfigService>();
 builder.Services.AddScoped<ITaxSettlementService, TaxSettlementService>();
+builder.Services.AddScoped<IMedicalRuleEngineService, MedicalRuleEngineService>();
+builder.Services.AddScoped<IMedicalClaimService, MedicalClaimService>();
+builder.Services.AddScoped<IBhytCatalogService, BhytCatalogService>();
 // Services kết xuất tờ khai PDF & đóng gói ZIP hồ sơ quyết toán (WBS 3.6.T7, 3.6.T8, 3.6.T9)
 builder.Services.AddScoped<IDownloadTokenService, DownloadTokenService>();
 builder.Services.AddScoped<ITaxSettlementPdfService, TaxSettlementPdfService>();
