@@ -307,19 +307,36 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
                             line.DeductionStatus = line.IsEligibleDeduction ? MedicalDeductionStatus.ELIGIBLE : MedicalDeductionStatus.EXCLUDED;
                         }
 
-                        if (string.Equals(line.DeductionStatus, MedicalDeductionStatus.EXCLUDED, StringComparison.OrdinalIgnoreCase))
+                        if (!line.IsEligibleDeduction ||
+                            (!string.IsNullOrWhiteSpace(line.DeductionReason) && line.DeductionReason.StartsWith("EXCLUDED", StringComparison.OrdinalIgnoreCase)))
+                        {
+                            line.DeductionStatus = MedicalDeductionStatus.EXCLUDED;
+                            line.IsEligibleDeduction = false;
+                            line.EligibleAmount = 0m;
+                        }
+                        else if (string.Equals(line.DeductionStatus, MedicalDeductionStatus.EXCLUDED, StringComparison.OrdinalIgnoreCase))
                         {
                             line.IsEligibleDeduction = false;
                             line.EligibleAmount = 0m;
                         }
                         else if (line.EligibleAmount == 0 && line.IsEligibleDeduction)
                         {
-                            line.EligibleAmount = line.PatientCoPay + line.PatientSelfPay;
+                            // Theo Mục 1.2 & Quyết định 10 của Đặc tả: Chỉ tính Cột 11 (PatientCoPay)
+                            // Cột 13 (PatientSelfPay - phần tự trả/chênh lệch giá) mặc định KHÔNG TÍNH
+                            line.EligibleAmount = line.PatientCoPay;
                         }
                         totalEligible += line.EligibleAmount;
                         await lineRepo.AddAsync(line);
                     }
-                    statement.TotalEligibleAmount = totalEligible;
+                    // Nếu bảng kê bị FAILED (do bệnh nhân không phải NNT/NPT hoặc sai lệch số tiền) thì TotalEligibleAmount = 0
+                    if (string.Equals(statement.Status, MedicalStatementStatus.FAILED, StringComparison.OrdinalIgnoreCase))
+                    {
+                        statement.TotalEligibleAmount = 0m;
+                    }
+                    else
+                    {
+                        statement.TotalEligibleAmount = totalEligible;
+                    }
                 }
 
                 statementRepo.Update(statement);

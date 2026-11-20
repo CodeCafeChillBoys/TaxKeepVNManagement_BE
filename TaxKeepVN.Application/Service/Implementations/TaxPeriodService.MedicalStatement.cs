@@ -58,6 +58,9 @@ namespace TaxKeepVN.Application.Service.Implementations
             if (receipt == null || receipt.PeriodId != periodId)
                 throw new NotFoundException(ErrorMessages.DocumentNotFound);
 
+            if (string.Equals(receipt.Status, "CONFIRMED", StringComparison.OrdinalIgnoreCase))
+                throw new BadRequestException(ErrorCodes.InvalidDocumentStatus, ErrorMessages.DocumentAlreadyVerified);
+
             var types = _unitOfWork.Repository<TaxDocumentType>();
             var receiptType = (await types.FindAsync(t => t.Code == receipt.DocTypeCode &&
                 t.Code == DocumentTypeCodes.MedicalReceipt)).SingleOrDefault();
@@ -71,22 +74,57 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             var statementRepo = _unitOfWork.Repository<MedicalStatement>();
             var existingStatement = (await statementRepo.FindAsync(d => d.DocumentId == documentId)).FirstOrDefault();
+
+            // Nếu đã có bảng kê: Kiểm tra trạng thái và cho phép ghi đè (overwrite) nếu chưa CONFIRMED
             if (existingStatement != null)
             {
                 if (string.Equals(existingStatement.Status, MedicalStatementStatus.CONFIRMED, StringComparison.OrdinalIgnoreCase))
                 {
-                    throw new BadRequestException("ERR_MEDICAL_STATEMENT_EXISTS", "This receipt already has a confirmed medical statement.");
+                    throw new BadRequestException(ErrorCodes.InvalidDocumentStatus, ErrorMessages.DocumentAlreadyVerified);
                 }
 
-                // Cập nhật lại statement hiện có để upload lại / ghi đè file mới
+                // Xóa file cũ trên storage nếu có
+                if (!string.IsNullOrWhiteSpace(existingStatement.FileUrl))
+                {
+                    try { await _fileStorageService.DeleteFileAsync(existingStatement.FileUrl); }
+                    catch (Exception ex) { _logger.LogWarning(ex, "Failed to delete old statement file {FileUrl}", existingStatement.FileUrl); }
+                }
+
+                // Xóa các dòng bóc tách chi phí cũ
+                var lineRepo = _unitOfWork.Repository<MedicalStatementLine>();
+                var oldLines = await lineRepo.FindAsync(l => l.MedicalStatementId == existingStatement.Id);
+                foreach (var l in oldLines)
+                {
+                    lineRepo.Remove(l);
+                }
+
+                // Lưu file mới lên storage
                 var newFileUrl = await _fileStorageService.SaveFileAsync(file, $"tax-periods/{period.TaxYear}/medical-statements");
+
+                // Reset các trường bóc tách và ghi đè
                 existingStatement.OriginalFilename = file.FileName;
                 existingStatement.FileUrl = newFileUrl;
                 existingStatement.Status = MedicalStatementStatus.UPLOADED;
+                existingStatement.OverallConfidence = null;
+                existingStatement.AppliedThreshold = null;
+                existingStatement.IsPassedThreshold = null;
+                existingStatement.ValidationErrors = null;
+                existingStatement.PatientName = null;
+                existingStatement.PatientIdCard = null;
+                existingStatement.TreatmentType = null;
+                existingStatement.AdmissionDate = null;
+                existingStatement.DischargeDate = null;
+                existingStatement.TotalHospitalAmount = null;
+                existingStatement.InsurancePaidAmount = null;
+                existingStatement.PatientPaidAmount = null;
+                existingStatement.PatientSelfPayAmount = null;
+                existingStatement.TotalEligibleAmount = null;
                 existingStatement.UpdatedAt = DateTime.UtcNow;
+
                 statementRepo.Update(existingStatement);
                 await _unitOfWork.SaveChangesAsync();
 
+                // Publish task OCR sang RabbitMQ để bóc tách lại từ ảnh mới
                 try
                 {
                     await PublishMedicalStatementOcrAsync(period, existingStatement);
@@ -126,6 +164,7 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             return statement.ToDto()!;
         }
+
         private async Task PublishMedicalStatementOcrAsync(TaxPeriod period, MedicalStatement statement)
         {
             var categories = await GetMedicalCategoriesForAiAsync();
@@ -149,7 +188,7 @@ namespace TaxKeepVN.Application.Service.Implementations
         private async Task<List<CategoryItemDto>> GetMedicalCategoriesForAiAsync()
         {
             var catRepo = _unitOfWork.Repository<MedicalEligibleCategory>();
-            var allCats = (await catRepo.GetAllAsync())
+            var allCats = (await catRepo.FindAsync(c => !c.IsDeleted))
                 .OrderBy(c => c.SectionCode)
                 .ToList();
 
@@ -165,6 +204,56 @@ namespace TaxKeepVN.Application.Service.Implementations
                 IsMedicalStatement = true,
                 Description = $"[{(c.IsEligible ? "ĐƯỢC GIẢM TRỪ THUẾ" : "LOẠI TRỪ KHỎI GIẢM TRỪ THUẾ")}] {c.Description} [Từ khóa: {c.Keywords}]"
             }).ToList();
+        }
+
+        public async Task DeleteMedicalStatementAsync(Guid userId, Guid periodId, Guid documentId)
+        {
+            var period = await _unitOfWork.Repository<TaxPeriod>().GetByIdAsync(periodId);
+            if (period == null || period.UserId != userId)
+                throw new NotFoundException(ErrorMessages.TaxPeriodNotFound);
+
+            if (string.Equals(period.Status, TaxPeriodStatus.SUBMITTED, StringComparison.OrdinalIgnoreCase))
+                throw new ForbiddenException(ErrorMessages.TaxPeriodSubmitted);
+
+            var document = await _unitOfWork.Repository<Document>().GetByIdAsync(documentId);
+            if (document == null || document.PeriodId != periodId)
+                throw new NotFoundException(ErrorMessages.DocumentNotFound);
+
+            if (string.Equals(document.Status, "CONFIRMED", StringComparison.OrdinalIgnoreCase))
+                throw new BadRequestException(ErrorCodes.InvalidDocumentStatus, ErrorMessages.DocumentAlreadyVerified);
+
+            var statementRepo = _unitOfWork.Repository<MedicalStatement>();
+            var statement = (await statementRepo.FindAsync(s => s.DocumentId == documentId)).FirstOrDefault();
+            if (statement == null)
+                throw new NotFoundException("Không tìm thấy bảng kê chi phí KCB của hóa đơn này.");
+
+            if (string.Equals(statement.Status, MedicalStatementStatus.CONFIRMED, StringComparison.OrdinalIgnoreCase))
+                throw new BadRequestException(ErrorCodes.InvalidDocumentStatus, ErrorMessages.DocumentAlreadyVerified);
+
+            // Xóa các dòng bóc tách chi phí
+            var lineRepo = _unitOfWork.Repository<MedicalStatementLine>();
+            var lines = await lineRepo.FindAsync(l => l.MedicalStatementId == statement.Id);
+            foreach (var l in lines)
+            {
+                lineRepo.Remove(l);
+            }
+
+            // Xóa file storage nếu có
+            if (!string.IsNullOrWhiteSpace(statement.FileUrl))
+            {
+                try
+                {
+                    await _fileStorageService.DeleteFileAsync(statement.FileUrl);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Failed to delete medical statement file {FileUrl}", statement.FileUrl);
+                }
+            }
+
+            statementRepo.Remove(statement);
+            await _unitOfWork.SaveChangesAsync();
+            _logger.LogInformation("Deleted medical statement {StatementId} for document {DocId}", statement.Id, documentId);
         }
     }
 }

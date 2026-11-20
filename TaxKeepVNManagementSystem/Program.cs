@@ -138,6 +138,7 @@ builder.Services.AddScoped<ITaxSettlementPackageService, TaxSettlementPackageSer
 // Services từ feature/implementation-upload-document-ai-extraction
 builder.Services.AddScoped<ITaxPeriodService, TaxPeriodService>();
 builder.Services.AddScoped<ITaxDocumentTypeService, TaxDocumentTypeService>();
+builder.Services.AddScoped<IMedicalEligibleCategoryService, MedicalEligibleCategoryService>();
 builder.Services.AddScoped<ITaxAiConfigService, TaxAiConfigService>();
 builder.Services.AddScoped<IUrlRuleService, UrlRuleService>();
 builder.Services.AddScoped<IOcrAIProducerService, OcrAIProducerService>();

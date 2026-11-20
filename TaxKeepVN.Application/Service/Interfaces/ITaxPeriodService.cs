@@ -27,6 +27,11 @@ namespace TaxKeepVN.Application.Service.Interfaces
             Guid userId, Guid periodId, Guid documentId, Microsoft.AspNetCore.Http.IFormFile file);
 
         /// <summary>
+        /// Xóa bảng kê chi phí KCB gắn với hóa đơn viện phí (chỉ cho phép khi chưa CONFIRMED).
+        /// </summary>
+        Task DeleteMedicalStatementAsync(Guid userId, Guid periodId, Guid documentId);
+
+        /// <summary>
         /// Xác nhận và lưu chính thức dữ liệu sau khi người dùng review kết quả bóc tách từ AI.
         /// </summary>
         Task<TaxKeepVN.Application.DTOs.Documents.DocumentReviewResponseDto> ConfirmDocumentReviewAsync(Guid userId, Guid periodId, Guid documentId, TaxKeepVN.Application.DTOs.Documents.ConfirmDocumentReviewRequestDto dto);

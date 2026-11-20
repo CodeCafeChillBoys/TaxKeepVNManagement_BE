@@ -87,6 +87,21 @@ namespace TaxKeepVNManagementSystem.Controllers
         }
 
         /// <summary>
+        /// Xóa bảng kê chi phí KCB gắn với hóa đơn viện phí (chỉ cho phép khi chưa CONFIRMED).
+        /// DELETE /api/v1/tax-periods/{periodId}/documents/{documentId}/medical-statement
+        /// </summary>
+        [HttpDelete("{periodId:guid}/documents/{documentId:guid}/medical-statement")]
+        [HasPermission("document.delete")]
+        public async Task<IActionResult> DeleteMedicalStatement(
+            [FromRoute] Guid periodId,
+            [FromRoute] Guid documentId)
+        {
+            var userId = GetUserIdFromToken();
+            await _service.DeleteMedicalStatementAsync(userId, periodId, documentId);
+            return Ok(ApiResponse<object>.Ok(null, "Xóa bảng kê chi phí KCB thành công."));
+        }
+
+        /// <summary>
         /// Xác nhận và lưu trữ chính thức dữ liệu chứng từ sau khi người dùng review kết quả từ AI.
         /// Chuyển trạng thái chứng từ sang CONFIRMED.
         /// PUT /api/v1/tax-periods/{periodId}/documents/{documentId}/confirm

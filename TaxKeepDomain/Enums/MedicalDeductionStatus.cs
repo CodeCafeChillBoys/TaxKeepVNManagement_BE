@@ -11,7 +11,5 @@ namespace TaxKeepVN.Domain.Enums
         /// <summary>Bị loại trừ (thẩm mỹ, làm đẹp, thực phẩm chức năng, tiện ích cá nhân...)</summary>
         public const string EXCLUDED = "EXCLUDED";
 
-        /// <summary>Cần người dùng hoặc kế toán kiểm tra lại</summary>
-        public const string NEED_REVIEW = "NEED_REVIEW";
     }
 }

@@ -250,7 +250,27 @@ namespace TaxKeepVN.Application.Service.Implementations
                 }
             }
 
-            // Lưu trước các thay đổi của Document để trạng thái CONFIRMED được ghi nhận vào DB
+            // Đồng bộ trạng thái MedicalStatement (Bảng kê chi phí KCB) nếu có
+            var statementRepo = _unitOfWork.Repository<MedicalStatement>();
+            var statement = (await statementRepo.FindAsync(s => s.DocumentId == document.Id)).FirstOrDefault();
+            if (statement != null)
+            {
+                // Chỉ chuyển sang CONFIRMED nếu bảng kê đã được bóc tách và đối chiếu hợp lệ (EXTRACTED)
+                if (string.Equals(statement.Status, MedicalStatementStatus.EXTRACTED, StringComparison.OrdinalIgnoreCase))
+                {
+                    statement.Status = MedicalStatementStatus.CONFIRMED;
+                    statement.UpdatedAt = DateTime.UtcNow;
+                    statementRepo.Update(statement);
+                }
+
+                var lineRepo = _unitOfWork.Repository<MedicalStatementLine>();
+                statement.Lines = (await lineRepo.FindAsync(l => l.MedicalStatementId == statement.Id))
+                    .OrderBy(l => l.LineOrder)
+                    .ToList();
+                document.MedicalStatement = statement;
+            }
+
+            // Lưu trước các thay đổi của Document và MedicalStatement để trạng thái CONFIRMED được ghi nhận vào DB
             await _unitOfWork.SaveChangesAsync();
 
             // =========================================================================
@@ -279,16 +299,6 @@ namespace TaxKeepVN.Application.Service.Implementations
             }
 
             // Trả về DTO thông qua DocumentMapper
-            var statementRepo = _unitOfWork.Repository<MedicalStatement>();
-            var statement = (await statementRepo.FindAsync(s => s.DocumentId == document.Id)).FirstOrDefault();
-            if (statement != null)
-            {
-                var lineRepo = _unitOfWork.Repository<MedicalStatementLine>();
-                statement.Lines = (await lineRepo.FindAsync(l => l.MedicalStatementId == statement.Id))
-                    .OrderBy(l => l.LineOrder)
-                    .ToList();
-                document.MedicalStatement = statement;
-            }
 
             var reviewDto = document.ToReviewDto(docTypeEntity, savedItems);
             if (reviewDto.MedicalStatement?.ValidationErrors?.Any() == true)
@@ -405,9 +415,26 @@ namespace TaxKeepVN.Application.Service.Implementations
                 throw new BadRequestException(ErrorCodes.InvalidDocumentStatus, ErrorMessages.DocumentAlreadyVerified);
             }
 
+            // Xóa cascade MedicalStatement và các dòng chi phí liên kết nếu có
             var statementRepo = _unitOfWork.Repository<MedicalStatement>();
-            if ((await statementRepo.FindAsync(d => d.DocumentId == documentId)).Any())
-                throw new BadRequestException("ERR_MEDICAL_STATEMENT_EXISTS", "Delete the linked medical statement first.");
+            var statements = await statementRepo.FindAsync(d => d.DocumentId == documentId);
+            foreach (var stmt in statements)
+            {
+                var lineRepo = _unitOfWork.Repository<MedicalStatementLine>();
+                var stmtLines = await lineRepo.FindAsync(l => l.MedicalStatementId == stmt.Id);
+                foreach (var sl in stmtLines)
+                {
+                    lineRepo.Remove(sl);
+                }
+
+                if (!string.IsNullOrWhiteSpace(stmt.FileUrl))
+                {
+                    try { await _fileStorageService.DeleteFileAsync(stmt.FileUrl); }
+                    catch (Exception ex) { _logger.LogWarning(ex, "Failed to delete medical statement file {FileUrl}", stmt.FileUrl); }
+                }
+
+                statementRepo.Remove(stmt);
+            }
 
             await _fileStorageService.DeleteFileAsync(document.FileUrl);
 

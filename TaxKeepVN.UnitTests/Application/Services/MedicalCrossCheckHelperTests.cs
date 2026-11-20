@@ -187,5 +187,105 @@ namespace TaxKeepVN.UnitTests.Application.Services
             data.CrossCheckIssues.Should().Contain("SERVICE_ITEM_MISMATCH");
             data.ValidationErrors.Should().Contain(e => e.Contains("Chụp cộng hưởng từ sọ não (MRI)"));
         }
+
+        [Fact]
+        public async Task PerformMedicalCrossCheck_PatientIsDependent_Success()
+        {
+            var userId = Guid.NewGuid();
+            var periodId = Guid.NewGuid();
+
+            var parentDoc = new Document
+            {
+                Id = Guid.NewGuid(),
+                PeriodId = periodId,
+                BuyerName = "NGUYỄN VĂN AN",
+                BuyerIdCard = "079109001111",
+                TotalAmount = 500000m
+            };
+
+            var statement = new MedicalStatement { Id = Guid.NewGuid(), DocumentId = parentDoc.Id };
+
+            // Bệnh nhân trên bảng kê là con (Người phụ thuộc: NGUYỄN BẢO CHÂU)
+            var data = new DocumentOcrData
+            {
+                Status = "EXTRACTED",
+                MedicalHeader = JsonSerializer.Deserialize<JsonElement>(
+                    "{\"patientName\":\"Nguyễn Bảo Châu\",\"idCard\":\"079109002222\"}"),
+                MedicalSummary = JsonSerializer.Deserialize<JsonElement>("{\"patientPaid\":500000}")
+            };
+
+            var mockPeriodRepo = new Mock<IGenericRepository<TaxPeriod>>();
+            mockPeriodRepo.Setup(r => r.GetByIdAsync(periodId)).ReturnsAsync(new TaxPeriod { Id = periodId, UserId = userId });
+            _mockUow.Setup(u => u.Repository<TaxPeriod>()).Returns(mockPeriodRepo.Object);
+
+            var mockUserRepo = new Mock<IGenericRepository<User>>();
+            mockUserRepo.Setup(r => r.GetByIdAsync(userId)).ReturnsAsync(new User { UserId = userId, FullName = "Nguyễn Văn An", CitizenId = "079109001111" });
+            _mockUow.Setup(u => u.Repository<User>()).Returns(mockUserRepo.Object);
+
+            var mockDepRepo = new Mock<IGenericRepository<Dependent>>();
+            var dependents = new List<Dependent>
+            {
+                new Dependent { TaxpayerId = userId, FullName = "Nguyễn Bảo Châu", Status = TaxKeepVN.Domain.Enums.DependentStatus.ACTIVE, CitizenId = "079109002222" }
+            };
+            mockDepRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Dependent, bool>>>())).ReturnsAsync(dependents);
+            _mockUow.Setup(u => u.Repository<Dependent>()).Returns(mockDepRepo.Object);
+
+            _mockItemRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DocumentItem, bool>>>())).ReturnsAsync(new List<DocumentItem>());
+
+            await MedicalCrossCheckHelper.PerformMedicalCrossCheckAsync(_mockUow.Object, parentDoc, statement, data);
+
+            // Bệnh nhân là người phụ thuộc hợp lệ nên không bị báo lỗi PATIENT_NOT_TAXPAYER_OR_DEPENDENT
+            data.CrossCheckIssues.Should().NotContain("PATIENT_NOT_TAXPAYER_OR_DEPENDENT");
+            data.CrossCheckIssues.Should().NotContain("PATIENT_NAME_MISMATCH");
+            data.Status.Should().Be("EXTRACTED");
+        }
+
+        [Fact]
+        public async Task PerformMedicalCrossCheck_PatientNotTaxpayerOrDependent_Fails()
+        {
+            var userId = Guid.NewGuid();
+            var periodId = Guid.NewGuid();
+
+            var parentDoc = new Document
+            {
+                Id = Guid.NewGuid(),
+                PeriodId = periodId,
+                BuyerName = "NGUYỄN VĂN AN",
+                TotalAmount = 500000m
+            };
+
+            var statement = new MedicalStatement { Id = Guid.NewGuid(), DocumentId = parentDoc.Id };
+
+            // Bệnh nhân là một người hoàn toàn xa lạ: "TRẦN VĂN LẠ"
+            var data = new DocumentOcrData
+            {
+                Status = "EXTRACTED",
+                MedicalHeader = JsonSerializer.Deserialize<JsonElement>(
+                    "{\"patientName\":\"Trần Văn Lạ\"}"),
+                MedicalSummary = JsonSerializer.Deserialize<JsonElement>("{\"patientPaid\":500000}")
+            };
+
+            var mockPeriodRepo = new Mock<IGenericRepository<TaxPeriod>>();
+            mockPeriodRepo.Setup(r => r.GetByIdAsync(periodId)).ReturnsAsync(new TaxPeriod { Id = periodId, UserId = userId });
+            _mockUow.Setup(u => u.Repository<TaxPeriod>()).Returns(mockPeriodRepo.Object);
+
+            var mockUserRepo = new Mock<IGenericRepository<User>>();
+            mockUserRepo.Setup(r => r.GetByIdAsync(userId)).ReturnsAsync(new User { UserId = userId, FullName = "Nguyễn Văn An", CitizenId = "079109001111" });
+            _mockUow.Setup(u => u.Repository<User>()).Returns(mockUserRepo.Object);
+
+            var mockDepRepo = new Mock<IGenericRepository<Dependent>>();
+            mockDepRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Dependent, bool>>>())).ReturnsAsync(new List<Dependent>());
+            _mockUow.Setup(u => u.Repository<Dependent>()).Returns(mockDepRepo.Object);
+
+            _mockItemRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DocumentItem, bool>>>())).ReturnsAsync(new List<DocumentItem>());
+
+            await MedicalCrossCheckHelper.PerformMedicalCrossCheckAsync(_mockUow.Object, parentDoc, statement, data);
+
+            // Bắt buộc phải chặn theo Khoản 3b NĐ 253/2026
+            data.CrossCheckIssues.Should().Contain("PATIENT_NOT_TAXPAYER_OR_DEPENDENT");
+            data.ValidationErrors.Should().Contain(e => e.Contains("không phải Người nộp thuế") && e.Contains("Người phụ thuộc"));
+            data.Status.Should().Be("FAILED");
+            statement.Status.Should().Be("FAILED");
+        }
     }
 }

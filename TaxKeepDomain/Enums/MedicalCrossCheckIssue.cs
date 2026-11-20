@@ -16,6 +16,9 @@ namespace TaxKeepVN.Domain.Enums
 
         /// <summary>Mục dịch vụ y tế trên hóa đơn không tìm thấy trong bảng kê</summary>
         public const string SERVICE_ITEM_MISMATCH = "SERVICE_ITEM_MISMATCH";
+
+        /// <summary>Người bệnh không phải người nộp thuế hoặc người phụ thuộc hợp lệ (Khoản 3b NĐ 253/2026/NĐ-CP)</summary>
+        public const string PATIENT_NOT_TAXPAYER_OR_DEPENDENT = "PATIENT_NOT_TAXPAYER_OR_DEPENDENT";
     }
 
     /// <summary>

@@ -44,10 +44,98 @@ namespace TaxKeepVN.Application.Helpers
             patientName ??= data.BuyerName;
             patientIdCard ??= data.BuyerIdCard;
 
-            // So sánh họ tên
+            // 1.1 Lấy thông tin Người nộp thuế & Danh sách Người phụ thuộc từ DB
+            User? taxpayer = null;
+            List<Dependent> dependents = new();
+            var periodRepo = unitOfWork.Repository<TaxPeriod>();
+            if (periodRepo != null && parentDoc.PeriodId != Guid.Empty)
+            {
+                var period = await periodRepo.GetByIdAsync(parentDoc.PeriodId);
+                if (period != null)
+                {
+                    var userRepo = unitOfWork.Repository<User>();
+                    if (userRepo != null)
+                        taxpayer = await userRepo.GetByIdAsync(period.UserId);
+
+                    var depRepo = unitOfWork.Repository<Dependent>();
+                    if (depRepo != null)
+                    {
+                        dependents = (await depRepo
+                            .FindAsync(d => d.TaxpayerId == period.UserId && !d.IsDeleted)).ToList();
+                    }
+                }
+            }
+
+            // 1.2 [Khoản 3b Điều 49 Nghị định 253/2026/NĐ-CP & Rule R2]
+            // Bệnh nhân bắt buộc phải là chính Người nộp thuế hoặc Người phụ thuộc được đăng ký giảm trừ
+            bool isPatientTaxpayerOrDependent = false;
+            if (!string.IsNullOrWhiteSpace(patientName))
+            {
+                // Kiểm tra trùng với chính người nộp thuế
+                if (taxpayer != null && !string.IsNullOrWhiteSpace(taxpayer.FullName) &&
+                    StringComparisonHelper.IsNameMatching(patientName, taxpayer.FullName))
+                {
+                    isPatientTaxpayerOrDependent = true;
+                }
+                else
+                {
+                    // Kiểm tra trùng với danh sách người phụ thuộc
+                    var matchedDep = dependents.FirstOrDefault(d =>
+                        !string.IsNullOrWhiteSpace(d.FullName) &&
+                        StringComparisonHelper.IsNameMatching(patientName, d.FullName));
+
+                    if (matchedDep != null)
+                    {
+                        isPatientTaxpayerOrDependent = true;
+                        if (matchedDep.Status != DependentStatus.ACTIVE)
+                        {
+                            var warnMsg = $"Người bệnh là người phụ thuộc '{matchedDep.FullName}' nhưng trạng thái hồ sơ đang là '{matchedDep.Status}'. Cần hoàn tất hồ sơ người phụ thuộc để được tính giảm trừ chính thức.";
+                            data.ValidationErrors.Add(warnMsg);
+                        }
+                    }
+                }
+
+                // Nếu có CCCD thì kiểm tra thêm đối chiếu CCCD
+                if (!isPatientTaxpayerOrDependent && !string.IsNullOrWhiteSpace(patientIdCard))
+                {
+                    var cleanPatientId = Regex.Replace(patientIdCard, @"\D", "");
+                    if (!string.IsNullOrEmpty(cleanPatientId))
+                    {
+                        if (taxpayer != null && !string.IsNullOrEmpty(taxpayer.CitizenId) &&
+                            cleanPatientId == Regex.Replace(taxpayer.CitizenId, @"\D", ""))
+                        {
+                            isPatientTaxpayerOrDependent = true;
+                        }
+                        else if (dependents.Any(d => !string.IsNullOrEmpty(d.CitizenId) && cleanPatientId == Regex.Replace(d.CitizenId, @"\D", "")))
+                        {
+                            isPatientTaxpayerOrDependent = true;
+                        }
+                    }
+                }
+
+                // ❌ Nếu không phải NNT và không phải NPT: Từ chối theo Khoản 3b Điều 49 NĐ 253/2026/NĐ-CP
+                if (!isPatientTaxpayerOrDependent && taxpayer != null)
+                {
+                    var allowedNames = new List<string> { taxpayer.FullName };
+                    allowedNames.AddRange(dependents.Select(d => $"{d.FullName} (NPT)"));
+                    var allowedStr = string.Join(", ", allowedNames);
+
+                    var msg = $"Người bệnh trên bảng kê KCB ('{patientName.Trim()}') không phải Người nộp thuế ('{taxpayer.FullName}') và không thuộc danh sách Người phụ thuộc hợp lệ [{allowedStr}] (Khoản 3b Điều 49 Nghị định 253/2026/NĐ-CP).";
+                    data.ValidationErrors.Add(msg);
+                    if (!data.CrossCheckIssues.Contains(MedicalCrossCheckIssue.PATIENT_NOT_TAXPAYER_OR_DEPENDENT))
+                        data.CrossCheckIssues.Add(MedicalCrossCheckIssue.PATIENT_NOT_TAXPAYER_OR_DEPENDENT);
+                    hasCriticalMismatch = true;
+                }
+            }
+
+            // 1.3 So sánh họ tên giữa bảng kê và hóa đơn viện phí
             if (!string.IsNullOrWhiteSpace(patientName) && !string.IsNullOrWhiteSpace(parentDoc.BuyerName))
             {
-                if (!StringComparisonHelper.IsNameMatching(patientName, parentDoc.BuyerName))
+                bool isNameSame = StringComparisonHelper.IsNameMatching(patientName, parentDoc.BuyerName);
+                // Trường hợp người mua hóa đơn là NNT trả tiền cho NPT (ví dụ bố mẹ trả viện phí cho con) thì được chấp nhận
+                bool isBuyerTaxpayer = taxpayer != null && StringComparisonHelper.IsNameMatching(parentDoc.BuyerName, taxpayer.FullName);
+
+                if (!isNameSame && !isBuyerTaxpayer)
                 {
                     var msg = $"Thông tin bệnh nhân trên bảng kê ('{patientName.Trim()}') không trùng khớp với người đứng tên trên hóa đơn viện phí ('{parentDoc.BuyerName.Trim()}').";
                     data.ValidationErrors.Add(msg);
@@ -64,11 +152,20 @@ namespace TaxKeepVN.Application.Helpers
                 var cleanInvoiceId = Regex.Replace(parentDoc.BuyerIdCard, @"\D", "");
                 if (!string.IsNullOrEmpty(cleanPatientId) && !string.IsNullOrEmpty(cleanInvoiceId) && cleanPatientId != cleanInvoiceId)
                 {
-                    var msg = $"Số định danh/CCCD trên bảng kê ('{patientIdCard.Trim()}') không khớp với hóa đơn viện phí ('{parentDoc.BuyerIdCard.Trim()}').";
-                    data.ValidationErrors.Add(msg);
-                    if (!data.CrossCheckIssues.Contains(MedicalCrossCheckIssue.PATIENT_IDCARD_MISMATCH))
-                        data.CrossCheckIssues.Add(MedicalCrossCheckIssue.PATIENT_IDCARD_MISMATCH);
-                    hasCriticalMismatch = true;
+                    // Nếu bệnh nhân là NPT và người mua hóa đơn là NNT thì CCCD khác nhau là hoàn toàn hợp lệ
+                    bool isInvoiceBuyerTaxpayer = taxpayer != null && (
+                        (!string.IsNullOrEmpty(taxpayer.CitizenId) && cleanInvoiceId == Regex.Replace(taxpayer.CitizenId, @"\D", "")) ||
+                        (!string.IsNullOrWhiteSpace(parentDoc.BuyerName) && StringComparisonHelper.IsNameMatching(parentDoc.BuyerName, taxpayer.FullName))
+                    );
+
+                    if (!(isPatientTaxpayerOrDependent && isInvoiceBuyerTaxpayer))
+                    {
+                        var msg = $"Số định danh/CCCD trên bảng kê ('{patientIdCard.Trim()}') không khớp với hóa đơn viện phí ('{parentDoc.BuyerIdCard.Trim()}').";
+                        data.ValidationErrors.Add(msg);
+                        if (!data.CrossCheckIssues.Contains(MedicalCrossCheckIssue.PATIENT_IDCARD_MISMATCH))
+                            data.CrossCheckIssues.Add(MedicalCrossCheckIssue.PATIENT_IDCARD_MISMATCH);
+                        hasCriticalMismatch = true;
+                    }
                 }
             }
 

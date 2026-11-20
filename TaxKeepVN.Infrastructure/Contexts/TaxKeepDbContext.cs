@@ -434,6 +434,8 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(c => c.IsEligible).HasColumnName("is_eligible").IsRequired();
                 entity.Property(c => c.Description).HasColumnName("description");
                 entity.Property(c => c.Keywords).HasColumnName("keywords");
+                entity.Property(c => c.IsDeleted).HasColumnName("is_deleted").IsRequired();
+                entity.Property(c => c.DeletedAt).HasColumnName("deleted_at");
                 entity.Property(c => c.CreatedAt).HasColumnName("created_at");
                 entity.Property(c => c.UpdatedAt).HasColumnName("updated_at");
                 entity.HasIndex(c => c.CategoryCode).IsUnique().HasDatabaseName("idx_medical_eligible_categories_code");

@@ -27,6 +27,12 @@ namespace TaxKeepVN.Domain.Entities
         [Column("keywords")]
         public string? Keywords { get; set; }
 
+        [Column("is_deleted")]
+        public bool IsDeleted { get; set; } = false;
+
+        [Column("deleted_at")]
+        public DateTime? DeletedAt { get; set; }
+
         [Column("created_at")]
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 
