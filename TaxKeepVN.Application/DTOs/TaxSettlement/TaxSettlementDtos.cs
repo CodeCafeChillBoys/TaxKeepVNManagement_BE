@@ -203,6 +203,11 @@ namespace TaxKeepVN.Application.DTOs.TaxSettlement
         /// </summary>
         public string SummaryMessage { get; set; } = string.Empty;
 
+        /// <summary>
+        /// Danh sách các cảnh báo (ví dụ: hóa đơn y tế thiếu bảng kê, hóa đơn cần rà soát...).
+        /// </summary>
+        public List<string> Warnings { get; set; } = new();
+
         public string Status { get; set; } = "DRAFT";
     }
 
