@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Text.Json;
 using System.Text.Json.Serialization;
 
 namespace TaxKeepVN.Application.DTOs.TaxAI
@@ -7,6 +8,9 @@ namespace TaxKeepVN.Application.DTOs.TaxAI
 [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class DocumentOcrResponseMessage
     {
+        [JsonPropertyName("taskId")]
+        public Guid? TaskId { get; set; }
+
         [JsonPropertyName("message")]
         public string? Message { get; set; }
 
@@ -17,8 +21,30 @@ namespace TaxKeepVN.Application.DTOs.TaxAI
 
     public class DocumentOcrData
     {
+        // cờ đánh dấu từ phía AI bóc tách bảng kê y tế
+        [JsonPropertyName("isMedicalStatementUpload")]
+        public bool IsMedicalStatementUpload { get; set; }
+
+        [JsonPropertyName("medicalHeader")]
+        public JsonElement? MedicalHeader { get; set; }
+
+        [JsonPropertyName("medicalSections")]
+        public JsonElement? MedicalSections { get; set; }
+
+        [JsonPropertyName("medicalLines")]
+        public JsonElement? MedicalLines { get; set; }
+
+        [JsonPropertyName("medicalSummary")]
+        public JsonElement? MedicalSummary { get; set; }
+
+        [JsonPropertyName("crossCheckIssues")]
+        public List<string>? CrossCheckIssues { get; set; }
+
         [JsonPropertyName("id")]
         public Guid Id { get; set; }
+
+        [JsonPropertyName("taskId")]
+        public Guid? TaskId { get; set; }
 
         [JsonPropertyName("periodId")]
         public Guid? PeriodId { get; set; }

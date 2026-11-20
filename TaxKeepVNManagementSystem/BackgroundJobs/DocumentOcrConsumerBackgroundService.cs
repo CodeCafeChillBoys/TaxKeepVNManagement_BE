@@ -3,9 +3,12 @@ using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
+using TaxKeepVN.Application.Constants;
 using TaxKeepVN.Application.DTOs.TaxAI;
 using TaxKeepVN.Application.Helpers;
 using TaxKeepVN.Domain.Entities;
+using TaxKeepVN.Domain.Enums;
 using TaxKeepVN.Domain.IRepositories;
 using TaxKeepVNManagementSystem.Hubs;
 
@@ -68,8 +71,6 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
                         {
                             var body = ea.Body.ToArray();
                             var jsonString = Encoding.UTF8.GetString(body);
-                            _logger.LogInformation("Received document OCR extraction response: {Json}", jsonString);
-
                             var options = new JsonSerializerOptions
                             {
                                 PropertyNameCaseInsensitive = true
@@ -78,7 +79,15 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
 
                             if (response?.Data != null)
                             {
-                                await ProcessOcrResultAsync(response.Data, stoppingToken);
+                                var taskId = response.Data.TaskId ?? response.TaskId;
+                                if (response.Data.Id == Guid.Empty)
+                                    response.Data.Id = taskId ?? Guid.Empty;
+
+                                if (!await ProcessOcrResultAsync(response.Data, taskId))
+                                {
+                                    channel.BasicAck(deliveryTag: ea.DeliveryTag, multiple: false);
+                                    return;
+                                }
 
                                 // Gửi SignalR thông báo real-time tới Client (chỉ có 2 trường hợp: Thành công hoặc Thất bại)
                                 var eventName = string.Equals(response.Data.Status, "FAILED", StringComparison.OrdinalIgnoreCase)
@@ -94,8 +103,11 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
                                 await _hubContext.Clients.Group($"task_{response.Data.Id}")
                                     .SendAsync(eventName, response, stoppingToken);
 
-                                await _hubContext.Clients.All
-                                    .SendAsync(eventName, response, stoppingToken);
+                                if (!response.Data.IsMedicalStatementUpload &&
+                                    !string.Equals(response.Data.DocTypeCode, DocumentTypeCodes.MedicalCostStatement, StringComparison.OrdinalIgnoreCase))
+                                {
+                                    await _hubContext.Clients.All.SendAsync(eventName, response, stoppingToken);
+                                }
 
                                 _logger.LogInformation("Dispatched SignalR event {EventName} for documentId={DocId}",
                                     eventName, response.Data.Id);
@@ -144,24 +156,200 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
             _logger.LogInformation("DocumentOcrConsumerBackgroundService has stopped.");
         }
 
-        private async Task ProcessOcrResultAsync(DocumentOcrData data, CancellationToken cancellationToken)
+        private static decimal? ReadOcrDecimal(JsonElement source, string propertyName)
+        {
+            if (!source.TryGetProperty(propertyName, out var property))
+                return null;
+
+            if (property.ValueKind == JsonValueKind.Number && property.TryGetDecimal(out var value))
+                return value;
+
+            if (property.ValueKind == JsonValueKind.String)
+            {
+                var str = property.GetString()?.Trim().Replace(",", "");
+                if (decimal.TryParse(str, System.Globalization.NumberStyles.Any, System.Globalization.CultureInfo.InvariantCulture, out var parsed))
+                    return parsed;
+            }
+
+            return null;
+        }
+
+        private async Task<bool> ProcessOcrResultAsync(DocumentOcrData data, Guid? taskId)
         {
             using var scope = _serviceProvider.CreateScope();
             var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+
+            var isStatementPayload = data.IsMedicalStatementUpload ||
+                string.Equals(data.DocTypeCode, DocumentTypeCodes.MedicalCostStatement, StringComparison.OrdinalIgnoreCase);
+
+            var statementRepo = unitOfWork.Repository<MedicalStatement>();
+            var statement = taskId is Guid requestId && requestId != Guid.Empty && requestId != data.Id
+                ? await statementRepo.GetByIdAsync(requestId)
+                : null;
+            statement ??= await statementRepo.GetByIdAsync(data.Id);
+            if (statement == null && isStatementPayload)
+                statement = (await statementRepo.FindAsync(s => s.DocumentId == data.Id)).FirstOrDefault();
+
+            if (statement != null)
+            {
+                data.Id = statement.Id;
+                if (string.Equals(statement.Status, MedicalStatementStatus.CONFIRMED, StringComparison.OrdinalIgnoreCase))
+                {
+                    _logger.LogWarning("Medical statement {DocId} is already CONFIRMED. Skipping OCR extraction update.", data.Id);
+                    return false;
+                }
+
+                var recognized = data.IsMedicalStatementUpload ||
+                    (!string.IsNullOrWhiteSpace(data.DocTypeCode) &&
+                    (string.Equals(data.DocTypeCode, DocumentTypeCodes.MedicalCostStatement, StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(data.DocTypeCode, DocumentTypeCodes.MedicalReceipt, StringComparison.OrdinalIgnoreCase)));
+                var hasLines = data.MedicalLines is { ValueKind: JsonValueKind.Array } lines && lines.GetArrayLength() > 0;
+                var extracted = recognized && hasLines &&
+                    string.Equals(data.Status, MedicalStatementStatus.EXTRACTED, StringComparison.OrdinalIgnoreCase);
+
+                data.Status = extracted ? MedicalStatementStatus.EXTRACTED : MedicalStatementStatus.FAILED;
+                if (!recognized && !string.IsNullOrWhiteSpace(data.DocTypeCode))
+                    data.ValidationErrors = new List<string> { "ERR_NOT_MEDICAL_STATEMENT" };
+                else if (recognized && !hasLines && data.ValidationErrors?.Any() != true)
+                    data.ValidationErrors = new List<string> { "ERR_MEDICAL_STATEMENT_NO_LINES" };
+
+                if (data.MedicalHeader.HasValue && data.MedicalHeader.Value.ValueKind == JsonValueKind.Object)
+                {
+                    var h = data.MedicalHeader.Value;
+                    if (h.TryGetProperty("formCode", out var fc)) statement.FormCode = fc.GetString();
+                    if (h.TryGetProperty("statementNumber", out var sn)) statement.StatementNumber = sn.GetString();
+                    if (h.TryGetProperty("patientName", out var pn)) statement.PatientName = pn.GetString();
+                    if ((h.TryGetProperty("dob", out var dob) || h.TryGetProperty("patientDateOfBirth", out dob)) && DateOnly.TryParse(dob.GetString(), out var dobVal)) statement.PatientDob = dobVal;
+                    if (h.TryGetProperty("gender", out var g)) statement.PatientGender = g.GetString();
+                    if ((h.TryGetProperty("idCard", out var idc) || h.TryGetProperty("patientIdCard", out idc)) && idc.ValueKind == JsonValueKind.String) statement.PatientIdCard = idc.GetString();
+                    if (h.TryGetProperty("insuranceNumber", out var insNum)) statement.InsuranceNumber = insNum.GetString();
+                    if (ReadOcrDecimal(h, "benefitRate") is decimal brVal) statement.BenefitRate = brVal;
+                    if (h.TryGetProperty("hospitalName", out var hn) || h.TryGetProperty("facilityName", out hn)) statement.HospitalName = hn.GetString();
+                    if (h.TryGetProperty("hospitalCode", out var hc)) statement.HospitalCode = hc.GetString();
+                    if (h.TryGetProperty("department", out var dept)) statement.Department = dept.GetString();
+                    if ((h.TryGetProperty("admissionDate", out var adm) || h.TryGetProperty("visitDate", out adm) || h.TryGetProperty("treatmentFrom", out adm)) && DateOnly.TryParse(adm.GetString(), out var admVal)) statement.AdmissionDate = admVal;
+                    if ((h.TryGetProperty("dischargeDate", out var dis) || h.TryGetProperty("treatmentTo", out dis)) && DateOnly.TryParse(dis.GetString(), out var disVal)) statement.DischargeDate = disVal;
+                    if (h.TryGetProperty("treatmentType", out var tt)) statement.TreatmentType = tt.GetString();
+                }
+                statement.PatientName ??= data.BuyerName;
+                statement.PatientIdCard ??= data.BuyerIdCard;
+
+                if (data.MedicalSummary.HasValue && data.MedicalSummary.Value.ValueKind == JsonValueKind.Object)
+                {
+                    var s = data.MedicalSummary.Value;
+                    if (ReadOcrDecimal(s, "totalHospitalAmount") is decimal thaVal) statement.TotalHospitalAmount = thaVal;
+                    statement.InsurancePaidAmount = ReadOcrDecimal(s, "insurancePaidAmount") ?? ReadOcrDecimal(s, "insuranceFundPaid");
+                    statement.PatientPaidAmount = ReadOcrDecimal(s, "patientPaidAmount") ?? ReadOcrDecimal(s, "patientPaid");
+                    statement.PatientSelfPayAmount = ReadOcrDecimal(s, "patientSelfPayAmount") ?? ReadOcrDecimal(s, "otherPatientPayments");
+                    if (statement.PatientPaidAmount == null && statement.TotalHospitalAmount.HasValue && statement.InsurancePaidAmount.HasValue)
+                        statement.PatientPaidAmount = statement.TotalHospitalAmount - statement.InsurancePaidAmount;
+                }
+
+                // THỰC HIỆN ĐỐI CHIẾU CHÉO (CROSS-VALIDATION) VỚI HÓA ĐƠN GỐC
+                var docRepoLocal = unitOfWork.Repository<Document>();
+                var parentDoc = await docRepoLocal.GetByIdAsync(statement.DocumentId);
+                if (parentDoc != null && extracted)
+                {
+                    await MedicalCrossCheckHelper.PerformMedicalCrossCheckAsync(unitOfWork, parentDoc, statement, data);
+                }
+
+                statement.Status = data.Status;
+                statement.OverallConfidence = (decimal?)data.OverallConfidence;
+                statement.AppliedThreshold = (decimal?)data.AppliedThreshold;
+                statement.IsPassedThreshold = data.ValidationStatus?.IsPassedThreshold ?? data.IsPassedThreshold;
+                statement.ValidationErrors = data.ValidationErrors?.Any() == true ? JsonSerializer.Serialize(data.ValidationErrors) : null;
+                statement.UpdatedAt = DateTime.UtcNow;
+
+                var lineRepo = unitOfWork.Repository<MedicalStatementLine>();
+                var existingLines = await lineRepo.FindAsync(l => l.MedicalStatementId == statement.Id);
+                foreach (var l in existingLines)
+                {
+                    lineRepo.Remove(l);
+                }
+
+                if (data.MedicalLines.HasValue && data.MedicalLines.Value.ValueKind == JsonValueKind.Array)
+                {
+                    int order = 1;
+                    decimal totalEligible = 0m;
+                    foreach (var item in data.MedicalLines.Value.EnumerateArray())
+                    {
+                        var line = new MedicalStatementLine
+                        {
+                            MedicalStatementId = statement.Id,
+                            LineOrder = order++,
+                            ItemName = item.TryGetProperty("itemName", out var n) ? n.GetString() ?? string.Empty : string.Empty,
+                            Unit = item.TryGetProperty("unit", out var u) ? u.GetString() : null,
+                            SectionCode = item.TryGetProperty("sectionCode", out var sc) ? sc.GetString() : null,
+                            SectionName = item.TryGetProperty("sectionName", out var sn) ? sn.GetString() : null,
+                            Quantity = (ReadOcrDecimal(item, "quantity") is decimal qv) ? qv : 1m,
+                            UnitPrice = ReadOcrDecimal(item, "unitPrice") ?? ReadOcrDecimal(item, "unitPriceHospital") ?? 0m,
+                            TotalAmount = ReadOcrDecimal(item, "totalAmount") ?? ReadOcrDecimal(item, "hospitalAmount") ?? 0m,
+                            InsurancePaid = ReadOcrDecimal(item, "insurancePaid") ?? ReadOcrDecimal(item, "insuranceFundPaid") ?? 0m,
+                            PatientCoPay = ReadOcrDecimal(item, "patientCoPay") is decimal pcpv ? pcpv : 0m,
+                            PatientSelfPay = ReadOcrDecimal(item, "patientSelfPay") is decimal pspv ? pspv : 0m,
+                            IsEligibleDeduction = !item.TryGetProperty("isEligibleDeduction", out var ied) ||
+                                ied.ValueKind != JsonValueKind.False,
+                            DeductionReason = item.TryGetProperty("deductionReason", out var dr) ? dr.GetString() : null,
+                            EligibleAmount = ReadOcrDecimal(item, "eligibleAmount") is decimal eav ? eav : 0m,
+                            CreatedAt = DateTime.UtcNow
+                        };
+
+                        var statusStr = item.TryGetProperty("deductionStatus", out var ds)
+                            ? ds.GetString()
+                            : (item.TryGetProperty("suggestedStatus", out var ss) ? ss.GetString() : null);
+
+                        if (!string.IsNullOrWhiteSpace(statusStr))
+                        {
+                            line.DeductionStatus = statusStr.Trim().ToUpperInvariant();
+                        }
+                        else
+                        {
+                            line.DeductionStatus = line.IsEligibleDeduction ? MedicalDeductionStatus.ELIGIBLE : MedicalDeductionStatus.EXCLUDED;
+                        }
+
+                        if (string.Equals(line.DeductionStatus, MedicalDeductionStatus.EXCLUDED, StringComparison.OrdinalIgnoreCase))
+                        {
+                            line.IsEligibleDeduction = false;
+                            line.EligibleAmount = 0m;
+                        }
+                        else if (line.EligibleAmount == 0 && line.IsEligibleDeduction)
+                        {
+                            line.EligibleAmount = line.PatientCoPay + line.PatientSelfPay;
+                        }
+                        totalEligible += line.EligibleAmount;
+                        await lineRepo.AddAsync(line);
+                    }
+                    statement.TotalEligibleAmount = totalEligible;
+                }
+
+                statementRepo.Update(statement);
+                await unitOfWork.SaveChangesAsync();
+                _logger.LogInformation("Saved medical statement OCR result for {StatementId} with status {Status}",
+                    statement.Id, statement.Status);
+
+                if (parentDoc != null)
+                {
+                    var period = await unitOfWork.Repository<TaxPeriod>().GetByIdAsync(parentDoc.PeriodId);
+                    data.UserId = period?.UserId;
+                    data.DocTypeCode = DocumentTypeCodes.MedicalCostStatement;
+                    data.IsMedicalStatementUpload = true;
+                }
+                return true;
+            }
 
             var docRepo = unitOfWork.Repository<Document>();
             var document = await docRepo.GetByIdAsync(data.Id);
 
             if (document == null)
             {
-                _logger.LogWarning("Document {DocId} not found in database.", data.Id);
-                return;
+                _logger.LogWarning("Document or statement {DocId} not found in database.", data.Id);
+                return false;
             }
 
             if (string.Equals(document.Status, "CONFIRMED", StringComparison.OrdinalIgnoreCase))
             {
                 _logger.LogWarning("Document {DocId} is already CONFIRMED. Skipping OCR extraction update.", data.Id);
-                return;
+                return false;
             }
 
             // Đảm bảo doc_type_code hợp lệ trong bảng document_types nếu có
@@ -349,6 +537,7 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
                 document.Id,
                 document.Status,
                 data.ValidationErrors == null ? "none" : string.Join(" | ", data.ValidationErrors));
+            return true;
         }
 
         /// <summary>

@@ -1,0 +1,191 @@
+using System;
+using System.Collections.Generic;
+using System.Linq.Expressions;
+using System.Text.Json;
+using System.Threading.Tasks;
+using FluentAssertions;
+using Moq;
+using TaxKeepVN.Application.DTOs.TaxAI;
+using TaxKeepVN.Application.Helpers;
+using TaxKeepVN.Domain.Entities;
+using TaxKeepVN.Domain.IRepositories;
+using Xunit;
+
+namespace TaxKeepVN.UnitTests.Application.Services
+{
+    public class MedicalCrossCheckHelperTests
+    {
+        private readonly Mock<IUnitOfWork> _mockUow = new();
+        private readonly Mock<IGenericRepository<DocumentItem>> _mockItemRepo = new();
+
+        public MedicalCrossCheckHelperTests()
+        {
+            _mockUow.Setup(u => u.Repository<DocumentItem>()).Returns(_mockItemRepo.Object);
+        }
+
+        [Fact]
+        public async Task PerformMedicalCrossCheck_AllMatch_NoError()
+        {
+            var parentDoc = new Document
+            {
+                Id = Guid.NewGuid(),
+                BuyerName = "LÊ THỊ THU HƯƠNG",
+                BuyerIdCard = "079109001234",
+                TotalAmount = 1000000m
+            };
+
+            var statement = new MedicalStatement { Id = Guid.NewGuid(), DocumentId = parentDoc.Id };
+
+            var data = new DocumentOcrData
+            {
+                Status = "EXTRACTED",
+                MedicalHeader = JsonSerializer.Deserialize<JsonElement>(
+                    "{\"patientName\":\"Lê Thị Thu Hương\",\"idCard\":\"079109001234\"}"),
+                MedicalSummary = JsonSerializer.Deserialize<JsonElement>(
+                    "{\"patientPaid\":1000000,\"totalHospitalAmount\":5000000,\"insurancePaidAmount\":4000000}"),
+                MedicalLines = JsonSerializer.Deserialize<JsonElement>(
+                    "[{\"itemName\":\"Khám chuyên khoa Tiêu hóa\"},{\"itemName\":\"Nội soi thực quản dạ dày gây mê\"}]")
+            };
+
+            var items = new List<DocumentItem>
+            {
+                new DocumentItem { DocumentId = parentDoc.Id, ItemName = "Khám chuyên khoa tiêu hóa" },
+                new DocumentItem { DocumentId = parentDoc.Id, ItemName = "Nội soi thực quản dạ dày" }
+            };
+            _mockItemRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DocumentItem, bool>>>())).ReturnsAsync(items);
+
+            await MedicalCrossCheckHelper.PerformMedicalCrossCheckAsync(_mockUow.Object, parentDoc, statement, data);
+
+            data.CrossCheckIssues.Should().BeEmpty();
+            data.ValidationErrors.Should().BeEmpty();
+            data.Status.Should().Be("EXTRACTED");
+        }
+
+        [Fact]
+        public async Task PerformMedicalCrossCheck_PatientNameMismatch_FailsValidation()
+        {
+            var parentDoc = new Document
+            {
+                Id = Guid.NewGuid(),
+                BuyerName = "LÊ THỊ THU HƯƠNG",
+                BuyerIdCard = "079109001234",
+                TotalAmount = 1000000m
+            };
+
+            var statement = new MedicalStatement { Id = Guid.NewGuid(), DocumentId = parentDoc.Id };
+
+            var data = new DocumentOcrData
+            {
+                Status = "EXTRACTED",
+                MedicalHeader = JsonSerializer.Deserialize<JsonElement>(
+                    "{\"patientName\":\"NGUYỄN VĂN AN\",\"idCard\":\"079109001234\"}"),
+                MedicalSummary = JsonSerializer.Deserialize<JsonElement>("{\"patientPaid\":1000000}")
+            };
+
+            _mockItemRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DocumentItem, bool>>>())).ReturnsAsync(new List<DocumentItem>());
+
+            await MedicalCrossCheckHelper.PerformMedicalCrossCheckAsync(_mockUow.Object, parentDoc, statement, data);
+
+            data.CrossCheckIssues.Should().Contain("PATIENT_NAME_MISMATCH");
+            data.ValidationErrors.Should().Contain(e => e.Contains("không trùng khớp với người đứng tên"));
+            data.Status.Should().Be("FAILED");
+            statement.Status.Should().Be("FAILED");
+        }
+
+        [Fact]
+        public async Task PerformMedicalCrossCheck_PatientIdCardMismatch_FailsValidation()
+        {
+            var parentDoc = new Document
+            {
+                Id = Guid.NewGuid(),
+                BuyerName = "LÊ THỊ THU HƯƠNG",
+                BuyerIdCard = "079109001234",
+                TotalAmount = 1000000m
+            };
+
+            var statement = new MedicalStatement { Id = Guid.NewGuid(), DocumentId = parentDoc.Id };
+
+            var data = new DocumentOcrData
+            {
+                Status = "EXTRACTED",
+                MedicalHeader = JsonSerializer.Deserialize<JsonElement>(
+                    "{\"patientName\":\"LÊ THỊ THU HƯƠNG\",\"idCard\":\"079109999999\"}"),
+                MedicalSummary = JsonSerializer.Deserialize<JsonElement>("{\"patientPaid\":1000000}")
+            };
+
+            _mockItemRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DocumentItem, bool>>>())).ReturnsAsync(new List<DocumentItem>());
+
+            await MedicalCrossCheckHelper.PerformMedicalCrossCheckAsync(_mockUow.Object, parentDoc, statement, data);
+
+            data.CrossCheckIssues.Should().Contain("PATIENT_IDCARD_MISMATCH");
+            data.ValidationErrors.Should().Contain(e => e.Contains("Số định danh/CCCD trên bảng kê"));
+            data.Status.Should().Be("FAILED");
+        }
+
+        [Fact]
+        public async Task PerformMedicalCrossCheck_TotalAmountMismatch_FailsValidation()
+        {
+            var parentDoc = new Document
+            {
+                Id = Guid.NewGuid(),
+                BuyerName = "LÊ THỊ THU HƯƠNG",
+                BuyerIdCard = "079109001234",
+                TotalAmount = 1000000m
+            };
+
+            var statement = new MedicalStatement { Id = Guid.NewGuid(), DocumentId = parentDoc.Id };
+
+            var data = new DocumentOcrData
+            {
+                Status = "EXTRACTED",
+                MedicalHeader = JsonSerializer.Deserialize<JsonElement>(
+                    "{\"patientName\":\"LÊ THỊ THU HƯƠNG\",\"idCard\":\"079109001234\"}"),
+                MedicalSummary = JsonSerializer.Deserialize<JsonElement>("{\"patientPaid\":2500000}")
+            };
+
+            _mockItemRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DocumentItem, bool>>>())).ReturnsAsync(new List<DocumentItem>());
+
+            await MedicalCrossCheckHelper.PerformMedicalCrossCheckAsync(_mockUow.Object, parentDoc, statement, data);
+
+            data.CrossCheckIssues.Should().Contain("TOTAL_AMOUNT_MISMATCH");
+            data.ValidationErrors.Should().Contain(e => e.Contains("không khớp với số tiền thực tế"));
+            data.Status.Should().Be("FAILED");
+        }
+
+        [Fact]
+        public async Task PerformMedicalCrossCheck_ServiceItemMismatch_ReportsDiscrepancy()
+        {
+            var parentDoc = new Document
+            {
+                Id = Guid.NewGuid(),
+                BuyerName = "LÊ THỊ THU HƯƠNG",
+                BuyerIdCard = "079109001234",
+                TotalAmount = 1000000m
+            };
+
+            var statement = new MedicalStatement { Id = Guid.NewGuid(), DocumentId = parentDoc.Id };
+
+            var data = new DocumentOcrData
+            {
+                Status = "EXTRACTED",
+                MedicalHeader = JsonSerializer.Deserialize<JsonElement>(
+                    "{\"patientName\":\"LÊ THỊ THU HƯƠNG\",\"idCard\":\"079109001234\"}"),
+                MedicalSummary = JsonSerializer.Deserialize<JsonElement>("{\"patientPaid\":1000000}"),
+                MedicalLines = JsonSerializer.Deserialize<JsonElement>(
+                    "[{\"itemName\":\"Khám chuyên khoa tiêu hóa\"}]")
+            };
+
+            // Invoice has an item that is completely absent from the statement
+            var items = new List<DocumentItem>
+            {
+                new DocumentItem { DocumentId = parentDoc.Id, ItemName = "Chụp cộng hưởng từ sọ não (MRI)" }
+            };
+            _mockItemRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DocumentItem, bool>>>())).ReturnsAsync(items);
+
+            await MedicalCrossCheckHelper.PerformMedicalCrossCheckAsync(_mockUow.Object, parentDoc, statement, data);
+
+            data.CrossCheckIssues.Should().Contain("SERVICE_ITEM_MISMATCH");
+            data.ValidationErrors.Should().Contain(e => e.Contains("Chụp cộng hưởng từ sọ não (MRI)"));
+        }
+    }
+}

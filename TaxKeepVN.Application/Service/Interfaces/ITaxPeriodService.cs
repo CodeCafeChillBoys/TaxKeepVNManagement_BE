@@ -23,6 +23,8 @@ namespace TaxKeepVN.Application.Service.Interfaces
         /// Tải lên nhiều chứng từ thuế theo kỳ kê khai và kích hoạt bóc tách OCR qua RabbitMQ.
         /// </summary>
         Task<TaxKeepVN.Application.DTOs.Documents.BatchUploadDocumentsResponseDto> BatchUploadDocumentsAsync(Guid userId, Guid periodId, IList<Microsoft.AspNetCore.Http.IFormFile> files);
+        Task<TaxKeepVN.Application.DTOs.Documents.MedicalStatementResponseDto> UploadMedicalStatementAsync(
+            Guid userId, Guid periodId, Guid documentId, Microsoft.AspNetCore.Http.IFormFile file);
 
         /// <summary>
         /// Xác nhận và lưu chính thức dữ liệu sau khi người dùng review kết quả bóc tách từ AI.

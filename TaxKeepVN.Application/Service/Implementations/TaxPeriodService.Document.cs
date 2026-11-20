@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Logging;
+using System.Text.Json;
 using TaxKeepVN.Application.Constants;
 using TaxKeepVN.Application.DTOs.Documents;
 using TaxKeepVN.Application.DTOs.TaxAI;
@@ -12,7 +13,11 @@ namespace TaxKeepVN.Application.Service.Implementations
 {
     public partial class TaxPeriodService
     {
-        public async Task<BatchUploadDocumentsResponseDto> BatchUploadDocumentsAsync(Guid userId, Guid periodId, IList<IFormFile> files)
+        public Task<BatchUploadDocumentsResponseDto> BatchUploadDocumentsAsync(Guid userId, Guid periodId, IList<IFormFile> files)
+            => UploadDocumentsAsync(userId, periodId, files);
+
+        private async Task<BatchUploadDocumentsResponseDto> UploadDocumentsAsync(
+            Guid userId, Guid periodId, IList<IFormFile> files)
         {
             // 1. Kiểm tra Tax Period
             var periodRepo = _unitOfWork.Repository<TaxPeriod>();
@@ -78,7 +83,6 @@ namespace TaxKeepVN.Application.Service.Implementations
                 {
                     Id = Guid.NewGuid(),
                     PeriodId = period.Id,
-                    DocTypeCode = null,
                     OriginalFilename = file.FileName,
                     FileUrl = fileUrl,
                     IncomeYear = period.TaxYear,
@@ -120,7 +124,9 @@ namespace TaxKeepVN.Application.Service.Implementations
                     TargetYear = period.TaxYear,
                     FileUrl = doc.FileUrl,
                     OriginalFilename = doc.OriginalFilename ?? string.Empty,
-                    Categories = categories
+                    Categories = categories,
+                    DocTypeCode = doc.DocTypeCode,
+                    IsMedicalStatement = false
                 }).ToList();
 
                 _ocrProducerService.PublishBatchOcrTasks(ocrMessages);
@@ -273,7 +279,29 @@ namespace TaxKeepVN.Application.Service.Implementations
             }
 
             // Trả về DTO thông qua DocumentMapper
-            return document.ToReviewDto(docTypeEntity, savedItems);
+            var statementRepo = _unitOfWork.Repository<MedicalStatement>();
+            var statement = (await statementRepo.FindAsync(s => s.DocumentId == document.Id)).FirstOrDefault();
+            if (statement != null)
+            {
+                var lineRepo = _unitOfWork.Repository<MedicalStatementLine>();
+                statement.Lines = (await lineRepo.FindAsync(l => l.MedicalStatementId == statement.Id))
+                    .OrderBy(l => l.LineOrder)
+                    .ToList();
+                document.MedicalStatement = statement;
+            }
+
+            var reviewDto = document.ToReviewDto(docTypeEntity, savedItems);
+            if (reviewDto.MedicalStatement?.ValidationErrors?.Any() == true)
+            {
+                foreach (var err in reviewDto.MedicalStatement.ValidationErrors)
+                {
+                    if (!reviewDto.ValidationErrors.Contains(err))
+                    {
+                        reviewDto.ValidationErrors.Add(err);
+                    }
+                }
+            }
+            return reviewDto;
         }
 
         public async Task TriggerDocumentOcrAsync(Guid userId, Guid periodId, Guid documentId)
@@ -294,6 +322,24 @@ namespace TaxKeepVN.Application.Service.Implementations
             var docRepo = _unitOfWork.Repository<Document>();
             var document = await docRepo.GetByIdAsync(documentId);
 
+            if (document == null)
+            {
+                var statement = await _unitOfWork.Repository<MedicalStatement>().GetByIdAsync(documentId);
+                var parent = statement == null ? null : await docRepo.GetByIdAsync(statement.DocumentId);
+                if (statement == null || parent?.PeriodId != periodId)
+                {
+                    throw new NotFoundException(ErrorMessages.DocumentNotFound);
+                }
+
+                if (!string.Equals(statement.Status, "UPLOADED", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new BadRequestException(ErrorCodes.InvalidDocumentStatus, ErrorMessages.DocumentAlreadyVerified);
+                }
+
+                await PublishMedicalStatementOcrAsync(period, statement);
+                return;
+            }
+
             if (document == null || document.PeriodId != periodId)
             {
                 throw new NotFoundException(ErrorMessages.DocumentNotFound);
@@ -302,6 +348,13 @@ namespace TaxKeepVN.Application.Service.Implementations
             // 400: Document không ở trạng thái UPLOADED (chặn nếu đã EXTRACTED hoặc CONFIRMED)
             if (!string.Equals(document.Status, "UPLOADED", StringComparison.OrdinalIgnoreCase))
             {
+                var childStatement = (await _unitOfWork.Repository<MedicalStatement>().FindAsync(s => s.DocumentId == document.Id)).FirstOrDefault();
+                if (childStatement != null && !string.Equals(childStatement.Status, "CONFIRMED", StringComparison.OrdinalIgnoreCase))
+                {
+                    await PublishMedicalStatementOcrAsync(period, childStatement);
+                    _logger.LogInformation("Re-triggered OCR task for child medical statement {StatementId} of document {DocId}", childStatement.Id, documentId);
+                    return;
+                }
                 throw new BadRequestException(ErrorCodes.InvalidDocumentStatus, ErrorMessages.DocumentAlreadyVerified);
             }
 
@@ -314,7 +367,10 @@ namespace TaxKeepVN.Application.Service.Implementations
                 TargetYear = period.TaxYear,
                 FileUrl = document.FileUrl,
                 OriginalFilename = document.OriginalFilename ?? string.Empty,
-                Categories = categories
+                Categories = categories,
+                DocTypeCode = document.DocTypeCode,
+                IsMedicalStatement = string.Equals(document.DocTypeCode, DocumentTypeCodes.MedicalCostStatement, StringComparison.OrdinalIgnoreCase),
+                ParentDocumentId = null
             };
 
             _ocrProducerService.PublishBatchOcrTasks(new[] { message });
@@ -348,6 +404,10 @@ namespace TaxKeepVN.Application.Service.Implementations
             {
                 throw new BadRequestException(ErrorCodes.InvalidDocumentStatus, ErrorMessages.DocumentAlreadyVerified);
             }
+
+            var statementRepo = _unitOfWork.Repository<MedicalStatement>();
+            if ((await statementRepo.FindAsync(d => d.DocumentId == documentId)).Any())
+                throw new BadRequestException("ERR_MEDICAL_STATEMENT_EXISTS", "Delete the linked medical statement first.");
 
             await _fileStorageService.DeleteFileAsync(document.FileUrl);
 
@@ -414,6 +474,22 @@ namespace TaxKeepVN.Application.Service.Implementations
                         g => g.OrderBy(i => i.ItemOrder).ToList());
             }
 
+            var statementRepo = _unitOfWork.Repository<MedicalStatement>();
+            var lineRepo = _unitOfWork.Repository<MedicalStatementLine>();
+            var statements = (await statementRepo.FindAsync(s => docIds.Contains(s.DocumentId))).ToList();
+            var statementIds = statements.Select(s => s.Id).ToList();
+            var allLines = statementIds.Any()
+                ? (await lineRepo.FindAsync(l => statementIds.Contains(l.MedicalStatementId))).ToList()
+                : new List<MedicalStatementLine>();
+            var linesByStatementId = allLines.GroupBy(l => l.MedicalStatementId)
+                .ToDictionary(g => g.Key, g => g.OrderBy(l => l.LineOrder).ToList());
+            foreach (var s in statements)
+            {
+                if (linesByStatementId.TryGetValue(s.Id, out var lines))
+                    s.Lines = lines;
+            }
+            var statementsByDocId = statements.ToDictionary(s => s.DocumentId);
+
             // 5. Map Document -> DocumentReviewResponseDto qua DocumentMapper
             var result = documents.Select(doc =>
             {
@@ -424,8 +500,24 @@ namespace TaxKeepVN.Application.Service.Implementations
                 }
 
                 itemsByDocId.TryGetValue(doc.Id, out var itemsList);
+                if (statementsByDocId.TryGetValue(doc.Id, out var ms))
+                {
+                    doc.MedicalStatement = ms;
+                }
 
-                return doc.ToReviewDto(docType, itemsList);
+                var itemReviewDto = doc.ToReviewDto(docType, itemsList);
+                if (itemReviewDto.MedicalStatement?.ValidationErrors?.Any() == true)
+                {
+                    foreach (var err in itemReviewDto.MedicalStatement.ValidationErrors)
+                    {
+                        if (!itemReviewDto.ValidationErrors.Contains(err))
+                        {
+                            itemReviewDto.ValidationErrors.Add(err);
+                        }
+                    }
+                }
+
+                return itemReviewDto;
             }).ToList();
 
             return result;
@@ -472,7 +564,30 @@ namespace TaxKeepVN.Application.Service.Implementations
                 .ToList();
 
             // 5. Map Document -> DocumentReviewResponseDto qua DocumentMapper
-            return document.ToReviewDto(docType, items);
+            var statementRepo = _unitOfWork.Repository<MedicalStatement>();
+            var statement = (await statementRepo.FindAsync(s => s.DocumentId == document.Id)).FirstOrDefault();
+            if (statement != null)
+            {
+                var lineRepo = _unitOfWork.Repository<MedicalStatementLine>();
+                statement.Lines = (await lineRepo.FindAsync(l => l.MedicalStatementId == statement.Id))
+                    .OrderBy(l => l.LineOrder)
+                    .ToList();
+                document.MedicalStatement = statement;
+            }
+
+            var reviewDto = document.ToReviewDto(docType, items);
+            if (reviewDto.MedicalStatement?.ValidationErrors?.Any() == true)
+            {
+                foreach (var err in reviewDto.MedicalStatement.ValidationErrors)
+                {
+                    if (!reviewDto.ValidationErrors.Contains(err))
+                    {
+                        reviewDto.ValidationErrors.Add(err);
+                    }
+                }
+            }
+
+            return reviewDto;
         }
 
         // Bỏ các kí tự khoảng trắng và -
@@ -505,11 +620,15 @@ namespace TaxKeepVN.Application.Service.Implementations
                     ? "[ĐƯỢC GIẢM TRỪ THUẾ TNCN]"
                     : "[KHÔNG ĐƯỢC GIẢM TRỪ THUẾ TNCN]";
 
+                var isMedicalStatement = t.Code == DocumentTypeCodes.MedicalCostStatement;
                 return new CategoryItemDto
                 {
                     Code = t.Code,
                     Name = t.Name,
-                    Description = $"{prefix} {rawDesc}"
+                    IsMedicalStatement = isMedicalStatement,
+                    Description = isMedicalStatement
+                        ? $"{rawDesc} Bảng kê này là chứng từ hỗ trợ cho hóa đơn y tế."
+                        : $"{prefix} {rawDesc}"
                 };
             }).ToList();
         }

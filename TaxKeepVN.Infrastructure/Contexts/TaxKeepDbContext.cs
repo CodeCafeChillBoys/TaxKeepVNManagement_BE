@@ -23,6 +23,9 @@ namespace TaxKeepVN.Infrastructure.Contexts
         public DbSet<TaxDocumentType> DocumentTypes { get; set; }
         public DbSet<Document> Documents { get; set; }
         public DbSet<DocumentItem> DocumentItems { get; set; }
+        public DbSet<MedicalStatement> MedicalStatements { get; set; }
+        public DbSet<MedicalStatementLine> MedicalStatementLines { get; set; }
+        public DbSet<MedicalEligibleCategory> MedicalEligibleCategories { get; set; }
         public DbSet<Income> Incomes { get; set; }
 
         // Tax Settlement & Domain-Specific Configurations
@@ -339,6 +342,101 @@ namespace TaxKeepVN.Infrastructure.Contexts
 
                 entity.HasIndex(d => d.PeriodId).HasDatabaseName("idx_documents_period_id");
                 entity.HasIndex(d => d.DocTypeCode).HasDatabaseName("idx_documents_doc_type_code");
+            });
+
+            // ── MedicalStatement ──────────────────────────────────────────────────
+            modelBuilder.Entity<MedicalStatement>(entity =>
+            {
+                entity.ToTable("medical_statements");
+                entity.HasKey(ms => ms.Id);
+
+                entity.Property(ms => ms.Id).HasColumnName("id");
+                entity.Property(ms => ms.DocumentId).HasColumnName("document_id").IsRequired();
+                entity.Property(ms => ms.FileUrl).HasColumnName("file_url").IsRequired();
+                entity.Property(ms => ms.OriginalFilename).HasColumnName("original_filename").HasMaxLength(255);
+                entity.Property(ms => ms.FormCode).HasColumnName("form_code").HasMaxLength(50);
+                entity.Property(ms => ms.StatementNumber).HasColumnName("statement_number").HasMaxLength(100);
+                entity.Property(ms => ms.PatientName).HasColumnName("patient_name").HasMaxLength(255);
+                entity.Property(ms => ms.PatientDob).HasColumnName("patient_dob");
+                entity.Property(ms => ms.PatientGender).HasColumnName("patient_gender").HasMaxLength(20);
+                entity.Property(ms => ms.PatientIdCard).HasColumnName("patient_id_card").HasMaxLength(50);
+                entity.Property(ms => ms.InsuranceNumber).HasColumnName("insurance_number").HasMaxLength(50);
+                entity.Property(ms => ms.BenefitRate).HasColumnName("benefit_rate").HasColumnType("numeric(5,2)");
+                entity.Property(ms => ms.HospitalName).HasColumnName("hospital_name").HasMaxLength(255);
+                entity.Property(ms => ms.HospitalCode).HasColumnName("hospital_code").HasMaxLength(50);
+                entity.Property(ms => ms.Department).HasColumnName("department").HasMaxLength(255);
+                entity.Property(ms => ms.AdmissionDate).HasColumnName("admission_date");
+                entity.Property(ms => ms.DischargeDate).HasColumnName("discharge_date");
+                entity.Property(ms => ms.TreatmentType).HasColumnName("treatment_type").HasMaxLength(50);
+                entity.Property(ms => ms.TotalHospitalAmount).HasColumnName("total_hospital_amount").HasColumnType("numeric(18,2)");
+                entity.Property(ms => ms.InsurancePaidAmount).HasColumnName("insurance_paid_amount").HasColumnType("numeric(18,2)");
+                entity.Property(ms => ms.PatientPaidAmount).HasColumnName("patient_paid_amount").HasColumnType("numeric(18,2)");
+                entity.Property(ms => ms.PatientSelfPayAmount).HasColumnName("patient_self_pay_amount").HasColumnType("numeric(18,2)");
+                entity.Property(ms => ms.TotalEligibleAmount).HasColumnName("total_eligible_amount").HasColumnType("numeric(18,2)");
+                entity.Property(ms => ms.OverallConfidence).HasColumnName("overall_confidence").HasColumnType("numeric(5,4)");
+                entity.Property(ms => ms.AppliedThreshold).HasColumnName("applied_threshold").HasColumnType("numeric(5,4)");
+                entity.Property(ms => ms.IsPassedThreshold).HasColumnName("is_passed_threshold");
+                entity.Property(ms => ms.Status).HasColumnName("status").HasMaxLength(50).HasDefaultValue("UPLOADED").IsRequired();
+                entity.Property(ms => ms.ValidationErrors).HasColumnName("validation_errors");
+                entity.Property(ms => ms.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
+                entity.Property(ms => ms.UpdatedAt).HasColumnName("updated_at");
+
+                entity.HasOne(ms => ms.Document)
+                    .WithOne(d => d.MedicalStatement)
+                    .HasForeignKey<MedicalStatement>(ms => ms.DocumentId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(ms => ms.DocumentId).IsUnique().HasDatabaseName("idx_medical_statements_document_id");
+            });
+
+            // ── MedicalStatementLine ──────────────────────────────────────────────
+            modelBuilder.Entity<MedicalStatementLine>(entity =>
+            {
+                entity.ToTable("medical_statement_lines");
+                entity.HasKey(l => l.Id);
+
+                entity.Property(l => l.Id).HasColumnName("id").UseIdentityByDefaultColumn();
+                entity.Property(l => l.MedicalStatementId).HasColumnName("medical_statement_id").IsRequired();
+                entity.Property(l => l.LineOrder).HasColumnName("line_order").IsRequired();
+                entity.Property(l => l.SectionCode).HasColumnName("section_code").HasMaxLength(20);
+                entity.Property(l => l.SectionName).HasColumnName("section_name").HasMaxLength(255);
+                entity.Property(l => l.ItemName).HasColumnName("item_name").HasMaxLength(500).IsRequired();
+                entity.Property(l => l.Unit).HasColumnName("unit").HasMaxLength(50);
+                entity.Property(l => l.Quantity).HasColumnName("quantity").HasColumnType("numeric(18,4)").HasDefaultValue(0m);
+                entity.Property(l => l.UnitPrice).HasColumnName("unit_price").HasColumnType("numeric(18,2)").HasDefaultValue(0m);
+                entity.Property(l => l.TotalAmount).HasColumnName("total_amount").HasColumnType("numeric(18,2)").HasDefaultValue(0m);
+                entity.Property(l => l.InsurancePaid).HasColumnName("insurance_paid").HasColumnType("numeric(18,2)").HasDefaultValue(0m);
+                entity.Property(l => l.PatientCoPay).HasColumnName("patient_copay").HasColumnType("numeric(18,2)").HasDefaultValue(0m);
+                entity.Property(l => l.PatientSelfPay).HasColumnName("patient_self_pay").HasColumnType("numeric(18,2)").HasDefaultValue(0m);
+                entity.Property(l => l.IsEligibleDeduction).HasColumnName("is_eligible_deduction").HasDefaultValue(true);
+                entity.Property(l => l.DeductionReason).HasColumnName("deduction_reason").HasMaxLength(255);
+                entity.Property(l => l.DeductionStatus).HasColumnName("deduction_status").HasMaxLength(50).HasDefaultValue("ELIGIBLE");
+                entity.Property(l => l.EligibleAmount).HasColumnName("eligible_amount").HasColumnType("numeric(18,2)").HasDefaultValue(0m);
+                entity.Property(l => l.CreatedAt).HasColumnName("created_at").HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                entity.HasOne(l => l.MedicalStatement)
+                    .WithMany(ms => ms.Lines)
+                    .HasForeignKey(l => l.MedicalStatementId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(l => l.MedicalStatementId).HasDatabaseName("idx_medical_statement_lines_statement_id");
+            });
+
+            // ── MedicalEligibleCategory (Quyết định 697/QĐ-BYT) ───────────────
+            modelBuilder.Entity<MedicalEligibleCategory>(entity =>
+            {
+                entity.ToTable("medical_eligible_categories");
+                entity.HasKey(c => c.Id);
+                entity.Property(c => c.Id).HasColumnName("id");
+                entity.Property(c => c.CategoryCode).HasColumnName("category_code").HasMaxLength(50).IsRequired();
+                entity.Property(c => c.CategoryName).HasColumnName("category_name").HasMaxLength(255).IsRequired();
+                entity.Property(c => c.SectionCode).HasColumnName("section_code").HasMaxLength(20).IsRequired();
+                entity.Property(c => c.IsEligible).HasColumnName("is_eligible").IsRequired();
+                entity.Property(c => c.Description).HasColumnName("description");
+                entity.Property(c => c.Keywords).HasColumnName("keywords");
+                entity.Property(c => c.CreatedAt).HasColumnName("created_at");
+                entity.Property(c => c.UpdatedAt).HasColumnName("updated_at");
+                entity.HasIndex(c => c.CategoryCode).IsUnique().HasDatabaseName("idx_medical_eligible_categories_code");
             });
 
             // ── Income ───────────────────────────────────────────────────────────

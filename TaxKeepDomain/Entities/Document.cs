@@ -108,6 +108,7 @@ namespace TaxKeepVN.Domain.Entities
         // Navigation properties
         public TaxPeriod? Period { get; set; }
         public TaxDocumentType? DocType { get; set; }
+        public MedicalStatement? MedicalStatement { get; set; }
         public ICollection<DocumentItem> Items { get; set; } = new List<DocumentItem>();
     }
 }

@@ -77,6 +77,15 @@ namespace TaxKeepVNManagementSystem.Controllers
             return Ok(ApiResponse<BatchUploadDocumentsResponseDto>.Ok(result, SuccessMessages.DocumentsUploaded));
         }
 
+        [HttpPost("{periodId:guid}/documents/{documentId:guid}/medical-statement")]
+        [HasPermission("document.upload")]
+        [Consumes("multipart/form-data")]
+        public async Task<IActionResult> UploadMedicalStatement(Guid periodId, Guid documentId, IFormFile file)
+        {
+            var result = await _service.UploadMedicalStatementAsync(GetUserIdFromToken(), periodId, documentId, file);
+            return Ok(ApiResponse<MedicalStatementResponseDto>.Ok(result, "Tải lên bảng kê chi phí KCB thành công."));
+        }
+
         /// <summary>
         /// Xác nhận và lưu trữ chính thức dữ liệu chứng từ sau khi người dùng review kết quả từ AI.
         /// Chuyển trạng thái chứng từ sang CONFIRMED.

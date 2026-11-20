@@ -6,6 +6,8 @@ namespace TaxKeepVN.Application.DTOs.Documents
 [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class DocumentReviewResponseDto
     {
+        // Quan hệ bảng kê KCB chuẩn hóa
+        public MedicalStatementResponseDto? MedicalStatement { get; set; }
         public Guid Id { get; set; }
         public Guid PeriodId { get; set; }
         public string? DocTypeCode { get; set; }
