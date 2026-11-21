@@ -75,66 +75,13 @@ namespace TaxKeepVN.Application.Service.Implementations
             var statementRepo = _unitOfWork.Repository<MedicalStatement>();
             var existingStatement = (await statementRepo.FindAsync(d => d.DocumentId == documentId)).FirstOrDefault();
 
-            // Nếu đã có bảng kê: Kiểm tra trạng thái và cho phép ghi đè (overwrite) nếu chưa CONFIRMED
             if (existingStatement != null)
             {
                 if (string.Equals(existingStatement.Status, MedicalStatementStatus.CONFIRMED, StringComparison.OrdinalIgnoreCase))
-                {
                     throw new BadRequestException(ErrorCodes.InvalidDocumentStatus, ErrorMessages.DocumentAlreadyVerified);
-                }
 
-                // Xóa file cũ trên storage nếu có
-                if (!string.IsNullOrWhiteSpace(existingStatement.FileUrl))
-                {
-                    try { await _fileStorageService.DeleteFileAsync(existingStatement.FileUrl); }
-                    catch (Exception ex) { _logger.LogWarning(ex, "Failed to delete old statement file {FileUrl}", existingStatement.FileUrl); }
-                }
-
-                // Xóa các dòng bóc tách chi phí cũ
-                var lineRepo = _unitOfWork.Repository<MedicalStatementLine>();
-                var oldLines = await lineRepo.FindAsync(l => l.MedicalStatementId == existingStatement.Id);
-                foreach (var l in oldLines)
-                {
-                    lineRepo.Remove(l);
-                }
-
-                // Lưu file mới lên storage
-                var newFileUrl = await _fileStorageService.SaveFileAsync(file, $"tax-periods/{period.TaxYear}/medical-statements");
-
-                // Reset các trường bóc tách và ghi đè
-                existingStatement.OriginalFilename = file.FileName;
-                existingStatement.FileUrl = newFileUrl;
-                existingStatement.Status = MedicalStatementStatus.UPLOADED;
-                existingStatement.OverallConfidence = null;
-                existingStatement.AppliedThreshold = null;
-                existingStatement.IsPassedThreshold = null;
-                existingStatement.ValidationErrors = null;
-                existingStatement.PatientName = null;
-                existingStatement.PatientIdCard = null;
-                existingStatement.TreatmentType = null;
-                existingStatement.AdmissionDate = null;
-                existingStatement.DischargeDate = null;
-                existingStatement.TotalHospitalAmount = null;
-                existingStatement.InsurancePaidAmount = null;
-                existingStatement.PatientPaidAmount = null;
-                existingStatement.PatientSelfPayAmount = null;
-                existingStatement.TotalEligibleAmount = null;
-                existingStatement.UpdatedAt = DateTime.UtcNow;
-
-                statementRepo.Update(existingStatement);
-                await _unitOfWork.SaveChangesAsync();
-
-                // Publish task OCR sang RabbitMQ để bóc tách lại từ ảnh mới
-                try
-                {
-                    await PublishMedicalStatementOcrAsync(period, existingStatement);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogError(ex, "Failed to publish medical statement OCR task for receipt {ReceiptId}", documentId);
-                }
-
-                return existingStatement.ToDto()!;
+                throw new ConflictException(ErrorCodes.DuplicateDocument,
+                    "A medical statement already exists for this receipt. Delete it before uploading a replacement.");
             }
 
             // 4. Lưu file và tạo record TRỰC TIẾP trong bảng medical_statements

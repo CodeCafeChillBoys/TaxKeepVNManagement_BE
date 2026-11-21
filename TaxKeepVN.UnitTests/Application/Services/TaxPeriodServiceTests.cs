@@ -224,7 +224,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
         }
 
         [Fact]
-        public async Task UploadMedicalStatementAsync_WhenAlreadyExistsAndNotConfirmed_OverwritesExistingStatement()
+        public async Task UploadMedicalStatementAsync_WhenAlreadyExistsAndNotConfirmed_PreservesExistingStatement()
         {
             var period = new TaxPeriod { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), TaxYear = 2026, Status = "DRAFT" };
             _mockPeriodRepo.Setup(r => r.GetByIdAsync(period.Id)).ReturnsAsync(period);
@@ -260,30 +260,25 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 .ReturnsAsync((Expression<Func<TaxDocumentType, bool>> filter) => configuredTypes.Where(filter.Compile()).ToList());
             _mockUnitOfWork.Setup(u => u.Repository<TaxDocumentType>()).Returns(types.Object);
 
-            var catRepo = new Mock<IGenericRepository<MedicalEligibleCategory>>();
-            catRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<MedicalEligibleCategory, bool>>>()))
-                .ReturnsAsync(new List<MedicalEligibleCategory>());
-            _mockUnitOfWork.Setup(u => u.Repository<MedicalEligibleCategory>()).Returns(catRepo.Object);
-
             using var stream = new MemoryStream(new byte[256]);
             var file = new FormFile(stream, 0, stream.Length, "file", "new_statement.pdf")
             {
                 Headers = new HeaderDictionary(),
                 ContentType = "application/pdf"
             };
-            _mockFileStorage.Setup(s => s.SaveFileAsync(file, "tax-periods/2026/medical-statements"))
-                .ReturnsAsync("https://storage/new_statement.pdf");
+            Func<Task> upload = () => _service.UploadMedicalStatementAsync(period.UserId, period.Id, receipt.Id, file);
 
-            var result = await _service.UploadMedicalStatementAsync(period.UserId, period.Id, receipt.Id, file);
-
-            result.Should().NotBeNull();
-            result.Id.Should().Be(existingStmt.Id);
-            result.FileUrl.Should().Be("https://storage/new_statement.pdf");
-            result.Status.Should().Be("UPLOADED");
-            statementRepo.Verify(r => r.Update(existingStmt), Times.Once);
-            _mockFileStorage.Verify(f => f.DeleteFileAsync("https://storage/old.pdf"), Times.Once);
-            _mockUnitOfWork.Verify(u => u.SaveChangesAsync(), Times.Once);
-            _mockOcrProducer.Verify(p => p.PublishBatchOcrTasks(It.IsAny<IEnumerable<DocumentOcrExtractRequestMessage>>()), Times.Once);
+            var exception = await upload.Should().ThrowAsync<ConflictException>();
+            exception.Which.ErrorCode.Should().Be(ErrorCodes.DuplicateDocument);
+            existingStmt.FileUrl.Should().Be("https://storage/old.pdf");
+            existingStmt.Status.Should().Be(MedicalStatementStatus.EXTRACTED);
+            statementRepo.Verify(r => r.Update(It.IsAny<MedicalStatement>()), Times.Never);
+            statementRepo.Verify(r => r.AddAsync(It.IsAny<MedicalStatement>()), Times.Never);
+            _mockFileStorage.Verify(f => f.SaveFileAsync(It.IsAny<IFormFile>(), It.IsAny<string>()), Times.Never);
+            _mockFileStorage.Verify(f => f.DeleteFileAsync(It.IsAny<string>()), Times.Never);
+            _mockUnitOfWork.Verify(u => u.Repository<MedicalStatementLine>(), Times.Never);
+            _mockUnitOfWork.Verify(u => u.SaveChangesAsync(), Times.Never);
+            _mockOcrProducer.Verify(p => p.PublishBatchOcrTasks(It.IsAny<IEnumerable<DocumentOcrExtractRequestMessage>>()), Times.Never);
         }
 
         #region BatchUploadDocumentsAsync
