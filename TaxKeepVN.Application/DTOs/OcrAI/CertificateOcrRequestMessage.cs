@@ -33,5 +33,8 @@ namespace TaxKeepVN.Application.DTOs.OcrAI
 
         [JsonPropertyName("allowedTypes")]
         public List<Dictionary<string, string>>? AllowedTypes { get; set; }
+
+        [JsonPropertyName("appliedThreshold")]
+        public double? AppliedThreshold { get; set; }
     }
 }

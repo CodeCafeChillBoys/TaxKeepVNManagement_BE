@@ -27,6 +27,15 @@ namespace TaxKeepVN.Application.DTOs.OcrAI
         [JsonPropertyName("message")]
         public string Message { get; set; } = string.Empty;
 
+        [JsonPropertyName("overallConfidence")]
+        public double? OverallConfidence { get; set; }
+
+        [JsonPropertyName("appliedThreshold")]
+        public double? AppliedThreshold { get; set; }
+
+        [JsonPropertyName("isPassedThreshold")]
+        public bool? IsPassedThreshold { get; set; }
+
         [JsonPropertyName("data")]
         public CertificateExtractedDataDto? Data { get; set; }
 

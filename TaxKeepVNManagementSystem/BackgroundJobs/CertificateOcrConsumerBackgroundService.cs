@@ -205,18 +205,27 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
                     isCitizenMatch = string.Equals(user.CitizenId.Trim(), data.CitizenId.Trim(), StringComparison.OrdinalIgnoreCase);
                 }
 
+                var isThresholdPassed = !data.IsPassedThreshold.HasValue || data.IsPassedThreshold.Value;
+
                 _logger.LogInformation(
-                    "Kết quả đối soát chứng chỉ {CertId} (TaskId: {TaskId}): NameMatch={NameMatch}, CitizenMatch={CitizenMatch}, DetectedType={Type}, IsValidType={IsValidType}",
-                    targetCert.Id, response.TaskId, isNameMatch, isCitizenMatch, data.DetectedType, data.IsValidType
+                    "Kết quả đối soát chứng chỉ {CertId} (TaskId: {TaskId}): NameMatch={NameMatch}, CitizenMatch={CitizenMatch}, DetectedType={Type}, IsValidType={IsValidType}, ThresholdPassed={ThresholdPassed}",
+                    targetCert.Id, response.TaskId, isNameMatch, isCitizenMatch, data.DetectedType, data.IsValidType, isThresholdPassed
                 );
 
-                if (isNameMatch && isCitizenMatch && data.IsValidType)
+                if (isNameMatch && isCitizenMatch && data.IsValidType && isThresholdPassed)
                 {
                     targetCert.VerificationStatus = CertificateVerificationStatus.Verified;
                     targetCert.VerificationSource = "AI_OCR_GEMINI_RABBITMQ";
                     targetCert.VerificationNote = $"AI tự động xác thực thành công. Khớp Họ tên ('{data.FullName}')" +
                                                   (!string.IsNullOrWhiteSpace(data.CitizenId) ? $" & Số CCCD ('{data.CitizenId}')" : "") +
                                                   $". Loại: {data.DetectedType}. Độ tin cậy: {data.OverallConfidence:P0}.";
+                }
+                else if (!isThresholdPassed)
+                {
+                    var threshText = data.AppliedThreshold.HasValue ? $"{data.AppliedThreshold.Value:P0}" : "yêu cầu";
+                    targetCert.VerificationStatus = CertificateVerificationStatus.Rejected;
+                    targetCert.VerificationSource = "AI_OCR_GEMINI_RABBITMQ";
+                    targetCert.VerificationNote = $"AI từ chối: Độ tin cậy trích xuất ({data.OverallConfidence:P0}) không đạt ngưỡng {threshText}. Hình ảnh có thể bị mờ hoặc không đạt chất lượng.";
                 }
                 else if (!isNameMatch)
                 {
