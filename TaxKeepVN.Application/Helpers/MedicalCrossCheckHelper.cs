@@ -113,7 +113,7 @@ namespace TaxKeepVN.Application.Helpers
                     }
                 }
 
-                // ❌ Nếu không phải NNT và không phải NPT: Từ chối theo Khoản 3b Điều 49 NĐ 253/2026/NĐ-CP
+                //  Nếu không phải NNT và không phải NPT: Từ chối theo Khoản 3b Điều 49 NĐ 253/2026/NĐ-CP
                 if (!isPatientTaxpayerOrDependent && taxpayer != null)
                 {
                     var allowedNames = new List<string> { taxpayer.FullName };

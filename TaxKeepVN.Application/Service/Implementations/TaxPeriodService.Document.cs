@@ -177,7 +177,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             // 409: Trùng số hóa đơn & MST người bán trong cùng kỳ tính thuế
             if (!string.IsNullOrWhiteSpace(dto.SellerTaxCode))
             {
-                var normTaxCode = NormalizeTaxCode(dto.SellerTaxCode);
+                var normTaxCode = NormalizeTaxCode(dto.SellerTaxCode); 
                 var periodDocuments = await docRepo.FindAsync(d => d.PeriodId == periodId && d.Id != documentId);
                 var confirmedDocs = periodDocuments.Where(d => string.Equals(d.Status, "CONFIRMED", StringComparison.OrdinalIgnoreCase)).ToList();
 
