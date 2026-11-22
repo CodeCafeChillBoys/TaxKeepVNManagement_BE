@@ -171,10 +171,40 @@ namespace TaxKeepVN.Application.Helpers
 
             // 2. Đối chiếu số tiền người bệnh thực trả
             decimal? patientPaidOnStatement = statement.PatientPaidAmount;
-            if (data.MedicalSummary.HasValue && data.MedicalSummary.Value.ValueKind == JsonValueKind.Object)
+
+            // Ưu tiên 1: Tự động cộng từ danh sách các dòng chi tiết (Cột 11 + Cột 13)
+            if (data.MedicalLines.HasValue && data.MedicalLines.Value.ValueKind == JsonValueKind.Array)
+            {
+                decimal sumCoPay = 0m;
+                decimal sumSelfPay = 0m;
+                foreach (var item in data.MedicalLines.Value.EnumerateArray())
+                {
+                    if (item.TryGetProperty("patientCoPayAmount", out var cp) && cp.TryGetDecimal(out var cpVal))
+                        sumCoPay += cpVal;
+                    else if (item.TryGetProperty("patientCoPay", out var cp2) && cp2.TryGetDecimal(out var cpVal2))
+                        sumCoPay += cpVal2;
+
+                    if (item.TryGetProperty("patientSelfPayAmount", out var sp) && sp.TryGetDecimal(out var spVal))
+                        sumSelfPay += spVal;
+                    else if (item.TryGetProperty("patientSelfPay", out var sp2) && sp2.TryGetDecimal(out var spVal2))
+                        sumSelfPay += spVal2;
+                }
+
+                if (sumCoPay > 0 || sumSelfPay > 0)
+                {
+                    patientPaidOnStatement = sumCoPay + sumSelfPay;
+                    statement.PatientPaidAmount = patientPaidOnStatement;
+                    statement.PatientSelfPayAmount = sumSelfPay;
+                }
+            }
+
+            // Ưu tiên 2: Đọc từ MedicalSummary do AI tính
+            if (patientPaidOnStatement == null && data.MedicalSummary.HasValue && data.MedicalSummary.Value.ValueKind == JsonValueKind.Object)
             {
                 if (data.MedicalSummary.Value.TryGetProperty("patientPaid", out var pp) && pp.ValueKind == JsonValueKind.Number && pp.TryGetDecimal(out var ppVal))
                     patientPaidOnStatement = ppVal;
+                else if (data.MedicalSummary.Value.TryGetProperty("patientPaidAmount", out var ppa) && ppa.ValueKind == JsonValueKind.Number && ppa.TryGetDecimal(out var ppaVal))
+                    patientPaidOnStatement = ppaVal;
                 else if (data.MedicalSummary.Value.TryGetProperty("patientCoPayAmount", out var copay) && copay.ValueKind == JsonValueKind.Number && copay.TryGetDecimal(out var cpVal))
                 {
                     var selfPay = 0m;
@@ -188,6 +218,20 @@ namespace TaxKeepVN.Application.Helpers
                     if (data.MedicalSummary.Value.TryGetProperty("otherPatientPayments", out var op) && op.ValueKind == JsonValueKind.Number && op.TryGetDecimal(out var opVal))
                         otherPay = opVal;
                     patientPaidOnStatement = cpOldVal + otherPay;
+                }
+            }
+
+            // Ưu tiên 3: Nếu AI đọc lệch hoặc thiếu, kiểm tra lại bằng công thức chuẩn toán học (Tổng viện phí - BHYT trả)
+            if (statement.TotalHospitalAmount.HasValue && statement.InsurancePaidAmount.HasValue)
+            {
+                var expectedFromDiff = statement.TotalHospitalAmount.Value - statement.InsurancePaidAmount.Value;
+                if (patientPaidOnStatement == null || Math.Abs(patientPaidOnStatement.Value - expectedFromDiff) > 1000m)
+                {
+                    if (parentDoc.TotalAmount.HasValue && Math.Abs(expectedFromDiff - parentDoc.TotalAmount.Value) <= 1000m)
+                    {
+                        patientPaidOnStatement = expectedFromDiff;
+                        statement.PatientPaidAmount = expectedFromDiff;
+                    }
                 }
             }
 
@@ -257,28 +301,55 @@ namespace TaxKeepVN.Application.Helpers
         }
 
         /// <summary>
-        /// So khớp tên dịch vụ / mục khám giữa hóa đơn và bảng kê (fuzzy keyword matching)
+        /// So khớp tổng quát tên dịch vụ / mục khám giữa hóa đơn và bảng kê (Fuzzy Token Overlap)
+        /// Không hardcode cố định tên thuốc hay dịch vụ cụ thể.
         /// </summary>
         public static bool IsMedicalServiceMatching(string invoiceService, string statementService)
         {
             if (string.IsNullOrWhiteSpace(invoiceService) || string.IsNullOrWhiteSpace(statementService))
                 return false;
 
-            var s1 = StringComparisonHelper.RemoveDiacritics(invoiceService).Trim().ToUpperInvariant();
-            var s2 = StringComparisonHelper.RemoveDiacritics(statementService).Trim().ToUpperInvariant();
+            // 1. Loại bỏ các đoạn chú thích trong ngoặc đơn, ví dụ: "(Phần cùng chi trả 20% BHYT)", "(Theo yêu cầu)"
+            var cleanInvoice = Regex.Replace(invoiceService, @"\([^)]*\)", "").Trim();
+            var cleanStatement = Regex.Replace(statementService, @"\([^)]*\)", "").Trim();
+
+            // 2. Lược bỏ các tiền tố mã mục thường in ở đầu dòng bảng kê: "Mục 1 -", "Mục 2.", "I.", "II.", "1.", "2."
+            cleanStatement = Regex.Replace(cleanStatement, @"^(mục|muc|\d+|[ivx]+)[\s\.\-_:]+", "", RegexOptions.IgnoreCase).Trim();
+
+            var s1 = StringComparisonHelper.RemoveDiacritics(cleanInvoice).Trim().ToUpperInvariant();
+            var s2 = StringComparisonHelper.RemoveDiacritics(cleanStatement).Trim().ToUpperInvariant();
 
             if (s1 == s2 || s1.Contains(s2) || s2.Contains(s1))
                 return true;
 
-            var stopWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "VA", "CUA", "CHO", "THEO", "CAC", "NHUNG", "MOT", "LUC", "LAN" };
-            var words1 = s1.Split(new[] { ' ', '-', ',', '.', '(', ')', '/', '&' }, StringSplitOptions.RemoveEmptyEntries)
-                           .Where(w => w.Length >= 3 && !stopWords.Contains(w))
-                           .ToList();
+            var stopWords = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+            {
+                "VA", "CUA", "CHO", "THEO", "CAC", "NHUNG", "MOT", "LUC", "LAN", "THONG", "THUONG", "DICH", "VU", "CHUYEN", "KHOA", "PHAN", "GIA", "LOAI", "DOT", "NGAY", "SO"
+            };
 
-            if (!words1.Any()) return false;
+            var words1 = s1.Split(new[] { ' ', '-', ',', '.', '/', '&', '+', ':' }, StringSplitOptions.RemoveEmptyEntries)
+                           .Where(w => w.Length >= 2 && !stopWords.Contains(w))
+                           .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-            int matchedCount = words1.Count(w => s2.Contains(w));
-            return (double)matchedCount / words1.Count >= 0.4;
+            var words2 = s2.Split(new[] { ' ', '-', ',', '.', '/', '&', '+', ':' }, StringSplitOptions.RemoveEmptyEntries)
+                           .Where(w => w.Length >= 2 && !stopWords.Contains(w))
+                           .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            if (!words1.Any() || !words2.Any()) return false;
+
+            // 3. Đếm số từ khóa trùng nhau hoặc chứa nhau giữa 2 tập từ
+            int matchedCount = 0;
+            foreach (var w1 in words1)
+            {
+                if (words2.Any(w2 => w1 == w2 || (w1.Length >= 4 && w2.Contains(w1)) || (w2.Length >= 4 && w1.Contains(w2))))
+                {
+                    matchedCount++;
+                }
+            }
+
+            // Tỷ lệ khớp từ so với chuỗi ngắn hơn (từ 30% trở lên là coi như cùng dịch vụ)
+            double matchRatio = (double)matchedCount / Math.Min(words1.Count, words2.Count);
+            return matchRatio >= 0.30;
         }
     }
 }

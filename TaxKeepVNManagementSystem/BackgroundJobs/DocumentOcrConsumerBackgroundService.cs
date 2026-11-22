@@ -319,10 +319,9 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
                             line.IsEligibleDeduction = false;
                             line.EligibleAmount = 0m;
                         }
+                      
                         else if (line.EligibleAmount == 0 && line.IsEligibleDeduction)
                         {
-                            // Theo Mục 1.2 & Quyết định 10 của Đặc tả: Chỉ tính Cột 11 (PatientCoPay)
-                            // Cột 13 (PatientSelfPay - phần tự trả/chênh lệch giá) mặc định KHÔNG TÍNH
                             line.EligibleAmount = line.PatientCoPay;
                         }
                         totalEligible += line.EligibleAmount;
