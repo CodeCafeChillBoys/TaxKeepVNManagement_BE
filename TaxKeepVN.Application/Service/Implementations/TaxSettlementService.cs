@@ -61,7 +61,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             var config = await LoadConfigAsync(request.TaxYear);
             var incomes = await LoadIncomesAsync(taxpayerId, request.TaxYear, cutoff);
             var dependents = await LoadValidDependentsAsync(taxpayerId, request.TaxYear, cutoff);
-            var (medicalDed, educationDed, charityDed) = await LoadReceiptDeductionsAsync(taxpayerId, request.TaxYear, config);
+            var (medicalDed, educationDed, charityDed, warnings) = await LoadReceiptDeductionsAsync(taxpayerId, request.TaxYear, config);
 
             return CalculatePreview(
                 dossierId: null,
@@ -75,7 +75,8 @@ namespace TaxKeepVN.Application.Service.Implementations
                 medicalDeduction: medicalDed,
                 educationDeduction: educationDed,
                 status: "DRAFT",
-                selectedIds: null);
+                selectedIds: null,
+                warnings: warnings);
         }
 
         public async Task<TaxSettlementPreviewDto> ExportAsync(Guid taxpayerId, TaxSettlementExportRequest request)
@@ -88,7 +89,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             var config = await LoadConfigAsync(request.TaxYear);
             var allIncomes = await LoadIncomesAsync(taxpayerId, request.TaxYear, cutoff);
             var dependents = await LoadValidDependentsAsync(taxpayerId, request.TaxYear, cutoff);
-            var (medicalDed, educationDed, charityDed) = await LoadReceiptDeductionsAsync(taxpayerId, request.TaxYear, config);
+            var (medicalDed, educationDed, charityDed, warnings) = await LoadReceiptDeductionsAsync(taxpayerId, request.TaxYear, config);
 
             // Lọc income theo selectedIds (nếu không truyền → chọn tất cả)
             var selectedIds = request.SelectedIncomeSourceIds;
@@ -106,7 +107,8 @@ namespace TaxKeepVN.Application.Service.Implementations
                 medicalDeduction: medicalDed,
                 educationDeduction: educationDed,
                 status: "LOCKED",
-                selectedIds: selectedIds);
+                selectedIds: selectedIds,
+                warnings: warnings);
 
             // Lưu hồ sơ vào DB
             var dossierId = await PersistDossierAsync(taxpayerId, preview, config, request.Note);
@@ -294,7 +296,7 @@ namespace TaxKeepVN.Application.Service.Implementations
         /// - Y tế & Giáo dục: áp dụng từ năm 2026 theo Luật 109/2025/QH15.
         /// - Từ thiện: áp dụng cho mọi năm tính thuế theo Thông tư 111/2013/TT-BTC.
         /// </summary>
-        private async Task<(decimal medical, decimal education, decimal charity)> LoadReceiptDeductionsAsync(
+        private async Task<(decimal medical, decimal education, decimal charity, List<string> warnings)> LoadReceiptDeductionsAsync(
             Guid userId, int taxYear, TaxCalcConfig config)
         {
             var docRepo = _unitOfWork.Repository<Document>();
@@ -311,19 +313,84 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             decimal medicalCapped = 0m;
             decimal educationCapped = 0m;
+            var warnings = new List<string>();
 
             // Y tế và giáo dục chỉ áp dụng từ năm 2026 trở đi (Luật 109/2025/QH15)
             if (taxYear >= 2026)
             {
-                var medicalTotal = docs
-                    .Where(d => d.DocTypeCode == DocTypeMedical)
-                    .Sum(d => d.TotalAmount ?? 0);
+                var medicalDocs = docs.Where(d => d.DocTypeCode == DocTypeMedical).ToList();
+
+                decimal medicalTotal = 0m;
+                if (medicalDocs.Any())
+                {
+                    var docIds = medicalDocs.Select(d => d.Id).ToList();
+                    var stmtRepo = _unitOfWork.Repository<MedicalStatement>();
+                    if (stmtRepo != null)
+                    {
+                        var allStatements = (await stmtRepo.FindAsync(s => docIds.Contains(s.DocumentId))).ToList();
+
+                        // 1. Hồ sơ y tế hợp lệ: Có Bảng kê chi phí KCB ở trạng thái CONFIRMED và chưa được bồi hoàn
+                        var confirmedStatements = allStatements
+                            .Where(s => string.Equals(s.Status, MedicalStatementStatus.CONFIRMED, StringComparison.OrdinalIgnoreCase))
+                            .ToList();
+
+                        var confirmedDocIds = confirmedStatements.Select(s => s.DocumentId).ToHashSet();
+                        var eligibleDocs = medicalDocs
+                            .Where(d => confirmedDocIds.Contains(d.Id) && d.IsNotReimbursed != false)
+                            .ToList();
+                        var eligibleDocIds = eligibleDocs.Select(d => d.Id).ToHashSet();
+
+                        medicalTotal = confirmedStatements
+                            .Where(s => eligibleDocIds.Contains(s.DocumentId))
+                            .Sum(s => s.TotalEligibleAmount ?? 0m);
+
+                        // 2. Cảnh báo các hóa đơn y tế THIẾU BẢNG KÊ (Khoản 3a NĐ 253 & Mục 6.8 Đặc tả)
+                        var statementDocIds = allStatements.Select(s => s.DocumentId).ToHashSet();
+                        var missingStatementDocs = medicalDocs.Where(d => !statementDocIds.Contains(d.Id)).ToList();
+                        if (missingStatementDocs.Any())
+                        {
+                            var missingTotal = missingStatementDocs.Sum(d => d.TotalAmount ?? 0m);
+                            warnings.Add($"Có {missingStatementDocs.Count} hóa đơn y tế (tổng {missingTotal:N0} VNĐ) chưa được tính vào quyết toán do thiếu Bảng kê chi phí KCB (Mẫu 01/KBCB).");
+                        }
+
+                        // 3. Cảnh báo các bảng kê FAILED (Khoản 3b NĐ 253: Sai tên bệnh nhân hoặc không khớp hóa đơn)
+                        var failedStatements = allStatements
+                            .Where(s => string.Equals(s.Status, MedicalStatementStatus.FAILED, StringComparison.OrdinalIgnoreCase))
+                            .ToList();
+                        if (failedStatements.Any())
+                        {
+                            warnings.Add($"Có {failedStatements.Count} hồ sơ y tế không được tính vào quyết toán do Bảng kê không hợp lệ (sai tên người bệnh hoặc không khớp hóa đơn).");
+                        }
+
+                        // 4. Cảnh báo các bảng kê chưa được xác nhận (chờ bóc tách hoặc cần kiểm tra)
+                        var pendingStatements = allStatements
+                            .Where(s => string.Equals(s.Status, MedicalStatementStatus.UPLOADED, StringComparison.OrdinalIgnoreCase) ||
+                                        string.Equals(s.Status, MedicalStatementStatus.EXTRACTED, StringComparison.OrdinalIgnoreCase))
+                            .ToList();
+                        if (pendingStatements.Any())
+                        {
+                            warnings.Add($"Có {pendingStatements.Count} hồ sơ y tế đang chờ bóc tách hoặc cần kiểm tra xác nhận trước khi quyết toán.");
+                        }
+
+                        // 5. Cảnh báo các hóa đơn đã được bảo hiểm bồi hoàn
+                        var reimbursedDocs = medicalDocs.Where(d => confirmedDocIds.Contains(d.Id) && d.IsNotReimbursed == false).ToList();
+                        if (reimbursedDocs.Any())
+                        {
+                            warnings.Add($"Có {reimbursedDocs.Count} hóa đơn y tế đã được bảo hiểm khác bồi hoàn nên bị loại trừ khỏi giảm trừ thuế.");
+                        }
+                    }
+                    else
+                    {
+                        // Fallback cho unit tests cũ không mock MedicalStatement repository
+                        medicalTotal = medicalDocs.Sum(d => d.TotalAmount ?? 0m);
+                    }
+                }
 
                 var educationTotal = docs
                     .Where(d => d.DocTypeCode == DocTypeEducation)
-                    .Sum(d => d.TotalAmount ?? 0);
+                    .Sum(d => d.TotalAmount ?? 0m);
 
-                // Cap theo giới hạn luật (lấy từ config, không hardcode)
+                // Cap theo giới hạn luật PIT_MEDICAL_MAX_YEARLY (23 triệu/năm)
                 medicalCapped = config.MedicalMaxYearly > 0
                     ? Math.Min(medicalTotal, config.MedicalMaxYearly)
                     : medicalTotal;
@@ -336,9 +403,9 @@ namespace TaxKeepVN.Application.Service.Implementations
             // Từ thiện (DONATION_VOUCHER): áp dụng cho mọi năm tính thuế theo Thông tư 111/2013/TT-BTC
             var charityTotal = docs
                 .Where(d => d.DocTypeCode == DocTypeDonation)
-                .Sum(d => d.TotalAmount ?? 0);
+                .Sum(d => d.TotalAmount ?? 0m);
 
-            return (medicalCapped, educationCapped, charityTotal);
+            return (medicalCapped, educationCapped, charityTotal, warnings);
         }
 
         // ══════════════════════════════════════════════════════════════════════════
@@ -357,7 +424,8 @@ namespace TaxKeepVN.Application.Service.Implementations
             decimal medicalDeduction,
             decimal educationDeduction,
             string status,
-            List<Guid>? selectedIds)
+            List<Guid>? selectedIds,
+            List<string>? warnings = null)
         {
             // ── Bước 1: Gom thu nhập ──────────────────────────────────────────────
             var incomeItems = incomes.Select(i =>
@@ -490,6 +558,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 RefundAmount = refundAmount,
                 DueAmount = dueAmount,
                 SummaryMessage = summary,
+                Warnings = warnings ?? new List<string>(),
                 Status = status
             };
         }

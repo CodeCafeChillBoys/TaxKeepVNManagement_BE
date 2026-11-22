@@ -40,5 +40,11 @@ namespace TaxKeepVN.Application.DTOs.OcrAI
 
         [JsonPropertyName("overallConfidence")]
         public double OverallConfidence { get; set; }
+
+        [JsonPropertyName("appliedThreshold")]
+        public double? AppliedThreshold { get; set; }
+
+        [JsonPropertyName("isPassedThreshold")]
+        public bool? IsPassedThreshold { get; set; }
     }
 }

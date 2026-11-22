@@ -170,7 +170,8 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             entity.Name = dto.Name.Trim();
             entity.Description = dto.Description?.Trim();
-            entity.IsTaxEligible = dto.IsTaxEligible;
+            // Khi update nó sẽ check xem mã hóa đơn nó khác thì ms đủ điều kiện giảm trừ
+            entity.IsTaxEligible = entity.Code != DocumentTypeCodes.MedicalCostStatement && dto.IsTaxEligible;
 
             repo.Update(entity);
             await _unitOfWork.SaveChangesAsync();

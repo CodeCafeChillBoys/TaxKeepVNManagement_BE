@@ -81,12 +81,14 @@ namespace TaxKeepVN.Application.Mappers
             if (doc == null) return null!;
 
             var itemsList = items ?? doc.Items;
+            var statementDto = doc.MedicalStatement.ToDto();
 
             return new DocumentReviewResponseDto
             {
                 Id = doc.Id,
                 PeriodId = doc.PeriodId,
                 DocTypeCode = doc.DocTypeCode,
+                MedicalStatement = statementDto,
                 DocTypeName = docType?.Name ?? doc.DocType?.Name,
                 IsTaxEligible = docType?.IsTaxEligible ?? doc.DocType?.IsTaxEligible,
                 FileUrl = doc.FileUrl,
@@ -161,6 +163,63 @@ namespace TaxKeepVN.Application.Mappers
                 errors.Add("AI không thể xác nhận tính hợp lệ của chứng từ.");
             }
             return errors;
+        }
+
+        public static MedicalStatementResponseDto? ToDto(this MedicalStatement? ms)
+        {
+            if (ms == null) return null;
+            return new MedicalStatementResponseDto
+            {
+                Id = ms.Id,
+                DocumentId = ms.DocumentId,
+                FileUrl = ms.FileUrl,
+                OriginalFilename = ms.OriginalFilename,
+                FormCode = ms.FormCode,
+                StatementNumber = ms.StatementNumber,
+                PatientName = ms.PatientName,
+                PatientDob = ms.PatientDob,
+                PatientGender = ms.PatientGender,
+                PatientIdCard = ms.PatientIdCard,
+                InsuranceNumber = ms.InsuranceNumber,
+                BenefitRate = ms.BenefitRate,
+                HospitalName = ms.HospitalName,
+                HospitalCode = ms.HospitalCode,
+                Department = ms.Department,
+                AdmissionDate = ms.AdmissionDate,
+                DischargeDate = ms.DischargeDate,
+                TreatmentType = ms.TreatmentType,
+                TotalHospitalAmount = ms.TotalHospitalAmount,
+                InsurancePaidAmount = ms.InsurancePaidAmount,
+                PatientPaidAmount = ms.PatientPaidAmount,
+                PatientSelfPayAmount = ms.PatientSelfPayAmount,
+                TotalEligibleAmount = ms.TotalEligibleAmount,
+                OverallConfidence = ms.OverallConfidence,
+                AppliedThreshold = ms.AppliedThreshold,
+                IsPassedThreshold = ms.IsPassedThreshold,
+                Status = ms.Status,
+                ValidationErrors = !string.IsNullOrWhiteSpace(ms.ValidationErrors)
+                    ? (JsonSerializer.Deserialize<List<string>>(ms.ValidationErrors) ?? new List<string>())
+                    : new List<string>(),
+                Lines = ms.Lines?.Select(l => new MedicalStatementLineResponseDto
+                {
+                    Id = l.Id,
+                    LineOrder = l.LineOrder,
+                    SectionCode = l.SectionCode,
+                    SectionName = l.SectionName,
+                    ItemName = l.ItemName,
+                    Unit = l.Unit,
+                    Quantity = l.Quantity,
+                    UnitPrice = l.UnitPrice,
+                    TotalAmount = l.TotalAmount,
+                    InsurancePaid = l.InsurancePaid,
+                    PatientCoPay = l.PatientCoPay,
+                    PatientSelfPay = l.PatientSelfPay,
+                    DeductionStatus = l.DeductionStatus,
+                    IsEligibleDeduction = l.IsEligibleDeduction,
+                    DeductionReason = l.DeductionReason,
+                    EligibleAmount = l.EligibleAmount
+                }).ToList() ?? new List<MedicalStatementLineResponseDto>()
+            };
         }
     }
 }

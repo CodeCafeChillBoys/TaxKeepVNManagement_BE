@@ -935,13 +935,15 @@ namespace TaxKeepVN.UnitTests.Application.Services
             _mockUnitOfWork.Setup(u => u.Repository<ExpertProfile>()).Returns(profileRepo.Object);
 
             var nowVn = DateTime.UtcNow.AddHours(7);
+            var start = nowVn.AddMinutes(5);
+            var end = nowVn.AddMinutes(65).Date > nowVn.Date ? new DateTime(nowVn.Year, nowVn.Month, nowVn.Day, 23, 59, 59) : nowVn.AddMinutes(65);
             var slot = new ExpertSlot
             {
                 Id = slotId,
                 ExpertProfileId = profileId,
                 SlotDate = DateOnly.FromDateTime(nowVn),
-                StartTime = TimeOnly.FromDateTime(nowVn.AddMinutes(5)), // starting in 5 minutes (open)
-                EndTime = TimeOnly.FromDateTime(nowVn.AddMinutes(65))
+                StartTime = TimeOnly.FromDateTime(start), // starting in 5 minutes (open)
+                EndTime = TimeOnly.FromDateTime(end)
             };
             var slotRepo = new Mock<IGenericRepository<ExpertSlot>>();
             slotRepo.Setup(r => r.GetByIdAsync(slotId)).ReturnsAsync(slot);

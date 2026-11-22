@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Linq.Expressions;
 using System.Threading.Tasks;
 using FluentAssertions;
@@ -14,6 +15,7 @@ using TaxKeepVN.Application.Exceptions;
 using TaxKeepVN.Application.Service.Implementations;
 using TaxKeepVN.Application.Service.Interfaces;
 using TaxKeepVN.Domain.Entities;
+using TaxKeepVN.Domain.Enums;
 using TaxKeepVN.Domain.IRepositories;
 using Xunit;
 
@@ -37,6 +39,16 @@ namespace TaxKeepVN.UnitTests.Application.Services
             _mockPeriodRepo = new Mock<IGenericRepository<TaxPeriod>>();
 
             _mockUnitOfWork.Setup(u => u.Repository<TaxPeriod>()).Returns(_mockPeriodRepo.Object);
+
+            var defaultStatementRepo = new Mock<IGenericRepository<MedicalStatement>>();
+            defaultStatementRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<MedicalStatement, bool>>>()))
+                .ReturnsAsync(new List<MedicalStatement>());
+            _mockUnitOfWork.Setup(u => u.Repository<MedicalStatement>()).Returns(defaultStatementRepo.Object);
+
+            var defaultLineRepo = new Mock<IGenericRepository<MedicalStatementLine>>();
+            defaultLineRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<MedicalStatementLine, bool>>>()))
+                .ReturnsAsync(new List<MedicalStatementLine>());
+            _mockUnitOfWork.Setup(u => u.Repository<MedicalStatementLine>()).Returns(defaultLineRepo.Object);
 
             _service = new TaxPeriodService(
                 _mockUnitOfWork.Object,
@@ -131,6 +143,143 @@ namespace TaxKeepVN.UnitTests.Application.Services
         }
 
         #endregion
+
+        [Theory]
+        [InlineData(true, false, true, null)]
+        [InlineData(false, false, true, "ERR_NOT_MEDICAL_RECEIPT")]
+        [InlineData(true, true, true, ErrorCodes.InvalidDocumentStatus)]
+        [InlineData(true, false, false, "ERR_MEDICAL_STATEMENT_TYPE_NOT_CONFIGURED")]
+        public async Task UploadMedicalStatementAsync_ValidatesAndQueuesLinkedDocument(
+            bool isMedicalReceipt, bool alreadyLinked, bool statementTypeExists, string? expectedError)
+        {
+            var period = new TaxPeriod { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), TaxYear = 2026, Status = "DRAFT" };
+            _mockPeriodRepo.Setup(r => r.GetByIdAsync(period.Id)).ReturnsAsync(period);
+            var receipt = new Document
+            {
+                Id = Guid.NewGuid(),
+                PeriodId = period.Id,
+                DocTypeCode = isMedicalReceipt ? DocumentTypeCodes.MedicalReceipt : "OTHER"
+            };
+            var documents = new Mock<IGenericRepository<Document>>();
+            documents.Setup(r => r.GetByIdAsync(receipt.Id)).ReturnsAsync(receipt);
+            _mockUnitOfWork.Setup(u => u.Repository<Document>()).Returns(documents.Object);
+
+            var statementRepo = new Mock<IGenericRepository<MedicalStatement>>();
+            var existingStmt = alreadyLinked ? new MedicalStatement { DocumentId = receipt.Id, Status = MedicalStatementStatus.CONFIRMED } : null;
+            statementRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<MedicalStatement, bool>>>()))
+                .ReturnsAsync(existingStmt != null ? new List<MedicalStatement> { existingStmt } : new List<MedicalStatement>());
+            _mockUnitOfWork.Setup(u => u.Repository<MedicalStatement>()).Returns(statementRepo.Object);
+
+            var configuredTypes = new List<TaxDocumentType>
+            {
+                new() { Code = DocumentTypeCodes.MedicalReceipt, Name = "Medical receipt" }
+            };
+            if (statementTypeExists)
+                configuredTypes.Add(new TaxDocumentType
+                {
+                    Code = DocumentTypeCodes.MedicalCostStatement, Name = "Medical statement", IsTaxEligible = false
+                });
+            var types = new Mock<IGenericRepository<TaxDocumentType>>();
+            types.Setup(r => r.FindAsync(It.IsAny<Expression<Func<TaxDocumentType, bool>>>()))
+                .ReturnsAsync((Expression<Func<TaxDocumentType, bool>> filter) => configuredTypes.Where(filter.Compile()).ToList());
+            types.Setup(r => r.GetAllAsync()).ReturnsAsync(configuredTypes);
+            _mockUnitOfWork.Setup(u => u.Repository<TaxDocumentType>()).Returns(types.Object);
+
+            var catRepo = new Mock<IGenericRepository<MedicalEligibleCategory>>();
+            catRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<MedicalEligibleCategory, bool>>>()))
+                .ReturnsAsync(new List<MedicalEligibleCategory>());
+            _mockUnitOfWork.Setup(u => u.Repository<MedicalEligibleCategory>()).Returns(catRepo.Object);
+
+            using var stream = new MemoryStream(new byte[256]);
+            var file = new FormFile(stream, 0, stream.Length, "file", "statement.pdf")
+            {
+                Headers = new HeaderDictionary(),
+                ContentType = "application/pdf"
+            };
+            _mockFileStorage.Setup(s => s.SaveFileAsync(file, "tax-periods/2026/medical-statements"))
+                .ReturnsAsync("https://storage/statement.pdf");
+
+            if (expectedError != null)
+            {
+                var error = await Assert.ThrowsAsync<BadRequestException>(() =>
+                    _service.UploadMedicalStatementAsync(period.UserId, period.Id, receipt.Id, file));
+                error.ErrorCode.Should().Be(expectedError);
+                _mockFileStorage.VerifyNoOtherCalls();
+                _mockOcrProducer.VerifyNoOtherCalls();
+                return;
+            }
+
+            var result = await _service.UploadMedicalStatementAsync(period.UserId, period.Id, receipt.Id, file);
+
+            result.Id.Should().NotBe(receipt.Id);
+            result.DocumentId.Should().Be(receipt.Id);
+            result.Status.Should().Be("UPLOADED");
+            result.FileUrl.Should().Be("https://storage/statement.pdf");
+            statementRepo.Verify(r => r.AddAsync(It.Is<MedicalStatement>(s =>
+                s.Id == result.Id && s.DocumentId == receipt.Id)), Times.Once);
+            _mockUnitOfWork.Verify(u => u.SaveChangesAsync(), Times.Once);
+            _mockOcrProducer.Verify(p => p.PublishBatchOcrTasks(It.Is<IEnumerable<DocumentOcrExtractRequestMessage>>(
+                jobs => jobs.Count() == 1 && jobs.Single().TaskId == result.Id &&
+                    jobs.Single().Categories.Any(c => c.Code == DocumentTypeCodes.MedicalCostStatement))), Times.Once);
+        }
+
+        [Fact]
+        public async Task UploadMedicalStatementAsync_WhenAlreadyExistsAndNotConfirmed_PreservesExistingStatement()
+        {
+            var period = new TaxPeriod { Id = Guid.NewGuid(), UserId = Guid.NewGuid(), TaxYear = 2026, Status = "DRAFT" };
+            _mockPeriodRepo.Setup(r => r.GetByIdAsync(period.Id)).ReturnsAsync(period);
+            var receipt = new Document
+            {
+                Id = Guid.NewGuid(),
+                PeriodId = period.Id,
+                DocTypeCode = DocumentTypeCodes.MedicalReceipt
+            };
+            var documents = new Mock<IGenericRepository<Document>>();
+            documents.Setup(r => r.GetByIdAsync(receipt.Id)).ReturnsAsync(receipt);
+            _mockUnitOfWork.Setup(u => u.Repository<Document>()).Returns(documents.Object);
+
+            var existingStmt = new MedicalStatement
+            {
+                Id = Guid.NewGuid(),
+                DocumentId = receipt.Id,
+                Status = MedicalStatementStatus.EXTRACTED,
+                FileUrl = "https://storage/old.pdf"
+            };
+            var statementRepo = new Mock<IGenericRepository<MedicalStatement>>();
+            statementRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<MedicalStatement, bool>>>()))
+                .ReturnsAsync(new List<MedicalStatement> { existingStmt });
+            _mockUnitOfWork.Setup(u => u.Repository<MedicalStatement>()).Returns(statementRepo.Object);
+
+            var configuredTypes = new List<TaxDocumentType>
+            {
+                new() { Code = DocumentTypeCodes.MedicalReceipt, Name = "Medical receipt" },
+                new() { Code = DocumentTypeCodes.MedicalCostStatement, Name = "Medical statement", IsTaxEligible = false }
+            };
+            var types = new Mock<IGenericRepository<TaxDocumentType>>();
+            types.Setup(r => r.FindAsync(It.IsAny<Expression<Func<TaxDocumentType, bool>>>()))
+                .ReturnsAsync((Expression<Func<TaxDocumentType, bool>> filter) => configuredTypes.Where(filter.Compile()).ToList());
+            _mockUnitOfWork.Setup(u => u.Repository<TaxDocumentType>()).Returns(types.Object);
+
+            using var stream = new MemoryStream(new byte[256]);
+            var file = new FormFile(stream, 0, stream.Length, "file", "new_statement.pdf")
+            {
+                Headers = new HeaderDictionary(),
+                ContentType = "application/pdf"
+            };
+            Func<Task> upload = () => _service.UploadMedicalStatementAsync(period.UserId, period.Id, receipt.Id, file);
+
+            var exception = await upload.Should().ThrowAsync<ConflictException>();
+            exception.Which.ErrorCode.Should().Be(ErrorCodes.DuplicateDocument);
+            existingStmt.FileUrl.Should().Be("https://storage/old.pdf");
+            existingStmt.Status.Should().Be(MedicalStatementStatus.EXTRACTED);
+            statementRepo.Verify(r => r.Update(It.IsAny<MedicalStatement>()), Times.Never);
+            statementRepo.Verify(r => r.AddAsync(It.IsAny<MedicalStatement>()), Times.Never);
+            _mockFileStorage.Verify(f => f.SaveFileAsync(It.IsAny<IFormFile>(), It.IsAny<string>()), Times.Never);
+            _mockFileStorage.Verify(f => f.DeleteFileAsync(It.IsAny<string>()), Times.Never);
+            _mockUnitOfWork.Verify(u => u.Repository<MedicalStatementLine>(), Times.Never);
+            _mockUnitOfWork.Verify(u => u.SaveChangesAsync(), Times.Never);
+            _mockOcrProducer.Verify(p => p.PublishBatchOcrTasks(It.IsAny<IEnumerable<DocumentOcrExtractRequestMessage>>()), Times.Never);
+        }
 
         #region BatchUploadDocumentsAsync
 
@@ -719,6 +868,95 @@ namespace TaxKeepVN.UnitTests.Application.Services
             document.Status.Should().Be("CONFIRMED");
         }
 
+        [Fact]
+        public async Task UTCID19B_ConfirmDocumentReviewAsync_WithExtractedMedicalStatement_ConfirmsStatementTogether()
+        {
+            var userId = Guid.NewGuid();
+            var periodId = Guid.NewGuid();
+            var docId = Guid.NewGuid();
+            var period = new TaxPeriod { Id = periodId, UserId = userId, Status = "DRAFT", TaxYear = 2026 };
+            _mockPeriodRepo.Setup(r => r.GetByIdAsync(periodId)).ReturnsAsync(period);
+
+            var document = new Document { Id = docId, PeriodId = periodId, DocTypeCode = DocumentTypeCodes.MedicalReceipt, Status = "EXTRACTED" };
+            var mockDocRepo = new Mock<IGenericRepository<Document>>();
+            mockDocRepo.Setup(r => r.GetByIdAsync(docId)).ReturnsAsync(document);
+            mockDocRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Document, bool>>>())).ReturnsAsync(new List<Document>());
+            _mockUnitOfWork.Setup(u => u.Repository<Document>()).Returns(mockDocRepo.Object);
+
+            var statement = new MedicalStatement
+            {
+                Id = Guid.NewGuid(),
+                DocumentId = docId,
+                Status = MedicalStatementStatus.EXTRACTED,
+                TotalEligibleAmount = 2500000m
+            };
+            var mockStmtRepo = new Mock<IGenericRepository<MedicalStatement>>();
+            mockStmtRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<MedicalStatement, bool>>>()))
+                .ReturnsAsync(new List<MedicalStatement> { statement });
+            _mockUnitOfWork.Setup(u => u.Repository<MedicalStatement>()).Returns(mockStmtRepo.Object);
+
+            var mockTypeRepo = new Mock<IGenericRepository<TaxDocumentType>>();
+            mockTypeRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<TaxDocumentType, bool>>>())).ReturnsAsync(new List<TaxDocumentType>());
+            _mockUnitOfWork.Setup(u => u.Repository<TaxDocumentType>()).Returns(mockTypeRepo.Object);
+
+            var dto = new ConfirmDocumentReviewRequestDto
+            {
+                SellerTaxCode = "0109876543",
+                SellerName = "Benh Vien Bach Mai",
+                TotalAmount = 5000000m
+            };
+
+            var result = await _service.ConfirmDocumentReviewAsync(userId, periodId, docId, dto);
+
+            result.Should().NotBeNull();
+            document.Status.Should().Be("CONFIRMED");
+            statement.Status.Should().Be(MedicalStatementStatus.CONFIRMED);
+            mockStmtRepo.Verify(r => r.Update(statement), Times.Once);
+            result.MedicalStatement.Should().NotBeNull();
+            result.MedicalStatement!.Status.Should().Be(MedicalStatementStatus.CONFIRMED);
+        }
+
+        [Fact]
+        public async Task UTCID19C_DeleteMedicalStatementAsync_Valid_DeletesStatementAndLines()
+        {
+            var userId = Guid.NewGuid();
+            var periodId = Guid.NewGuid();
+            var docId = Guid.NewGuid();
+            var stmtId = Guid.NewGuid();
+            var period = new TaxPeriod { Id = periodId, UserId = userId, Status = "DRAFT", TaxYear = 2026 };
+            _mockPeriodRepo.Setup(r => r.GetByIdAsync(periodId)).ReturnsAsync(period);
+
+            var document = new Document { Id = docId, PeriodId = periodId, DocTypeCode = DocumentTypeCodes.MedicalReceipt, Status = "EXTRACTED" };
+            var mockDocRepo = new Mock<IGenericRepository<Document>>();
+            mockDocRepo.Setup(r => r.GetByIdAsync(docId)).ReturnsAsync(document);
+            _mockUnitOfWork.Setup(u => u.Repository<Document>()).Returns(mockDocRepo.Object);
+
+            var statement = new MedicalStatement
+            {
+                Id = stmtId,
+                DocumentId = docId,
+                Status = MedicalStatementStatus.EXTRACTED,
+                FileUrl = "https://storage/stmt.pdf"
+            };
+            var mockStmtRepo = new Mock<IGenericRepository<MedicalStatement>>();
+            mockStmtRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<MedicalStatement, bool>>>()))
+                .ReturnsAsync(new List<MedicalStatement> { statement });
+            _mockUnitOfWork.Setup(u => u.Repository<MedicalStatement>()).Returns(mockStmtRepo.Object);
+
+            var line = new MedicalStatementLine { Id = 1, MedicalStatementId = stmtId };
+            var mockLineRepo = new Mock<IGenericRepository<MedicalStatementLine>>();
+            mockLineRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<MedicalStatementLine, bool>>>()))
+                .ReturnsAsync(new List<MedicalStatementLine> { line });
+            _mockUnitOfWork.Setup(u => u.Repository<MedicalStatementLine>()).Returns(mockLineRepo.Object);
+
+            await _service.DeleteMedicalStatementAsync(userId, periodId, docId);
+
+            mockLineRepo.Verify(r => r.Remove(line), Times.Once);
+            mockStmtRepo.Verify(r => r.Remove(statement), Times.Once);
+            _mockFileStorage.Verify(f => f.DeleteFileAsync(statement.FileUrl), Times.Once);
+            _mockUnitOfWork.Verify(u => u.SaveChangesAsync(), Times.Once);
+        }
+
         #endregion
 
         #region TriggerDocumentOcrAsync
@@ -890,6 +1128,59 @@ namespace TaxKeepVN.UnitTests.Application.Services
             result.Id.Should().Be(docId);
             result.DocTypeName.Should().Be("Hoa don gia tri gia tang");
             result.Items.Should().HaveCount(1);
+        }
+
+        [Fact]
+        public async Task UTCID29_GetDocumentByIdAsync_WithChildMedicalStatement_MapsErrorsAndCrossCheckIssues()
+        {
+            var userId = Guid.NewGuid();
+            var periodId = Guid.NewGuid();
+            var docId = Guid.NewGuid();
+            var childDocId = Guid.NewGuid();
+
+            var period = new TaxPeriod { Id = periodId, UserId = userId, Status = "DRAFT" };
+            _mockPeriodRepo.Setup(r => r.GetByIdAsync(periodId)).ReturnsAsync(period);
+
+            var document = new Document { Id = docId, PeriodId = periodId, DocTypeCode = "MEDICAL_RECEIPT" };
+            var statement = new MedicalStatement
+            {
+                Id = childDocId,
+                DocumentId = docId,
+                PatientName = "LÊ THỊ THU HƯƠNG",
+                ValidationErrors = "[\"Thông tin bệnh nhân trên bảng kê không trùng khớp với hóa đơn viện phí.\"]"
+            };
+
+            var mockDocRepo = new Mock<IGenericRepository<Document>>();
+            mockDocRepo.Setup(r => r.GetByIdAsync(docId)).ReturnsAsync(document);
+            _mockUnitOfWork.Setup(u => u.Repository<Document>()).Returns(mockDocRepo.Object);
+
+            var mockStatementRepo = new Mock<IGenericRepository<MedicalStatement>>();
+            mockStatementRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<MedicalStatement, bool>>>()))
+                             .ReturnsAsync(new List<MedicalStatement> { statement });
+            _mockUnitOfWork.Setup(u => u.Repository<MedicalStatement>()).Returns(mockStatementRepo.Object);
+
+            var mockLineRepo = new Mock<IGenericRepository<MedicalStatementLine>>();
+            mockLineRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<MedicalStatementLine, bool>>>()))
+                        .ReturnsAsync(new List<MedicalStatementLine>());
+            _mockUnitOfWork.Setup(u => u.Repository<MedicalStatementLine>()).Returns(mockLineRepo.Object);
+
+            var mockTypeRepo = new Mock<IGenericRepository<TaxDocumentType>>();
+            mockTypeRepo.Setup(r => r.GetAllAsync()).ReturnsAsync(new List<TaxDocumentType>
+            {
+                new TaxDocumentType { Code = "MEDICAL_RECEIPT", Name = "Hóa đơn viện phí" }
+            });
+            _mockUnitOfWork.Setup(u => u.Repository<TaxDocumentType>()).Returns(mockTypeRepo.Object);
+
+            var mockItemRepo = new Mock<IGenericRepository<DocumentItem>>();
+            mockItemRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DocumentItem, bool>>>()))
+                        .ReturnsAsync(new List<DocumentItem>());
+            _mockUnitOfWork.Setup(u => u.Repository<DocumentItem>()).Returns(mockItemRepo.Object);
+
+            var result = await _service.GetDocumentByIdAsync(userId, periodId, docId);
+
+            result.Should().NotBeNull();
+            result.MedicalStatement.Should().NotBeNull();
+            result.ValidationErrors.Should().Contain("Thông tin bệnh nhân trên bảng kê không trùng khớp với hóa đơn viện phí.");
         }
 
         #endregion

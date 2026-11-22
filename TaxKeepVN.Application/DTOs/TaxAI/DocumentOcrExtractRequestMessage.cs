@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
@@ -12,6 +12,9 @@ namespace TaxKeepVN.Application.DTOs.TaxAI
 
         [JsonPropertyName("name")]
         public string Name { get; set; } = string.Empty;
+        // check xem mẫu là là mẫu chi phí kê khai
+        [JsonPropertyName("isMedicalStatement")]
+        public bool IsMedicalStatement { get; set; }
 
         [JsonPropertyName("description")]
         public string Description { get; set; } = string.Empty;
@@ -43,6 +46,15 @@ namespace TaxKeepVN.Application.DTOs.TaxAI
 
         [JsonPropertyName("appliedThreshold")]
         public double? AppliedThreshold { get; set; }
+
+        [JsonPropertyName("docTypeCode")]
+        public string? DocTypeCode { get; set; }
+
+        [JsonPropertyName("isMedicalStatement")]
+        public bool IsMedicalStatement { get; set; }
+
+        [JsonPropertyName("parentDocumentId")]
+        public Guid? ParentDocumentId { get; set; }
     }
 }
 
