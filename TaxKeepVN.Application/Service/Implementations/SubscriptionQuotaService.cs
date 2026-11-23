@@ -62,18 +62,18 @@ namespace TaxKeepVN.Application.Service.Implementations
         public async Task CheckAndConsumeAiQuestionAsync(Guid userId)
         {
             var sub = await _userSubService.GetOrCreateActiveSubscriptionEntityAsync(userId);
-
-            // -1 nghĩa là không giới hạn
-            if (sub.SnapshotMaxAiQuestionsPerMonth == -1) return;
-
             var currentMonth = DateTime.UtcNow.ToString("yyyy-MM");
             var usage = await GetOrCreateCurrentUsageAsync(userId, currentMonth);
 
-            if (usage.AiQuestionsUsed >= sub.SnapshotMaxAiQuestionsPerMonth)
+            // -1 nghĩa là không giới hạn
+            if (sub.SnapshotMaxAiQuestionsPerMonth != -1)
             {
-                throw new BadRequestException(
-                    "AI_QUESTION_QUOTA_EXCEEDED",
-                    $"Bạn đã sử dụng hết hạn mức {sub.SnapshotMaxAiQuestionsPerMonth} câu hỏi AI trong tháng này của gói {sub.Plan?.Name ?? "hiện tại"}. Vui lòng nâng cấp gói dịch vụ để tiếp tục hỏi đáp.");
+                if (usage.AiQuestionsUsed >= sub.SnapshotMaxAiQuestionsPerMonth)
+                {
+                    throw new BadRequestException(
+                        "AI_QUESTION_QUOTA_EXCEEDED",
+                        $"Bạn đã sử dụng hết hạn mức {sub.SnapshotMaxAiQuestionsPerMonth} câu hỏi AI trong tháng này của gói {sub.Plan?.Name ?? "hiện tại"}. Vui lòng nâng cấp gói dịch vụ để tiếp tục hỏi đáp.");
+                }
             }
 
             usage.AiQuestionsUsed += 1;
@@ -82,24 +82,34 @@ namespace TaxKeepVN.Application.Service.Implementations
             await _unitOfWork.SaveChangesAsync();
         }
 
-        public async Task CheckAndConsumeOcrScanAsync(Guid userId)
+        public async Task CheckAndConsumeOcrScanAsync(Guid userId, int count = 1)
         {
+            if (count <= 0) return;
+
             var sub = await _userSubService.GetOrCreateActiveSubscriptionEntityAsync(userId);
-
-            // -1 nghĩa là không giới hạn
-            if (sub.SnapshotMaxOcrScansPerMonth == -1) return;
-
             var currentMonth = DateTime.UtcNow.ToString("yyyy-MM");
             var usage = await GetOrCreateCurrentUsageAsync(userId, currentMonth);
 
-            if (usage.OcrScansUsed >= sub.SnapshotMaxOcrScansPerMonth)
+            // -1 nghĩa là không giới hạn
+            if (sub.SnapshotMaxOcrScansPerMonth != -1)
             {
-                throw new BadRequestException(
-                    "OCR_QUOTA_EXCEEDED",
-                    $"Bạn đã sử dụng hết hạn mức {sub.SnapshotMaxOcrScansPerMonth} lượt quét OCR trong tháng này của gói {sub.Plan?.Name ?? "hiện tại"}. Vui lòng nâng cấp gói dịch vụ để quét thêm chứng từ.");
+                if (usage.OcrScansUsed + count > sub.SnapshotMaxOcrScansPerMonth)
+                {
+                    if (count == 1)
+                    {
+                        throw new BadRequestException(
+                            "OCR_QUOTA_EXCEEDED",
+                            $"Bạn đã sử dụng hết hạn mức {sub.SnapshotMaxOcrScansPerMonth} lượt quét OCR trong tháng này của gói {sub.Plan?.Name ?? "hiện tại"}. Vui lòng nâng cấp gói dịch vụ để quét thêm chứng từ.");
+                    }
+
+                    var remaining = Math.Max(0, sub.SnapshotMaxOcrScansPerMonth - usage.OcrScansUsed);
+                    throw new BadRequestException(
+                        "OCR_QUOTA_EXCEEDED",
+                        $"Bạn chỉ còn {remaining} lượt quét OCR trong tháng này của gói {sub.Plan?.Name ?? "hiện tại"} (yêu cầu {count} lượt). Vui lòng nâng cấp gói dịch vụ để tiếp tục quét chứng từ.");
+                }
             }
 
-            usage.OcrScansUsed += 1;
+            usage.OcrScansUsed += count;
             usage.UpdatedAt = DateTimeOffset.UtcNow;
             _unitOfWork.Repository<SubscriptionQuotaUsage>().Update(usage);
             await _unitOfWork.SaveChangesAsync();

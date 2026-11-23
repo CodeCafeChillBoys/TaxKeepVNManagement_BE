@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -24,17 +25,20 @@ namespace TaxKeepVNManagementSystem.Controllers
         private readonly IDependentReminderService _reminderService;
         private readonly IOcrService _ocrService;
         private readonly IDependentRuleService _dependentRuleService;
+        private readonly ISubscriptionQuotaService? _quotaService;
 
         public DependentController(
             IDependentService dependentService,
             IDependentReminderService reminderService,
             IOcrService ocrService,
-            IDependentRuleService dependentRuleService)
+            IDependentRuleService dependentRuleService,
+            ISubscriptionQuotaService? quotaService = null)
         {
             _dependentService = dependentService;
             _reminderService = reminderService;
             _ocrService = ocrService;
             _dependentRuleService = dependentRuleService;
+            _quotaService = quotaService;
         }
 
         /// <summary>
@@ -48,6 +52,15 @@ namespace TaxKeepVNManagementSystem.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> ExtractDependentOcr([FromForm] TaxKeepVN.Application.DTOs.OcrAI.OcrDocumentUploadRequestDto request)
         {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value 
+                ?? User.FindFirst("userId")?.Value;
+            Guid? userId = Guid.TryParse(userIdClaim, out var parsedId) ? parsedId : null;
+
+            if (_quotaService != null && userId.HasValue && userId.Value != Guid.Empty)
+            {
+                await _quotaService.CheckAndConsumeOcrScanAsync(userId.Value, 1);
+            }
+
             var result = await _ocrService.ProcessDependentOcrAsync(request.File, request.BackFile);
             return Ok(ApiResponse<TaxKeepVN.Application.DTOs.OcrAI.DependentOcrResponseDto>.Ok(result, "Bóc tách thông tin người phụ thuộc thành công."));
         }

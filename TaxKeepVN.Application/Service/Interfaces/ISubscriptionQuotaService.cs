@@ -8,7 +8,7 @@ namespace TaxKeepVN.Application.Service.Interfaces
     {
         Task<SubscriptionQuotaStatusResponse> GetQuotaStatusAsync(Guid userId);
         Task CheckAndConsumeAiQuestionAsync(Guid userId);
-        Task CheckAndConsumeOcrScanAsync(Guid userId);
+        Task CheckAndConsumeOcrScanAsync(Guid userId, int count = 1);
         Task CheckCanExportPdfAsync(Guid userId);
         Task CheckCanExportZipAsync(Guid userId);
         Task<int> GetBookingDiscountPercentAsync(Guid userId);

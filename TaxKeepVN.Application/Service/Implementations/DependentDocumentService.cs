@@ -21,19 +21,22 @@ namespace TaxKeepVN.Application.Service.Implementations
         private readonly IMemoryCache _cache;
         private readonly IOcrService _ocrService;
         private readonly IRedisCacheService? _redisCache;
+        private readonly ISubscriptionQuotaService? _quotaService;
 
         public DependentDocumentService(
             IUnitOfWork unitOfWork, 
             IFileStorageService fileStorageService, 
             IMemoryCache cache,
             IOcrService ocrService,
-            IRedisCacheService? redisCache = null)
+            IRedisCacheService? redisCache = null,
+            ISubscriptionQuotaService? quotaService = null)
         {
             _unitOfWork = unitOfWork;
             _fileStorageService = fileStorageService;
             _cache = cache;
             _ocrService = ocrService;
             _redisCache = redisCache;
+            _quotaService = quotaService;
         }
 
         public async Task<UploadDocumentResultDto> UploadDocumentAsync(Guid userId, Guid dependentId, string docTypeString, IFormFile file)
@@ -62,6 +65,12 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             if (dependent.TaxpayerId != userId)
                 throw new ForbiddenException("Bạn không có quyền cập nhật hồ sơ người phụ thuộc của người khác.");
+
+            // ── Kiểm tra và trừ lượt quét OCR theo gói dịch vụ ──
+            if (_quotaService != null)
+            {
+                await _quotaService.CheckAndConsumeOcrScanAsync(userId, 1);
+            }
 
             // ── AI OCR Cross-check Validation (Kiểm tra đúng loại giấy tờ & đúng người phụ thuộc) ──
             await _ocrService.ValidateDependentDocumentAsync(dependent, docType, file);
