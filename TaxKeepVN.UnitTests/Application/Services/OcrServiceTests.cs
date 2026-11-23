@@ -1261,6 +1261,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
                     IsReadable = true,
                     DocumentType = "UNKNOWN",
                     FullName = "Nguyễn Văn Con",
+                    CitizenId = "079123456789",
+                    BirthDate = "2000-01-01",
                     RuleValidation = new RuleValidationResultDto
                     {
                         IsMatchedRule = true,
@@ -1284,10 +1286,647 @@ namespace TaxKeepVN.UnitTests.Application.Services
             mockFile.Setup(f => f.ContentType).Returns("image/jpeg");
             mockFile.Setup(f => f.FileName).Returns("cccd.jpg");
 
-            var dependent = new Dependent { FullName = "Nguyễn Văn Con" };
+            var dependent = new Dependent 
+            { 
+                FullName = "Nguyễn Văn Con",
+                CitizenId = "079123456789",
+                BirthDate = new DateTime(2000, 1, 1)
+            };
 
             // Should succeed without throwing DOC_TYPE_MISMATCH
             await _service.ValidateDependentDocumentAsync(dependent, "CITIZEN_ID", mockFile.Object);
+        }
+
+        [Fact]
+        public async Task UTCID32_ValidateDependentDocumentAsync_CitizenId_ExpiredBeforeEffectiveFrom_ThrowsDocumentExpired()
+        {
+            var ocrResponse = new OcrExtractResponseMessage
+            {
+                Success = true,
+                Data = new ExtractedDependentDataDto
+                {
+                    IsReadable = true,
+                    DocumentType = "CITIZEN_ID",
+                    FullName = "Nguyễn Văn Con",
+                    CitizenId = "079123456789",
+                    BirthDate = "2010-05-15",
+                    ExpiryDate = "2025-12-31" // Hết hạn trước 2026-01
+                }
+            };
+
+            var responseMessage = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(ocrResponse), System.Text.Encoding.UTF8, "application/json")
+            };
+
+            _mockHandler.Protected()
+                .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
+                .ReturnsAsync(responseMessage);
+
+            var mockFile = new Mock<IFormFile>();
+            mockFile.Setup(f => f.Length).Returns(100);
+            mockFile.Setup(f => f.OpenReadStream()).Returns(new MemoryStream(new byte[100]));
+            mockFile.Setup(f => f.ContentType).Returns("image/jpeg");
+            mockFile.Setup(f => f.FileName).Returns("cccd.jpg");
+
+            var dependent = new Dependent
+            {
+                FullName = "Nguyễn Văn Con",
+                CitizenId = "079123456789",
+                BirthDate = new DateTime(2010, 5, 15),
+                EffectiveFromMonth = "2026-01"
+            };
+
+            var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
+                _service.ValidateDependentDocumentAsync(dependent, "CITIZEN_ID", mockFile.Object));
+
+            ex.ErrorCode.Should().Be("DOCUMENT_EXPIRED");
+            ex.Message.Should().Contain("đã hết hạn");
+        }
+
+        [Fact]
+        public async Task UTCID33_ValidateDependentDocumentAsync_CitizenId_Legacy9Digits_DefaultDisallowed_ThrowsIdentityMismatch()
+        {
+            var ocrResponse = new OcrExtractResponseMessage
+            {
+                Success = true,
+                Data = new ExtractedDependentDataDto
+                {
+                    IsReadable = true,
+                    DocumentType = "CITIZEN_ID",
+                    FullName = "Nguyễn Văn Con",
+                    CitizenId = "123456789", // 9 số CMND cũ
+                    BirthDate = "2010-05-15"
+                }
+            };
+
+            var responseMessage = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(ocrResponse), System.Text.Encoding.UTF8, "application/json")
+            };
+
+            _mockHandler.Protected()
+                .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
+                .ReturnsAsync(responseMessage);
+
+            var mockFile = new Mock<IFormFile>();
+            mockFile.Setup(f => f.Length).Returns(100);
+            mockFile.Setup(f => f.OpenReadStream()).Returns(new MemoryStream(new byte[100]));
+            mockFile.Setup(f => f.ContentType).Returns("image/jpeg");
+            mockFile.Setup(f => f.FileName).Returns("cmnd.jpg");
+
+            var dependent = new Dependent
+            {
+                FullName = "Nguyễn Văn Con",
+                CitizenId = "123456789",
+                BirthDate = new DateTime(2010, 5, 15)
+            };
+
+            var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
+                _service.ValidateDependentDocumentAsync(dependent, "CITIZEN_ID", mockFile.Object));
+
+            ex.ErrorCode.Should().Be("IDENTITY_MISMATCH");
+            ex.Message.Should().Contain("12 số hợp lệ");
+        }
+
+        [Fact]
+        public async Task UTCID34_ValidateDependentDocumentAsync_CitizenId_Legacy9Digits_AllowedByParam_Success()
+        {
+            var configRepo = new Mock<IGenericRepository<SystemConfig>>();
+            configRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<SystemConfig, bool>>>()))
+                .ReturnsAsync(new List<SystemConfig>
+                {
+                    new SystemConfig { ConfigKey = "allowLegacy9Digits", ConfigValue = "true", IsActive = true }
+                });
+            _mockUnitOfWork.Setup(u => u.Repository<SystemConfig>()).Returns(configRepo.Object);
+
+            var ocrResponse = new OcrExtractResponseMessage
+            {
+                Success = true,
+                Data = new ExtractedDependentDataDto
+                {
+                    IsReadable = true,
+                    DocumentType = "CITIZEN_ID",
+                    FullName = "Nguyễn Văn Con",
+                    CitizenId = "123456789",
+                    BirthDate = "2010-05-15"
+                }
+            };
+
+            var responseMessage = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(ocrResponse), System.Text.Encoding.UTF8, "application/json")
+            };
+
+            _mockHandler.Protected()
+                .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
+                .ReturnsAsync(responseMessage);
+
+            var mockFile = new Mock<IFormFile>();
+            mockFile.Setup(f => f.Length).Returns(100);
+            mockFile.Setup(f => f.OpenReadStream()).Returns(new MemoryStream(new byte[100]));
+            mockFile.Setup(f => f.ContentType).Returns("image/jpeg");
+            mockFile.Setup(f => f.FileName).Returns("cmnd.jpg");
+
+            var dependent = new Dependent
+            {
+                FullName = "Nguyễn Văn Con",
+                CitizenId = "123456789",
+                BirthDate = new DateTime(2010, 5, 15)
+            };
+
+            await _service.ValidateDependentDocumentAsync(dependent, "CITIZEN_ID", mockFile.Object);
+        }
+
+        [Fact]
+        public async Task UTCID35_ValidateDependentDocumentAsync_ChildBirthCert_BirthCertNumberMismatch_ThrowsIdentityMismatch()
+        {
+            var ocrResponse = new OcrExtractResponseMessage
+            {
+                Success = true,
+                Data = new ExtractedDependentDataDto
+                {
+                    IsReadable = true,
+                    DocumentType = "CHILD_BIRTH_CERTIFICATE",
+                    FullName = "Nguyễn Văn Bé",
+                    BirthDate = "2020-01-01",
+                    DocumentNumber = "GKS-1234/2020" // Khác với hồ sơ
+                }
+            };
+
+            var responseMessage = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(ocrResponse), System.Text.Encoding.UTF8, "application/json")
+            };
+
+            _mockHandler.Protected()
+                .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
+                .ReturnsAsync(responseMessage);
+
+            var mockFile = new Mock<IFormFile>();
+            mockFile.Setup(f => f.Length).Returns(100);
+            mockFile.Setup(f => f.OpenReadStream()).Returns(new MemoryStream(new byte[100]));
+            mockFile.Setup(f => f.ContentType).Returns("image/jpeg");
+            mockFile.Setup(f => f.FileName).Returns("gks.jpg");
+
+            var dependent = new Dependent
+            {
+                FullName = "Nguyễn Văn Bé",
+                BirthDate = new DateTime(2020, 1, 1),
+                BirthCertNumber = "GKS-9999/2020",
+                Relationship = DependentRelationship.CHILD
+            };
+
+            var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
+                _service.ValidateDependentDocumentAsync(dependent, "CHILD_BIRTH_CERTIFICATE", mockFile.Object));
+
+            ex.ErrorCode.Should().Be("IDENTITY_MISMATCH");
+            ex.Message.Should().Contain("Số giấy khai sinh trên giấy tờ");
+        }
+
+        [Fact]
+        public async Task UTCID36_ValidateDependentDocumentAsync_StudentCard_MissingSchoolName_ThrowsInvalidDocumentData()
+        {
+            _mockUnitOfWork.Setup(u => u.Repository<SystemConfig>()).Returns((IGenericRepository<SystemConfig>)null!);
+
+            var ocrResponse = new OcrExtractResponseMessage
+            {
+                Success = true,
+                Data = new ExtractedDependentDataDto
+                {
+                    IsReadable = true,
+                    DocumentType = "STUDENT_CARD",
+                    FullName = "Nguyễn Văn Sinh Viên",
+                    BirthDate = "2005-08-20",
+                    SchoolName = null // Thiếu tên trường
+                }
+            };
+
+            var responseMessage = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(ocrResponse), System.Text.Encoding.UTF8, "application/json")
+            };
+
+            _mockHandler.Protected()
+                .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
+                .ReturnsAsync(responseMessage);
+
+            var mockFile = new Mock<IFormFile>();
+            mockFile.Setup(f => f.Length).Returns(100);
+            mockFile.Setup(f => f.OpenReadStream()).Returns(new MemoryStream(new byte[100]));
+            mockFile.Setup(f => f.ContentType).Returns("image/jpeg");
+            mockFile.Setup(f => f.FileName).Returns("thesv.jpg");
+
+            var dependent = new Dependent
+            {
+                FullName = "Nguyễn Văn Sinh Viên",
+                BirthDate = new DateTime(2005, 8, 20),
+                CurrentGroup = DependentGroup.CHILD_OVER_18_STUDYING
+            };
+
+            var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
+                _service.ValidateDependentDocumentAsync(dependent, "STUDENT_CARD", mockFile.Object));
+
+            ex.ErrorCode.Should().Be("INVALID_DOCUMENT_DATA");
+            ex.Message.Should().Contain("tên trường học");
+        }
+
+        [Fact]
+        public async Task UTCID37_ValidateDependentDocumentAsync_StudentCard_Expired_ThrowsDocumentExpired()
+        {
+            _mockUnitOfWork.Setup(u => u.Repository<SystemConfig>()).Returns((IGenericRepository<SystemConfig>)null!);
+
+            var ocrResponse = new OcrExtractResponseMessage
+            {
+                Success = true,
+                Data = new ExtractedDependentDataDto
+                {
+                    IsReadable = true,
+                    DocumentType = "STUDENT_CARD",
+                    FullName = "Nguyễn Văn Sinh Viên",
+                    BirthDate = "2005-08-20",
+                    SchoolName = "Đại học Bách Khoa",
+                    ValidTo = "2025-06-30" // Đã hết hạn trước 2026-01
+                }
+            };
+
+            var responseMessage = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(ocrResponse), System.Text.Encoding.UTF8, "application/json")
+            };
+
+            _mockHandler.Protected()
+                .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
+                .ReturnsAsync(responseMessage);
+
+            var mockFile = new Mock<IFormFile>();
+            mockFile.Setup(f => f.Length).Returns(100);
+            mockFile.Setup(f => f.OpenReadStream()).Returns(new MemoryStream(new byte[100]));
+            mockFile.Setup(f => f.ContentType).Returns("image/jpeg");
+            mockFile.Setup(f => f.FileName).Returns("thesv.jpg");
+
+            var dependent = new Dependent
+            {
+                FullName = "Nguyễn Văn Sinh Viên",
+                BirthDate = new DateTime(2005, 8, 20),
+                EffectiveFromMonth = "2026-01",
+                CurrentGroup = DependentGroup.CHILD_OVER_18_STUDYING
+            };
+
+            var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
+                _service.ValidateDependentDocumentAsync(dependent, "STUDENT_CARD", mockFile.Object));
+
+            ex.ErrorCode.Should().Be("DOCUMENT_EXPIRED");
+            ex.Message.Should().Contain("hết hạn");
+        }
+
+        [Fact]
+        public async Task UTCID38_ValidateDependentDocumentAsync_DisabilityCert_Unqualified_ThrowsDisabilityNotQualified()
+        {
+            _mockUnitOfWork.Setup(u => u.Repository<SystemConfig>()).Returns((IGenericRepository<SystemConfig>)null!);
+
+            var ocrResponse = new OcrExtractResponseMessage
+            {
+                Success = true,
+                Data = new ExtractedDependentDataDto
+                {
+                    IsReadable = true,
+                    DocumentType = "DISABILITY_CERTIFICATE",
+                    FullName = "Trần Thị Bệnh",
+                    BirthDate = "1960-03-10",
+                    DisabilityLevel = "Nhẹ", // Không thuộc Đặc biệt nặng hay Nặng
+                    LaborCapacityLossPercent = 30 // < 61%
+                }
+            };
+
+            var responseMessage = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(ocrResponse), System.Text.Encoding.UTF8, "application/json")
+            };
+
+            _mockHandler.Protected()
+                .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
+                .ReturnsAsync(responseMessage);
+
+            var mockFile = new Mock<IFormFile>();
+            mockFile.Setup(f => f.Length).Returns(100);
+            mockFile.Setup(f => f.OpenReadStream()).Returns(new MemoryStream(new byte[100]));
+            mockFile.Setup(f => f.ContentType).Returns("image/jpeg");
+            mockFile.Setup(f => f.FileName).Returns("khuyettat.jpg");
+
+            var dependent = new Dependent
+            {
+                FullName = "Trần Thị Bệnh",
+                BirthDate = new DateTime(1960, 3, 10),
+                CurrentGroup = DependentGroup.PARENT_DISABLED
+            };
+
+            var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
+                _service.ValidateDependentDocumentAsync(dependent, "DISABILITY_CERTIFICATE", mockFile.Object));
+
+            ex.ErrorCode.Should().Be("DISABILITY_NOT_QUALIFIED");
+            ex.Message.Should().Contain("không đủ điều kiện");
+        }
+
+        [Fact]
+        public async Task UTCID39_ValidateDependentDocumentAsync_DisabilityCert_QualifiedByLevel_Success()
+        {
+            _mockUnitOfWork.Setup(u => u.Repository<SystemConfig>()).Returns((IGenericRepository<SystemConfig>)null!);
+
+            var ocrResponse = new OcrExtractResponseMessage
+            {
+                Success = true,
+                Data = new ExtractedDependentDataDto
+                {
+                    IsReadable = true,
+                    DocumentType = "DISABILITY_CERTIFICATE",
+                    FullName = "Trần Thị Bệnh",
+                    BirthDate = "1960-03-10",
+                    DisabilityLevel = "Đặc biệt nặng"
+                }
+            };
+
+            var responseMessage = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(ocrResponse), System.Text.Encoding.UTF8, "application/json")
+            };
+
+            _mockHandler.Protected()
+                .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
+                .ReturnsAsync(responseMessage);
+
+            var mockFile = new Mock<IFormFile>();
+            mockFile.Setup(f => f.Length).Returns(100);
+            mockFile.Setup(f => f.OpenReadStream()).Returns(new MemoryStream(new byte[100]));
+            mockFile.Setup(f => f.ContentType).Returns("image/jpeg");
+            mockFile.Setup(f => f.FileName).Returns("khuyettat.jpg");
+
+            var dependent = new Dependent
+            {
+                FullName = "Trần Thị Bệnh",
+                BirthDate = new DateTime(1960, 3, 10),
+                CurrentGroup = DependentGroup.PARENT_DISABLED
+            };
+
+            await _service.ValidateDependentDocumentAsync(dependent, "DISABILITY_CERTIFICATE", mockFile.Object);
+        }
+
+        [Fact]
+        public async Task UTCID40_ValidateDependentDocumentAsync_MarriageCert_AfterEffectiveMonth_ThrowsMarriageAfterEffective()
+        {
+            _mockUnitOfWork.Setup(u => u.Repository<SystemConfig>()).Returns((IGenericRepository<SystemConfig>)null!);
+
+            var taxpayer = new User { FullName = "Nguyễn Văn Chồng" };
+            var dependent = new Dependent
+            {
+                FullName = "Trần Thị Vợ",
+                Relationship = DependentRelationship.SPOUSE,
+                EffectiveFromMonth = "2026-01"
+            };
+
+            var ocrResponse = new OcrExtractResponseMessage
+            {
+                Success = true,
+                Data = new ExtractedDependentDataDto
+                {
+                    IsReadable = true,
+                    DocumentType = "MARRIAGE_CERTIFICATE",
+                    FullName = "Nguyễn Văn Chồng",
+                    SpouseFullName = "Trần Thị Vợ",
+                    IssueDate = "2026-02-15" // Kết hôn tháng 2 nhưng khai giảm trừ từ tháng 1
+                }
+            };
+
+            var responseMessage = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(ocrResponse), System.Text.Encoding.UTF8, "application/json")
+            };
+
+            _mockHandler.Protected()
+                .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
+                .ReturnsAsync(responseMessage);
+
+            var mockFile = new Mock<IFormFile>();
+            mockFile.Setup(f => f.Length).Returns(100);
+            mockFile.Setup(f => f.OpenReadStream()).Returns(new MemoryStream(new byte[100]));
+            mockFile.Setup(f => f.ContentType).Returns("image/jpeg");
+            mockFile.Setup(f => f.FileName).Returns("kethon.jpg");
+
+            var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
+                _service.ValidateDependentDocumentAsync(dependent, "MARRIAGE_CERTIFICATE", mockFile.Object, taxpayer));
+
+            ex.ErrorCode.Should().Be("MARRIAGE_AFTER_EFFECTIVE");
+            ex.Message.Should().Contain("sau thời điểm bắt đầu tính");
+        }
+
+        [Fact]
+        public async Task UTCID41_ValidateDependentDocumentAsync_HouseholdCert_MissingMember_ThrowsRelationshipMismatch()
+        {
+            _mockUnitOfWork.Setup(u => u.Repository<SystemConfig>()).Returns((IGenericRepository<SystemConfig>)null!);
+
+            var taxpayer = new User { FullName = "Nguyễn Văn Chủ Hộ" };
+            var dependent = new Dependent { FullName = "Lê Thị Con Dâu" };
+
+            var ocrResponse = new OcrExtractResponseMessage
+            {
+                Success = true,
+                Data = new ExtractedDependentDataDto
+                {
+                    IsReadable = true,
+                    DocumentType = "HOUSEHOLD_CERTIFICATE",
+                    HouseholdMembers = new List<HouseholdMemberDto>
+                    {
+                        new HouseholdMemberDto { FullName = "Nguyễn Văn Chủ Hộ" },
+                        new HouseholdMemberDto { FullName = "Nguyễn Văn Con Trai" }
+                        // Không có Lê Thị Con Dâu
+                    }
+                }
+            };
+
+            var responseMessage = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(ocrResponse), System.Text.Encoding.UTF8, "application/json")
+            };
+
+            _mockHandler.Protected()
+                .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
+                .ReturnsAsync(responseMessage);
+
+            var mockFile = new Mock<IFormFile>();
+            mockFile.Setup(f => f.Length).Returns(100);
+            mockFile.Setup(f => f.OpenReadStream()).Returns(new MemoryStream(new byte[100]));
+            mockFile.Setup(f => f.ContentType).Returns("image/jpeg");
+            mockFile.Setup(f => f.FileName).Returns("ct07.jpg");
+
+            var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
+                _service.ValidateDependentDocumentAsync(dependent, "HOUSEHOLD_CERTIFICATE", mockFile.Object, taxpayer));
+
+            ex.ErrorCode.Should().Be("RELATIONSHIP_MISMATCH");
+            ex.Message.Should().Contain("phải chứa thông tin của cả");
+        }
+
+        [Fact]
+        public async Task UTCID42_ValidateDependentDocumentAsync_HouseholdCert_BothMembersPresent_Success()
+        {
+            _mockUnitOfWork.Setup(u => u.Repository<SystemConfig>()).Returns((IGenericRepository<SystemConfig>)null!);
+
+            var taxpayer = new User { FullName = "Nguyễn Văn Chủ Hộ" };
+            var dependent = new Dependent { FullName = "Lê Thị Con Dâu" };
+
+            var ocrResponse = new OcrExtractResponseMessage
+            {
+                Success = true,
+                Data = new ExtractedDependentDataDto
+                {
+                    IsReadable = true,
+                    DocumentType = "HOUSEHOLD_CERTIFICATE",
+                    IssueDate = DateTime.UtcNow.ToString("yyyy-MM-dd"),
+                    HouseholdMembers = new List<HouseholdMemberDto>
+                    {
+                        new HouseholdMemberDto { FullName = "Nguyễn Văn Chủ Hộ" },
+                        new HouseholdMemberDto { FullName = "Lê Thị Con Dâu" }
+                    }
+                }
+            };
+
+            var responseMessage = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(ocrResponse), System.Text.Encoding.UTF8, "application/json")
+            };
+
+            _mockHandler.Protected()
+                .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
+                .ReturnsAsync(responseMessage);
+
+            var mockFile = new Mock<IFormFile>();
+            mockFile.Setup(f => f.Length).Returns(100);
+            mockFile.Setup(f => f.OpenReadStream()).Returns(new MemoryStream(new byte[100]));
+            mockFile.Setup(f => f.ContentType).Returns("image/jpeg");
+            mockFile.Setup(f => f.FileName).Returns("ct07.jpg");
+
+            await _service.ValidateDependentDocumentAsync(dependent, "HOUSEHOLD_CERTIFICATE", mockFile.Object, taxpayer);
+        }
+
+        [Fact]
+        public async Task UTCID43_ValidateDependentDocumentAsync_AdoptionCert_ParentRelationship_Success()
+        {
+            _mockUnitOfWork.Setup(u => u.Repository<SystemConfig>()).Returns((IGenericRepository<SystemConfig>)null!);
+
+            var taxpayer = new User { FullName = "Nguyễn Văn Con Nuôi" };
+            var dependent = new Dependent
+            {
+                FullName = "Trần Văn Cha Nuôi",
+                Relationship = DependentRelationship.PARENT
+            };
+
+            var ocrResponse = new OcrExtractResponseMessage
+            {
+                Success = true,
+                Data = new ExtractedDependentDataDto
+                {
+                    IsReadable = true,
+                    DocumentType = "ADOPTION_CERTIFICATE",
+                    AdoptiveParentFullName = "Trần Văn Cha Nuôi",
+                    AdoptiveChildFullName = "Nguyễn Văn Con Nuôi"
+                }
+            };
+
+            var responseMessage = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(ocrResponse), System.Text.Encoding.UTF8, "application/json")
+            };
+
+            _mockHandler.Protected()
+                .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
+                .ReturnsAsync(responseMessage);
+
+            var mockFile = new Mock<IFormFile>();
+            mockFile.Setup(f => f.Length).Returns(100);
+            mockFile.Setup(f => f.OpenReadStream()).Returns(new MemoryStream(new byte[100]));
+            mockFile.Setup(f => f.ContentType).Returns("image/jpeg");
+            mockFile.Setup(f => f.FileName).Returns("adoption.jpg");
+
+            await _service.ValidateDependentDocumentAsync(dependent, "ADOPTION_CERTIFICATE", mockFile.Object, taxpayer);
+        }
+
+        [Fact]
+        public async Task UTCID44_ValidateDependentDocumentAsync_SupportCommitment_MissingStamp_ThrowsCommitmentNotCertified()
+        {
+            _mockUnitOfWork.Setup(u => u.Repository<SystemConfig>()).Returns((IGenericRepository<SystemConfig>)null!);
+
+            var taxpayer = new User { FullName = "Nguyễn Văn Cháu" };
+            var dependent = new Dependent { FullName = "Trần Thị Bà" };
+
+            var ocrResponse = new OcrExtractResponseMessage
+            {
+                Success = true,
+                Data = new ExtractedDependentDataDto
+                {
+                    IsReadable = true,
+                    DocumentType = "SUPPORT_COMMITMENT",
+                    FullName = "Nguyễn Văn Cháu",
+                    SpouseFullName = "Trần Thị Bà",
+                    HasSignature = true,
+                    HasStamp = false // Chưa có con dấu UBND
+                }
+            };
+
+            var responseMessage = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(ocrResponse), System.Text.Encoding.UTF8, "application/json")
+            };
+
+            _mockHandler.Protected()
+                .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
+                .ReturnsAsync(responseMessage);
+
+            var mockFile = new Mock<IFormFile>();
+            mockFile.Setup(f => f.Length).Returns(100);
+            mockFile.Setup(f => f.OpenReadStream()).Returns(new MemoryStream(new byte[100]));
+            mockFile.Setup(f => f.ContentType).Returns("image/jpeg");
+            mockFile.Setup(f => f.FileName).Returns("camket.jpg");
+
+            var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
+                _service.ValidateDependentDocumentAsync(dependent, "SUPPORT_COMMITMENT", mockFile.Object, taxpayer));
+
+            ex.ErrorCode.Should().Be("COMMITMENT_NOT_CERTIFIED");
+            ex.Message.Should().Contain("chưa có con dấu xác nhận");
+        }
+
+        [Fact]
+        public async Task UTCID45_ValidateDependentDocumentAsync_Other_BasicChecksPass_Success()
+        {
+            _mockUnitOfWork.Setup(u => u.Repository<SystemConfig>()).Returns((IGenericRepository<SystemConfig>)null!);
+
+            var dependent = new Dependent { FullName = "Nguyễn Văn Khác" };
+
+            var ocrResponse = new OcrExtractResponseMessage
+            {
+                Success = true,
+                Data = new ExtractedDependentDataDto
+                {
+                    IsReadable = true,
+                    DocumentType = "OTHER",
+                    IsPassedThreshold = true
+                }
+            };
+
+            var responseMessage = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(ocrResponse), System.Text.Encoding.UTF8, "application/json")
+            };
+
+            _mockHandler.Protected()
+                .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
+                .ReturnsAsync(responseMessage);
+
+            var mockFile = new Mock<IFormFile>();
+            mockFile.Setup(f => f.Length).Returns(100);
+            mockFile.Setup(f => f.OpenReadStream()).Returns(new MemoryStream(new byte[100]));
+            mockFile.Setup(f => f.ContentType).Returns("image/jpeg");
+            mockFile.Setup(f => f.FileName).Returns("other.jpg");
+
+            await _service.ValidateDependentDocumentAsync(dependent, "OTHER", mockFile.Object);
         }
 
         #endregion
