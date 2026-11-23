@@ -215,13 +215,17 @@ namespace TaxKeepVN.Application.Service.Implementations
             app.UpdatedAt = DateTimeOffset.UtcNow;
             appRepo.Update(app);
 
-            // Cập nhật Role người dùng lên Chuyên gia (Role 3: expert)
+            // Cập nhật Role người dùng lên Chuyên gia (đọc từ bảng roles trong DB, không hardcode)
             var userRepo = _unitOfWork.Repository<User>();
             var user = await userRepo.GetByIdAsync(app.UserId);
             if (user != null)
             {
-                user.RoleId = 3;
-                user.UserRole = "expert";
+                var roleRepo = _unitOfWork.Repository<Role>();
+                var expertRoles = await roleRepo.FindAsync(r => r.Code.ToLower() == "expert" && r.IsActive);
+                var expertRole = expertRoles.FirstOrDefault();
+
+                user.RoleId = expertRole?.Id ?? 3;
+                user.UserRole = expertRole?.Code ?? "expert";
                 user.UpdatedAt = DateTimeOffset.UtcNow;
                 userRepo.Update(user);
             }
