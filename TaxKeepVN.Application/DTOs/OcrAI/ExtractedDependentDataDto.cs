@@ -1,4 +1,5 @@
-﻿using System.Text.Json.Serialization;
+﻿using System.Collections.Generic;
+using System.Text.Json.Serialization;
 
 namespace TaxKeepVN.Application.DTOs.OcrAI
 {
@@ -64,6 +65,36 @@ namespace TaxKeepVN.Application.DTOs.OcrAI
 
         [JsonPropertyName("spouseIdNumber")]
         public string? SpouseIdNumber { get; set; }
+
+        [JsonPropertyName("schoolName")]
+        public string? SchoolName { get; set; }
+
+        [JsonPropertyName("validTo")]
+        public string? ValidTo { get; set; }
+
+        [JsonPropertyName("disabilityLevel")]
+        public string? DisabilityLevel { get; set; }
+
+        [JsonPropertyName("laborCapacityLossPercent")]
+        public double? LaborCapacityLossPercent { get; set; }
+
+        [JsonPropertyName("householdMembers")]
+        public List<HouseholdMemberDto>? HouseholdMembers { get; set; }
+
+        [JsonPropertyName("adoptiveParentFullName")]
+        public string? AdoptiveParentFullName { get; set; }
+
+        [JsonPropertyName("adoptiveChildFullName")]
+        public string? AdoptiveChildFullName { get; set; }
+
+        [JsonPropertyName("hasSignature")]
+        public bool? HasSignature { get; set; }
+
+        [JsonPropertyName("hasStamp")]
+        public bool? HasStamp { get; set; }
+
+        [JsonPropertyName("issuingAuthority")]
+        public string? IssuingAuthority { get; set; }
 
         [JsonPropertyName("thresholdValidation")]
         public DependentThresholdValidationResultDto? ThresholdValidation { get; set; }
