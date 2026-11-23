@@ -7,21 +7,11 @@ namespace TaxKeepVN.Application.Validators
     public class UploadDocumentRequestValidator : AbstractValidator<UploadDocumentRequestDto>
     {
         private static readonly string[] AllowedExtensions = { ".pdf", ".jpg", ".jpeg", ".png" };
-        private static readonly string[] AllowedDocTypes =
-        {
-            "BIRTH_CERTIFICATE", "CITIZEN_ID", "STUDENT_CARD",
-            "DISABILITY_CERTIFICATE", "MARRIAGE_CERTIFICATE",
-            "RELATIONSHIP_CERTIFICATE", "SUPPORT_COMMITMENT_FORM",
-            "PENSION_STATEMENT", "COMMUNE_CERTIFICATION", "HOUSEHOLD_BOOK",
-            "DONATION_VOUCHER", "OTHER"
-        };
 
         public UploadDocumentRequestValidator()
         {
             RuleFor(x => x.DocType)
-                .NotEmpty().WithMessage("Loại giấy tờ không được để trống.")
-                .Must(t => AllowedDocTypes.Contains(t?.ToUpper()))
-                .WithMessage($"Loại giấy tờ không hợp lệ. Các loại hợp lệ: {string.Join(", ", AllowedDocTypes)}.");
+                .NotEmpty().WithMessage("Loại giấy tờ không được để trống.");
 
             RuleFor(x => x.File)
                 .NotNull().WithMessage("Vui lòng chọn tệp chứng từ cần tải lên.")
