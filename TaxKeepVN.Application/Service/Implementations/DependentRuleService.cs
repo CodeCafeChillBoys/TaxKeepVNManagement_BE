@@ -118,6 +118,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 RuleId = Guid.NewGuid(),
                 TargetGroup = targetGroup,
                 DocType = docType,
+                DocName = dto.DocName?.Trim(),
                 IsMandatory = dto.IsMandatory,
                 Description = dto.Description?.Trim(),
                 IsActive = dto.IsActive,
@@ -141,6 +142,10 @@ namespace TaxKeepVN.Application.Service.Implementations
             if (rule == null)
                 throw new NotFoundException($"Không tìm thấy quy tắc giấy tờ với mã '{ruleId}'.");
 
+            if (dto.DocName != null)
+            {
+                rule.DocName = dto.DocName.Trim();
+            }
             rule.IsMandatory = dto.IsMandatory;
             rule.Description = dto.Description?.Trim();
             rule.IsActive = dto.IsActive;
@@ -389,6 +394,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             RuleId = r.RuleId,
             TargetGroup = r.TargetGroup,
             DocType = r.DocType,
+            DocName = r.DocName,
             IsMandatory = r.IsMandatory,
             Description = r.Description,
             IsActive = r.IsActive,
@@ -449,9 +455,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 "CAM_KET" or "GIAY_CAM_KET" or "SUPPORT_COMMITMENT" => "SUPPORT_COMMITMENT_FORM",
                 "HUU_TRI" or "SO_HUU_TRI" or "PENSION" => "PENSION_STATEMENT",
                 "XAC_NHAN_UBND" or "COMMUNE" => "COMMUNE_CERTIFICATION",
-                _ => Enum.TryParse<TaxKeepVN.Domain.Enums.DocumentType>(trimmed, true, out var parsed)
-                    ? parsed.ToString()
-                    : trimmed
+                _ => trimmed
             };
         }
 

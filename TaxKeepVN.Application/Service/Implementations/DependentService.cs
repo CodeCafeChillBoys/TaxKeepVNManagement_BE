@@ -298,16 +298,9 @@ namespace TaxKeepVN.Application.Service.Implementations
                 }
             }
 
-            var uploadedNames = uploadedDocTypes.ToHashSet(StringComparer.OrdinalIgnoreCase);
-            if (uploadedNames.Contains("RELATIONSHIP_CERTIFICATE"))
-            {
-                uploadedNames.Add("RESIDENCE_CT07");
-                uploadedNames.Add("CT07");
-            }
-            if (uploadedNames.Contains("RESIDENCE_CT07") || uploadedNames.Contains("CT07"))
-            {
-                uploadedNames.Add("RELATIONSHIP_CERTIFICATE");
-            }
+            var uploadedNames = uploadedDocTypes
+                .Select(DependentRuleService.NormalizeDocType)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
             var missing = new List<string>();
 
             if (activeRules.Count > 0)
