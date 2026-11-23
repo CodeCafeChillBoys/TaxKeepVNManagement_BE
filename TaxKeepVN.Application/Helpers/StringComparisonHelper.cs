@@ -63,12 +63,18 @@ namespace TaxKeepVN.Application.Helpers
         {
             ["CITIZEN_ID"] = new[] { "CCCD", "CITIZEN", "CMND", "CAN_CUOC" },
             ["BIRTH_CERTIFICATE"] = new[] { "BIRTH", "KHAI_SINH" },
+            ["CHILD_BIRTH_CERTIFICATE"] = new[] { "BIRTH", "KHAI_SINH", "CHILD_BIRTH" },
+            ["TAXPAYER_BIRTH_CERTIFICATE"] = new[] { "BIRTH", "KHAI_SINH", "TAXPAYER_BIRTH" },
             ["MARRIAGE_CERTIFICATE"] = new[] { "MARRIAGE", "KET_HON" },
+            ["TAXPAYER_MARRIAGE_CERTIFICATE"] = new[] { "MARRIAGE", "KET_HON", "TAXPAYER_MARRIAGE" },
             ["DISABILITY_CERTIFICATE"] = new[] { "DISABILITY", "KHUYET_TAT" },
-            ["RELATIONSHIP_CERTIFICATE"] = new[] { "CT07", "RESIDENCE", "HO_KHAU", "CU_TRU", "RELATIONSHIP", "GIA_DINH" },
+            ["HOUSEHOLD_CERTIFICATE"] = new[] { "CT07", "RESIDENCE", "HO_KHAU", "CU_TRU", "RELATIONSHIP", "GIA_DINH", "HOUSEHOLD" },
+            ["RELATIONSHIP_CERTIFICATE"] = new[] { "CT07", "RESIDENCE", "HO_KHAU", "CU_TRU", "RELATIONSHIP", "GIA_DINH", "HOUSEHOLD" },
             ["STUDENT_CARD"] = new[] { "STUDENT", "SINH_VIEN", "THE_SINH_VIEN" },
+            ["ADOPTION_CERTIFICATE"] = new[] { "ADOPTION", "CON_NUOI", "NUOI_CON" },
             ["PENSION_STATEMENT"] = new[] { "PENSION", "HUU_TRI", "SO_HUU_TRI" },
             ["COMMUNE_CERTIFICATION"] = new[] { "COMMUNE", "UBND", "XAC_NHAN_UBND" },
+            ["SUPPORT_COMMITMENT"] = new[] { "CAM_KET", "SUPPORT_COMMITMENT" },
             ["SUPPORT_COMMITMENT_FORM"] = new[] { "CAM_KET", "SUPPORT_COMMITMENT" }
         };
 
@@ -89,10 +95,34 @@ namespace TaxKeepVN.Application.Helpers
             if (normExpected == normAi || expected == aiType)
                 return true;
 
+            // Nhánh tương thích đặc thù giữa Khai sinh, Kết hôn, CT07
+            if ((normExpected is "CHILD_BIRTH_CERTIFICATE" or "TAXPAYER_BIRTH_CERTIFICATE" or "BIRTH_CERTIFICATE") &&
+                (normAi is "CHILD_BIRTH_CERTIFICATE" or "TAXPAYER_BIRTH_CERTIFICATE" or "BIRTH_CERTIFICATE"))
+                return true;
+
+            if ((normExpected is "MARRIAGE_CERTIFICATE" or "TAXPAYER_MARRIAGE_CERTIFICATE") &&
+                (normAi is "MARRIAGE_CERTIFICATE" or "TAXPAYER_MARRIAGE_CERTIFICATE"))
+                return true;
+
+            if ((normExpected is "HOUSEHOLD_CERTIFICATE" or "RELATIONSHIP_CERTIFICATE") &&
+                (normAi is "HOUSEHOLD_CERTIFICATE" or "RELATIONSHIP_CERTIFICATE"))
+                return true;
+
+            if ((normExpected is "SUPPORT_COMMITMENT" or "SUPPORT_COMMITMENT_FORM") &&
+                (normAi is "SUPPORT_COMMITMENT" or "SUPPORT_COMMITMENT_FORM"))
+                return true;
+
             // Kiểm tra theo bảng từ khóa
             if (DocTypeKeywords.TryGetValue(normExpected, out var keywords))
             {
-                return keywords.Any(kw => aiType.Contains(kw, StringComparison.OrdinalIgnoreCase));
+                if (keywords.Any(kw => aiType.Contains(kw, StringComparison.OrdinalIgnoreCase)))
+                    return true;
+            }
+
+            if (DocTypeKeywords.TryGetValue(normAi, out var aiKeywords))
+            {
+                if (aiKeywords.Any(kw => expected.Contains(kw, StringComparison.OrdinalIgnoreCase)))
+                    return true;
             }
 
             // Mã không có trong bảng từ khóa thì so trực tiếp chuỗi
