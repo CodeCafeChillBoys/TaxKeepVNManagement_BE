@@ -16,17 +16,20 @@ namespace TaxKeepVN.Application.Service.Implementations
         private readonly IFileStorageService _fileStorageService;
         private readonly IDocumentOcrProducerService _ocrProducerService;
         private readonly ILogger<TaxPeriodService> _logger;
+        private readonly ISubscriptionQuotaService? _quotaService;
 
         public TaxPeriodService(
             IUnitOfWork unitOfWork,
             IFileStorageService fileStorageService,
             IDocumentOcrProducerService ocrProducerService,
-            ILogger<TaxPeriodService> logger)
+            ILogger<TaxPeriodService> logger,
+            ISubscriptionQuotaService? quotaService = null)
         {
             _unitOfWork = unitOfWork;
             _fileStorageService = fileStorageService;
             _ocrProducerService = ocrProducerService;
             _logger = logger;
+            _quotaService = quotaService;
         }
 
         public async Task<TaxPeriodResponseDto> InitOrGetPeriodAsync(Guid userId, int taxYear)

@@ -84,6 +84,12 @@ namespace TaxKeepVN.Application.Service.Implementations
                     "A medical statement already exists for this receipt. Delete it before uploading a replacement.");
             }
 
+            // Kiểm tra và trừ lượt quét OCR theo gói người dùng
+            if (_quotaService != null)
+            {
+                await _quotaService.CheckAndConsumeOcrScanAsync(userId, 1);
+            }
+
             // 4. Lưu file và tạo record TRỰC TIẾP trong bảng medical_statements
             var fileUrl = await _fileStorageService.SaveFileAsync(file, $"tax-periods/{period.TaxYear}/medical-statements");
             var statement = new MedicalStatement
