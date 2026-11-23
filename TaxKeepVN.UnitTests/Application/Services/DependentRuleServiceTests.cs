@@ -130,6 +130,30 @@ namespace TaxKeepVN.UnitTests.Application.Services
             _mockUnitOfWork.Verify(u => u.SaveChangesAsync(), Times.Once);
         }
 
+        [Fact]
+        public async Task UTCID05b_CreateAsync_WithDocName_SavesDocName()
+        {
+            _mockRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentDocumentRule, bool>>>()))
+                     .ReturnsAsync(new List<DependentDocumentRule>());
+
+            var dto = new CreateDependentRuleDto
+            {
+                TargetGroup = "PARENT_RETIRED",
+                DocType = "PENSION_STATEMENT",
+                DocName = "Sổ hưu trí",
+                IsMandatory = true,
+                IsActive = true
+            };
+
+            var result = await _service.CreateAsync(dto);
+
+            result.Should().NotBeNull();
+            result.DocType.Should().Be("PENSION_STATEMENT");
+            result.DocName.Should().Be("Sổ hưu trí");
+            _mockRepo.Verify(r => r.AddAsync(It.Is<DependentDocumentRule>(rule => rule.DocName == "Sổ hưu trí")), Times.Once);
+            _mockUnitOfWork.Verify(u => u.SaveChangesAsync(), Times.Once);
+        }
+
         #endregion
 
         #region DeleteAsync
@@ -190,6 +214,33 @@ namespace TaxKeepVN.UnitTests.Application.Services
 
             result.Should().NotBeNull();
             result.IsMandatory.Should().BeTrue();
+            _mockRepo.Verify(r => r.Update(rule), Times.Once);
+            _mockUnitOfWork.Verify(u => u.SaveChangesAsync(), Times.Once);
+        }
+
+        [Fact]
+        public async Task UTCID09b_UpdateAsync_WithDocName_UpdatesDocName()
+        {
+            var rule = new DependentDocumentRule
+            {
+                RuleId = Guid.NewGuid(),
+                TargetGroup = "PARENT_RETIRED",
+                DocType = "PENSION_STATEMENT",
+                DocName = "Sổ hưu"
+            };
+            _mockRepo.Setup(r => r.GetByIdAsync(rule.RuleId)).ReturnsAsync(rule);
+
+            var dto = new UpdateDependentRuleDto
+            {
+                DocName = "Sổ hưu trí mới",
+                IsMandatory = true
+            };
+
+            var result = await _service.UpdateAsync(rule.RuleId, dto);
+
+            result.Should().NotBeNull();
+            result.DocName.Should().Be("Sổ hưu trí mới");
+            rule.DocName.Should().Be("Sổ hưu trí mới");
             _mockRepo.Verify(r => r.Update(rule), Times.Once);
             _mockUnitOfWork.Verify(u => u.SaveChangesAsync(), Times.Once);
         }

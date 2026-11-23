@@ -379,7 +379,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
                     {
                         Id = Guid.NewGuid(),
                         DependentId = depId,
-                        DocType = DocumentType.BIRTH_CERTIFICATE,
+                        DocType = "BIRTH_CERTIFICATE",
                         FileUrl = "/uploads/documents/doc.pdf",
                         FileMimeType = "application/pdf",
                         IsReadable = true,
@@ -430,7 +430,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
                     {
                         Id = Guid.NewGuid(),
                         DependentId = depId,
-                        DocType = DocumentType.CITIZEN_ID,
+                        DocType = "CITIZEN_ID",
                         FileUrl = "/uploads/cccd1.jpg",
                         UploadedAt = DateTime.UtcNow.AddHours(-2)
                     },
@@ -438,7 +438,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
                     {
                         Id = latestCccdId,
                         DependentId = depId,
-                        DocType = DocumentType.CITIZEN_ID,
+                        DocType = "CITIZEN_ID",
                         FileUrl = "/uploads/cccd_latest.jpg",
                         UploadedAt = DateTime.UtcNow
                     },
@@ -446,7 +446,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
                     {
                         Id = Guid.NewGuid(),
                         DependentId = depId,
-                        DocType = DocumentType.CITIZEN_ID,
+                        DocType = "CITIZEN_ID",
                         FileUrl = "/uploads/cccd2.jpg",
                         UploadedAt = DateTime.UtcNow.AddHours(-1)
                     }
@@ -709,7 +709,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             {
                 Id = Guid.NewGuid(),
                 DependentId = depId,
-                DocType = DocumentType.BIRTH_CERTIFICATE,
+                DocType = "BIRTH_CERTIFICATE",
                 FileUrl = "https://storage.taxkeep.vn/docs/bc.pdf",
                 FileMimeType = "application/pdf",
                 IsReadable = true,
