@@ -7,7 +7,7 @@ namespace TaxKeepVN.Domain.Entities
     {
         public Guid Id { get; set; }
         public Guid DependentId { get; set; }
-        public DocumentType DocType { get; set; }
+        public string DocType { get; set; } = string.Empty;
         public string FileUrl { get; set; } = string.Empty;
         public string FileMimeType { get; set; } = string.Empty;
         public bool IsReadable { get; set; }
