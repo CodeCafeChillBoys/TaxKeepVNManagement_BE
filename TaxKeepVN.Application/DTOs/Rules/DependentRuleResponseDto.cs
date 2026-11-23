@@ -8,6 +8,7 @@ namespace TaxKeepVN.Application.DTOs.Rules
         public Guid RuleId { get; set; }
         public string TargetGroup { get; set; } = string.Empty;
         public string DocType { get; set; } = string.Empty;
+        public string? DocName { get; set; }
         public bool IsMandatory { get; set; }
         public string? Description { get; set; }
         public bool IsActive { get; set; }

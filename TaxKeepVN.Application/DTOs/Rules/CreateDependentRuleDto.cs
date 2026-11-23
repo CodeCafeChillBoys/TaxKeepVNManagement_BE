@@ -13,6 +13,9 @@ namespace TaxKeepVN.Application.DTOs.Rules
         [MaxLength(50, ErrorMessage = "Loại giấy tờ không được vượt quá 50 ký tự.")]
         public string DocType { get; set; } = string.Empty;
 
+        [MaxLength(150, ErrorMessage = "Tên loại giấy tờ không được vượt quá 150 ký tự.")]
+        public string? DocName { get; set; }
+
         public bool IsMandatory { get; set; } = true;
 
         public string? Description { get; set; }

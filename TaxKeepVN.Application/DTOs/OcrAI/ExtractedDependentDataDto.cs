@@ -46,5 +46,35 @@ namespace TaxKeepVN.Application.DTOs.OcrAI
 
         [JsonPropertyName("unreadableReason")]
         public string? UnreadableReason { get; set; }
+
+        [JsonPropertyName("fatherFullName")]
+        public string? FatherFullName { get; set; }
+
+        [JsonPropertyName("motherFullName")]
+        public string? MotherFullName { get; set; }
+
+        [JsonPropertyName("fatherIdNumber")]
+        public string? FatherIdNumber { get; set; }
+
+        [JsonPropertyName("motherIdNumber")]
+        public string? MotherIdNumber { get; set; }
+
+        [JsonPropertyName("spouseFullName")]
+        public string? SpouseFullName { get; set; }
+
+        [JsonPropertyName("spouseIdNumber")]
+        public string? SpouseIdNumber { get; set; }
+
+        [JsonPropertyName("thresholdValidation")]
+        public DependentThresholdValidationResultDto? ThresholdValidation { get; set; }
+
+        [JsonPropertyName("isPassedThreshold")]
+        public bool? IsPassedThreshold { get; set; }
+
+        [JsonPropertyName("overallConfidence")]
+        public double? OverallConfidence { get; set; }
+
+        [JsonPropertyName("ruleValidation")]
+        public RuleValidationResultDto? RuleValidation { get; set; }
     }
 }
