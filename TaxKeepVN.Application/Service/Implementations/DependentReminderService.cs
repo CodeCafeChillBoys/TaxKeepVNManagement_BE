@@ -15,10 +15,12 @@ namespace TaxKeepVN.Application.Service.Implementations
     public class DependentReminderService : IDependentReminderService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IDependentCatalogService? _catalogService;
 
-        public DependentReminderService(IUnitOfWork unitOfWork)
+        public DependentReminderService(IUnitOfWork unitOfWork, IDependentCatalogService? catalogService = null)
         {
             _unitOfWork = unitOfWork;
+            _catalogService = catalogService;
         }
 
         public async Task<PagedResult<AgeReminderItemDto>> GetAgeTransitionRemindersAsync(Guid userId, int taxYear, QueryParameters query)
@@ -26,19 +28,17 @@ namespace TaxKeepVN.Application.Service.Implementations
             if (taxYear < 2000 || taxYear > 2100)
                 throw new BadRequestException("INVALID_TAX_YEAR", "Năm tính thuế không hợp lệ. Vui lòng nhập năm trong khoảng từ 2000 đến 2100.");
 
-            var groupRepo = _unitOfWork.Repository<DependentGroupCatalog>();
-            var allGroups = groupRepo != null
-                ? (await groupRepo.FindAsync(g => g.IsActive)).ToList()
-                : new List<DependentGroupCatalog>();
-
-            if (allGroups.Count == 0)
+            List<DependentGroupCatalog> allGroups;
+            if (_catalogService != null)
             {
-                allGroups = new List<DependentGroupCatalog>
-                {
-                    new() { Code = "CHILD_UNDER_18", Name = "Con dưới 18 tuổi", RelationshipCode = "CHILD", MaxAge = 18, Level = 0, IsActive = true },
-                    new() { Code = "CHILD_OVER_18_STUDYING", Name = "Con từ 18 tuổi trở lên đang đi học", RelationshipCode = "CHILD", MinAge = 18, Level = 1, RequireStudying = true, IsActive = true },
-                    new() { Code = "CHILD_OVER_18_DISABLED", Name = "Con từ 18 tuổi trở lên bị khuyết tật", RelationshipCode = "CHILD", MinAge = 18, Level = 1, RequireDisabled = true, IsActive = true }
-                };
+                allGroups = await _catalogService.GetActiveGroupsAsync();
+            }
+            else
+            {
+                var groupRepo = _unitOfWork.Repository<DependentGroupCatalog>();
+                allGroups = groupRepo != null
+                    ? (await groupRepo.FindAsync(g => g.IsActive)).ToList()
+                    : new List<DependentGroupCatalog>();
             }
 
             var groupsWithMaxAge = allGroups
@@ -67,11 +67,6 @@ namespace TaxKeepVN.Application.Service.Implementations
 
                 if (!isTurningSoon && !isAlreadyAge) continue;
 
-                string status = isTurningSoon ? $"TURNING_{maxAge}_SOON" : $"ALREADY_{maxAge}_PENDING_ACTION";
-                string message = isTurningSoon
-                    ? $"Người phụ thuộc {dep.FullName} sẽ tròn {maxAge} tuổi vào ngày {turningDate:dd/MM/yyyy}. Vui lòng cập nhật hồ sơ sinh viên nếu tiếp tục theo học."
-                    : $"Người phụ thuộc {dep.FullName} đã tròn {maxAge} tuổi. Khoản giảm trừ sẽ bị tạm dừng nếu không bổ sung giấy tờ sinh viên.";
-
                 var relCode = curGroup.RelationshipCode ?? dep.Relationship;
                 var candidateGroups = allGroups
                     .Where(g => string.Equals(g.RelationshipCode, relCode, StringComparison.OrdinalIgnoreCase)
@@ -81,7 +76,22 @@ namespace TaxKeepVN.Application.Service.Implementations
                     .ThenBy(g => g.Level)
                     .ToList();
 
-                var recommendedGroup = candidateGroups.FirstOrDefault()?.Code ?? "CHILD_OVER_18_STUDYING";
+                var recommendedGroup = candidateGroups.FirstOrDefault();
+
+                string status = isTurningSoon ? $"TURNING_{maxAge}_SOON" : $"ALREADY_{maxAge}_PENDING_ACTION";
+                string message;
+                if (isTurningSoon)
+                {
+                    message = recommendedGroup != null
+                        ? $"Người phụ thuộc {dep.FullName} sẽ tròn {maxAge} tuổi vào ngày {turningDate:dd/MM/yyyy}. Vui lòng chuyển sang nhóm '{recommendedGroup.Name}' và bổ sung giấy tờ nếu tiếp tục đủ điều kiện."
+                        : $"Người phụ thuộc {dep.FullName} sẽ tròn {maxAge} tuổi vào ngày {turningDate:dd/MM/yyyy}. Vui lòng cập nhật thông tin nhóm và bổ sung giấy tờ phù hợp nếu tiếp tục đủ điều kiện.";
+                }
+                else
+                {
+                    message = recommendedGroup != null
+                        ? $"Người phụ thuộc {dep.FullName} đã tròn {maxAge} tuổi. Vui lòng chuyển sang nhóm '{recommendedGroup.Name}' và bổ sung giấy tờ để tiếp tục được tính giảm trừ."
+                        : $"Người phụ thuộc {dep.FullName} đã tròn {maxAge} tuổi. Khoản giảm trừ sẽ bị tạm dừng nếu không cập nhật nhóm và bổ sung giấy tờ phù hợp.";
+                }
 
                 reminders.Add(new AgeReminderItemDto
                 {
@@ -89,7 +99,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                     FullName = dep.FullName,
                     BirthDate = dep.BirthDate.ToString("yyyy-MM-dd"),
                     CurrentGroup = dep.CurrentGroup,
-                    RecommendedGroup = recommendedGroup,
+                    RecommendedGroup = recommendedGroup?.Code,
                     TransitionStatus = status,
                     Turning18Date = turningDate.ToString("yyyy-MM-dd"),
                     DaysRemaining = daysRemaining,

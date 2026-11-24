@@ -96,6 +96,61 @@ namespace TaxKeepVN.Application.Service.Implementations
             return response;
         }
 
+        public async Task<List<DependentRelationshipCatalog>> GetActiveRelationshipsAsync()
+        {
+            const string cacheKey = "ActiveDependentRelationships";
+            if (_cache.TryGetValue(cacheKey, out List<DependentRelationshipCatalog>? cachedRels) && cachedRels != null)
+            {
+                return cachedRels;
+            }
+
+            var relRepo = _unitOfWork.Repository<DependentRelationshipCatalog>();
+            var rels = relRepo != null
+                ? (await relRepo.FindAsync(r => r.IsActive)).OrderBy(r => r.DisplayOrder).ToList()
+                : new List<DependentRelationshipCatalog>();
+
+            _cache.Set(cacheKey, rels, TimeSpan.FromHours(1));
+            return rels;
+        }
+
+        public async Task<List<DependentGroupCatalog>> GetActiveGroupsAsync(string? relationshipCode = null)
+        {
+            var normRel = !string.IsNullOrWhiteSpace(relationshipCode) ? relationshipCode.Trim().ToUpper() : null;
+            var cacheKey = normRel == null ? "ActiveDependentGroups_All" : $"ActiveDependentGroups_{normRel}";
+
+            if (_cache.TryGetValue(cacheKey, out List<DependentGroupCatalog>? cachedGroups) && cachedGroups != null)
+            {
+                return cachedGroups;
+            }
+
+            var groupRepo = _unitOfWork.Repository<DependentGroupCatalog>();
+            var groups = groupRepo != null
+                ? (await groupRepo.FindAsync(g => g.IsActive && (normRel == null || g.RelationshipCode == normRel)))
+                    .OrderBy(g => g.DisplayOrder).ToList()
+                : new List<DependentGroupCatalog>();
+
+            _cache.Set(cacheKey, groups, TimeSpan.FromHours(1));
+            return groups;
+        }
+
+        public async Task<DependentGroupCatalog?> GetGroupAsync(string code, bool includeInactive = false)
+        {
+            if (string.IsNullOrWhiteSpace(code)) return null;
+            var normCode = code.Trim().ToUpper();
+
+            if (!includeInactive)
+            {
+                var activeGroups = await GetActiveGroupsAsync();
+                return activeGroups.FirstOrDefault(g => string.Equals(g.Code, normCode, StringComparison.OrdinalIgnoreCase));
+            }
+
+            var groupRepo = _unitOfWork.Repository<DependentGroupCatalog>();
+            if (groupRepo == null) return null;
+
+            var matches = await groupRepo.FindAsync(g => g.Code == normCode);
+            return matches.FirstOrDefault(g => string.Equals(g.Code, normCode, StringComparison.OrdinalIgnoreCase));
+        }
+
         #region Admin Groups CRUD
 
         public async Task<List<AdminDependentGroupDto>> GetAllGroupsAsync(bool? isActive = null)
@@ -169,7 +224,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             await repo.AddAsync(newGroup);
             await _unitOfWork.SaveChangesAsync();
 
-            InvalidateCatalogCache();
+            await InvalidateCatalogCacheAsync();
             return MapGroupToAdminDto(newGroup);
         }
 
@@ -215,7 +270,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             repo.Update(group);
             await _unitOfWork.SaveChangesAsync();
 
-            InvalidateCatalogCache();
+            await InvalidateCatalogCacheAsync();
             return MapGroupToAdminDto(group);
         }
 
@@ -235,7 +290,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             repo.Remove(group);
             await _unitOfWork.SaveChangesAsync();
 
-            InvalidateCatalogCache();
+            await InvalidateCatalogCacheAsync();
         }
 
         public async Task<AdminDependentGroupDto> ActivateAiGroupAsync(string code, ActivateAiGroupRequest request)
@@ -266,7 +321,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             repo.Update(group);
             await _unitOfWork.SaveChangesAsync();
 
-            InvalidateCatalogCache();
+            await InvalidateCatalogCacheAsync();
             return MapGroupToAdminDto(group);
         }
 
@@ -333,7 +388,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             await repo.AddAsync(newRel);
             await _unitOfWork.SaveChangesAsync();
 
-            InvalidateCatalogCache();
+            await InvalidateCatalogCacheAsync();
             return new AdminDependentRelationshipDto
             {
                 Code = newRel.Code,
@@ -357,7 +412,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             repo.Update(rel);
             await _unitOfWork.SaveChangesAsync();
 
-            InvalidateCatalogCache();
+            await InvalidateCatalogCacheAsync();
             return new AdminDependentRelationshipDto
             {
                 Code = rel.Code,
@@ -382,42 +437,55 @@ namespace TaxKeepVN.Application.Service.Implementations
             repo.Remove(rel);
             await _unitOfWork.SaveChangesAsync();
 
-            InvalidateCatalogCache();
+            await InvalidateCatalogCacheAsync();
         }
 
         #endregion
 
         #region Private Helpers
 
-        private void InvalidateCatalogCache()
+        public async Task InvalidateCatalogCacheAsync()
         {
             _cache.Remove(CatalogCacheKey);
             _cache.Remove("ActiveDependentGroups");
             _cache.Remove("ActiveDependentGroups_All");
             _cache.Remove("ActiveDependentRelationships");
-            _redisCache?.RemoveAsync(CatalogRedisKey);
-            _redisCache?.RemoveAsync("taxkeep:dependent_rules:groups");
 
-            var knownRels = new HashSet<string>(new[] { "CHILD", "SPOUSE", "PARENT", "OTHER_DEPENDENT" }, StringComparer.OrdinalIgnoreCase);
+            if (_redisCache != null)
+            {
+                try
+                {
+                    await _redisCache.RemoveAsync(CatalogRedisKey);
+                    await _redisCache.RemoveAsync("taxkeep:dependent_rules:groups");
+                    await _redisCache.RemoveAsync("taxkeep:dependents:catalog");
+                }
+                catch { }
+            }
+
             var relRepo = _unitOfWork.Repository<DependentRelationshipCatalog>();
             if (relRepo != null)
             {
                 try
                 {
-                    var allRels = relRepo.GetAllAsync().GetAwaiter().GetResult();
+                    var allRels = await relRepo.GetAllAsync();
                     foreach (var r in allRels)
                     {
                         if (!string.IsNullOrWhiteSpace(r.Code))
-                            knownRels.Add(r.Code.Trim().ToUpper());
+                        {
+                            var normRel = r.Code.Trim().ToUpper();
+                            _cache.Remove($"ActiveDependentGroups_{normRel}");
+                            if (_redisCache != null)
+                            {
+                                try
+                                {
+                                    await _redisCache.RemoveAsync($"taxkeep:dependent_rules:groups:{normRel}");
+                                }
+                                catch { }
+                            }
+                        }
                     }
                 }
                 catch { }
-            }
-
-            foreach (var rel in knownRels)
-            {
-                _cache.Remove($"ActiveDependentGroups_{rel}");
-                _redisCache?.RemoveAsync($"taxkeep:dependent_rules:groups:{rel}");
             }
         }
 

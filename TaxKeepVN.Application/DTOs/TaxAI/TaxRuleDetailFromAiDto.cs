@@ -89,14 +89,27 @@ namespace TaxKeepVN.Application.DTOs.TaxAI
 
     public class RequiredDocumentFromAiDto
     {
+        private string? _alternativeGroup;
+
         [JsonPropertyName("docType")]
         public string? DocType { get; set; }
 
         [JsonPropertyName("name")]
         public string? Name { get; set; }
 
+        [JsonIgnore]
+        public bool HasAlternativeGroup { get; set; }
+
         [JsonPropertyName("alternativeGroup")]
-        public string? AlternativeGroup { get; set; }
+        public string? AlternativeGroup
+        {
+            get => _alternativeGroup;
+            set
+            {
+                _alternativeGroup = value;
+                HasAlternativeGroup = true;
+            }
+        }
 
         [JsonPropertyName("description")]
         public string? Description { get; set; }

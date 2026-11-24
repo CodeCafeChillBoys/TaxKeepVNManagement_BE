@@ -25,75 +25,32 @@ namespace TaxKeepVN.Application.Service.Implementations
         private readonly IConfiguration _configuration;
         private readonly IRedisCacheService? _redisCache;
         private readonly IDependentRuleService _dependentRuleService;
+        private readonly IDependentCatalogService _catalogService;
 
         public DependentService(
             IUnitOfWork unitOfWork,
             IMemoryCache cache,
             IConfiguration configuration,
             IRedisCacheService? redisCache = null,
-            IDependentRuleService? dependentRuleService = null)
+            IDependentRuleService? dependentRuleService = null,
+            IDependentCatalogService? catalogService = null)
         {
             _unitOfWork = unitOfWork;
             _cache = cache;
             _configuration = configuration;
             _redisCache = redisCache;
             _dependentRuleService = dependentRuleService ?? new DependentRuleService(_unitOfWork, _cache, _configuration, _redisCache);
+            _catalogService = catalogService ?? new DependentCatalogService(_unitOfWork, _cache, _redisCache);
         }
 
         private async Task<List<DependentRelationshipCatalog>> GetActiveRelationshipsAsync()
         {
-            const string cacheKey = "ActiveDependentRelationships";
-            if (!_cache.TryGetValue(cacheKey, out List<DependentRelationshipCatalog>? rels) || rels == null)
-            {
-                var repo = _unitOfWork.Repository<DependentRelationshipCatalog>();
-                rels = repo != null
-                    ? (await repo.FindAsync(r => r.IsActive)).OrderBy(r => r.DisplayOrder).ToList()
-                    : new List<DependentRelationshipCatalog>();
-
-                if (rels.Count == 0)
-                {
-                    rels = new List<DependentRelationshipCatalog>
-                    {
-                        new() { Code = "CHILD", Name = "Con cái", DisplayOrder = 1, IsActive = true },
-                        new() { Code = "SPOUSE", Name = "Vợ/Chồng", DisplayOrder = 2, IsActive = true },
-                        new() { Code = "PARENT", Name = "Cha/Mẹ", DisplayOrder = 3, IsActive = true },
-                        new() { Code = "OTHER_DEPENDENT", Name = "Người phụ thuộc khác", DisplayOrder = 4, IsActive = true }
-                    };
-                }
-
-                _cache.Set(cacheKey, rels, TimeSpan.FromHours(1));
-            }
-            return rels;
+            return await _catalogService.GetActiveRelationshipsAsync();
         }
 
         private async Task<List<DependentGroupCatalog>> GetActiveGroupsAsync()
         {
-            const string cacheKey = "ActiveDependentGroups_All";
-            if (!_cache.TryGetValue(cacheKey, out List<DependentGroupCatalog>? groups) || groups == null)
-            {
-                var repo = _unitOfWork.Repository<DependentGroupCatalog>();
-                groups = repo != null
-                    ? (await repo.FindAsync(g => g.IsActive)).OrderBy(g => g.DisplayOrder).ToList()
-                    : new List<DependentGroupCatalog>();
-
-                if (groups.Count == 0)
-                {
-                    groups = new List<DependentGroupCatalog>
-                    {
-                        new() { Code = "CHILD_UNDER_18", Name = "Con dưới 18 tuổi", RelationshipCode = "CHILD", MaxAge = 18, Level = 0, DisplayOrder = 1, IsActive = true },
-                        new() { Code = "CHILD_OVER_18_STUDYING", Name = "Con từ 18 tuổi trở lên đang đi học", RelationshipCode = "CHILD", MinAge = 18, Level = 1, RequireStudying = true, DisplayOrder = 2, IsActive = true },
-                        new() { Code = "CHILD_OVER_18_DISABLED", Name = "Con từ 18 tuổi trở lên bị khuyết tật", RelationshipCode = "CHILD", MinAge = 18, Level = 1, RequireDisabled = true, DisplayOrder = 3, IsActive = true },
-                        new() { Code = "SPOUSE_DISABLED", Name = "Vợ/Chồng khuyết tật", RelationshipCode = "SPOUSE", Level = 0, RequireDisabled = true, DisplayOrder = 4, IsActive = true },
-                        new() { Code = "SPOUSE_RETIRED", Name = "Vợ/Chồng ngoài độ tuổi lao động", RelationshipCode = "SPOUSE", Level = 1, DisplayOrder = 5, IsActive = true },
-                        new() { Code = "PARENT_DISABLED", Name = "Cha/Mẹ khuyết tật", RelationshipCode = "PARENT", Level = 0, RequireDisabled = true, DisplayOrder = 6, IsActive = true },
-                        new() { Code = "PARENT_RETIRED", Name = "Cha/Mẹ ngoài độ tuổi lao động", RelationshipCode = "PARENT", Level = 1, DisplayOrder = 7, IsActive = true },
-                        new() { Code = "OTHER_HELPLESS", Name = "Cá nhân không nơi nương tựa khác", RelationshipCode = "OTHER_DEPENDENT", Level = 0, DisplayOrder = 8, IsActive = true }
-                    };
-                }
-
-                _cache.Set(cacheKey, groups, TimeSpan.FromHours(1));
-            }
-            return groups;
+            return await _catalogService.GetActiveGroupsAsync();
         }
 
         public async Task<DependentResponse> CreateDependentAsync(Guid taxpayerId, CreateDependentRequest request)
@@ -305,18 +262,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             if (groupCatalog != null && !string.IsNullOrWhiteSpace(groupCatalog.Name))
                 return groupCatalog.Name;
 
-            return groupCode switch
-            {
-                "CHILD_UNDER_18" => "Con dưới 18 tuổi",
-                "CHILD_OVER_18_STUDYING" => "Con từ 18 tuổi trở lên đang đi học",
-                "CHILD_OVER_18_DISABLED" => "Con từ 18 tuổi trở lên bị khuyết tật",
-                "SPOUSE_DISABLED" => "Vợ/Chồng khuyết tật",
-                "SPOUSE_RETIRED" => "Vợ/Chồng ngoài độ tuổi lao động",
-                "PARENT_DISABLED" => "Cha/Mẹ khuyết tật",
-                "PARENT_RETIRED" => "Cha/Mẹ ngoài độ tuổi lao động",
-                "OTHER_HELPLESS" => "Cá nhân không nơi nương tựa khác",
-                _ => groupCode
-            };
+            return groupCode;
         }
 
         // ── Helper: validate độ tuổi phải phù hợp với DependentGroupCatalog ─────
@@ -732,8 +678,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             // sửa kỳ hiệu lực hoặc ghi chú mà không bị chặn bởi tuổi hiện tại.
             if (isBirthDateChanged)
             {
-                var allGroups = await GetActiveGroupsAsync();
-                var depGroup = allGroups.FirstOrDefault(g => string.Equals(g.Code, dependent.CurrentGroup, StringComparison.OrdinalIgnoreCase));
+                var depGroup = await _catalogService.GetGroupAsync(dependent.CurrentGroup, includeInactive: true);
                 if (depGroup != null && depGroup.MaxAge.HasValue)
                 {
                     var fromDate = DateTime.TryParseExact(newEffectiveFromMonth + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var fDate) ? fDate : DateTime.UtcNow;
@@ -982,8 +927,14 @@ namespace TaxKeepVN.Application.Service.Implementations
             // ── 5. Không cho phép chuyển xuống nhóm thấp hơn (downgrade) ─────────
             // Ví dụ: CHILD_OVER_18_STUDYING → CHILD_UNDER_18 là không hợp lệ vì
             // độ tuổi chỉ tăng theo thời gian, không thể trẻ lại.
-            var currentGroupCatalog = activeGroups.FirstOrDefault(g => string.Equals(g.Code, dependent.CurrentGroup, StringComparison.OrdinalIgnoreCase))
-                ?? new DependentGroupCatalog { Code = dependent.CurrentGroup, Name = GetGroupDisplayName(dependent.CurrentGroup), Level = 0 };
+            var currentGroupCatalog = await _catalogService.GetGroupAsync(dependent.CurrentGroup, includeInactive: true);
+            if (currentGroupCatalog == null)
+            {
+                throw new BadRequestException(
+                    "INVALID_GROUP",
+                    $"Nhóm hiện tại '{dependent.CurrentGroup}' không tồn tại trong hệ thống."
+                );
+            }
 
             if (matchedNewGroup.Level < currentGroupCatalog.Level)
             {

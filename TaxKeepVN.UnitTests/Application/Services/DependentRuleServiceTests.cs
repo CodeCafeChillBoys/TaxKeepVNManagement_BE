@@ -21,6 +21,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
     {
         private readonly Mock<IUnitOfWork> _mockUnitOfWork;
         private readonly Mock<IGenericRepository<DependentDocumentRule>> _mockRepo;
+        private readonly Mock<IGenericRepository<DependentGroupCatalog>> _mockGroupRepo;
+        private readonly Mock<IGenericRepository<DependentRelationshipCatalog>> _mockRelRepo;
         private readonly IMemoryCache _cache;
         private readonly Mock<IConfiguration> _mockConfiguration;
         private readonly DependentRuleService _service;
@@ -29,8 +31,39 @@ namespace TaxKeepVN.UnitTests.Application.Services
         {
             _mockUnitOfWork = new Mock<IUnitOfWork>();
             _mockRepo = new Mock<IGenericRepository<DependentDocumentRule>>();
+            _mockGroupRepo = new Mock<IGenericRepository<DependentGroupCatalog>>();
+            _mockRelRepo = new Mock<IGenericRepository<DependentRelationshipCatalog>>();
             _cache = new MemoryCache(new MemoryCacheOptions());
             _mockConfiguration = new Mock<IConfiguration>();
+
+            var defaultRels = new List<DependentRelationshipCatalog>
+            {
+                new() { Code = "CHILD", Name = "Con cái", DisplayOrder = 1, IsActive = true },
+                new() { Code = "SPOUSE", Name = "Vợ/Chồng", DisplayOrder = 2, IsActive = true },
+                new() { Code = "PARENT", Name = "Cha/Mẹ", DisplayOrder = 3, IsActive = true },
+                new() { Code = "OTHER_DEPENDENT", Name = "Người phụ thuộc khác", DisplayOrder = 4, IsActive = true }
+            };
+            var defaultGroups = new List<DependentGroupCatalog>
+            {
+                new() { Code = "CHILD_UNDER_18", Name = "Con dưới 18 tuổi", RelationshipCode = "CHILD", MaxAge = 18, Level = 0, DisplayOrder = 1, IsActive = true },
+                new() { Code = "CHILD_OVER_18_STUDYING", Name = "Con từ 18 tuổi trở lên đang đi học", RelationshipCode = "CHILD", MinAge = 18, Level = 1, RequireStudying = true, DisplayOrder = 2, IsActive = true },
+                new() { Code = "CHILD_OVER_18_DISABLED", Name = "Con từ 18 tuổi trở lên bị khuyết tật", RelationshipCode = "CHILD", MinAge = 18, Level = 1, RequireDisabled = true, DisplayOrder = 3, IsActive = true },
+                new() { Code = "SPOUSE_DISABLED", Name = "Vợ/Chồng khuyết tật", RelationshipCode = "SPOUSE", Level = 0, RequireDisabled = true, DisplayOrder = 4, IsActive = true },
+                new() { Code = "SPOUSE_RETIRED", Name = "Vợ/Chồng ngoài độ tuổi lao động", RelationshipCode = "SPOUSE", Level = 1, DisplayOrder = 5, IsActive = true },
+                new() { Code = "PARENT_DISABLED", Name = "Cha/Mẹ khuyết tật", RelationshipCode = "PARENT", Level = 0, RequireDisabled = true, DisplayOrder = 6, IsActive = true },
+                new() { Code = "PARENT_RETIRED", Name = "Cha/Mẹ ngoài độ tuổi lao động", RelationshipCode = "PARENT", Level = 1, DisplayOrder = 7, IsActive = true },
+                new() { Code = "OTHER_HELPLESS", Name = "Cá nhân không nơi nương tựa khác", RelationshipCode = "OTHER_DEPENDENT", Level = 0, DisplayOrder = 8, IsActive = true }
+            };
+
+            _mockRelRepo.Setup(r => r.GetAllAsync()).ReturnsAsync(defaultRels);
+            _mockRelRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentRelationshipCatalog, bool>>>()))
+                .ReturnsAsync(defaultRels);
+            _mockUnitOfWork.Setup(u => u.Repository<DependentRelationshipCatalog>()).Returns(_mockRelRepo.Object);
+
+            _mockGroupRepo.Setup(r => r.GetAllAsync()).ReturnsAsync(defaultGroups);
+            _mockGroupRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentGroupCatalog, bool>>>()))
+                .ReturnsAsync(defaultGroups);
+            _mockUnitOfWork.Setup(u => u.Repository<DependentGroupCatalog>()).Returns(_mockGroupRepo.Object);
 
             _mockUnitOfWork.Setup(u => u.Repository<DependentDocumentRule>()).Returns(_mockRepo.Object);
 
@@ -252,6 +285,14 @@ namespace TaxKeepVN.UnitTests.Application.Services
         [Fact]
         public async Task UTCID10_GetActiveGroupsAsync_ReturnsDistinctGroups()
         {
+            var testGroups = new List<DependentGroupCatalog>
+            {
+                new DependentGroupCatalog { Code = "CHILD_UNDER_18", IsActive = true },
+                new DependentGroupCatalog { Code = "CHILD_OVER_18", IsActive = true }
+            };
+            _mockGroupRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentGroupCatalog, bool>>>()))
+                .ReturnsAsync(testGroups);
+
             var rules = new List<DependentDocumentRule>
             {
                 new DependentDocumentRule { TargetGroup = "CHILD_UNDER_18", IsActive = true },
@@ -465,7 +506,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
 
             var (added, updated, deactivated) = await service.SyncFromAiAsync(aiRules);
             updated.Should().Be(1); // CITIZEN_ID was existing
-            added.Should().Be(4);   // DISABILITY_CERTIFICATE, STUDENT_CARD, BIRTH_CERTIFICATE, OTHER_DOC
+            added.Should().Be(6);   // 1 DISABILITY + 1 STUDENT_CARD + 3 BIRTH_CERT (all 3 CHILD groups) + 1 OTHER_DOC
             _mockUnitOfWork.Verify(u => u.SaveChangesAsync(), Times.AtLeastOnce());
         }
 

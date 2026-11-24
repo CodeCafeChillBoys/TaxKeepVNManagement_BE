@@ -18,14 +18,27 @@ namespace TaxKeepVN.UnitTests.Application.Services
     {
         private readonly Mock<IUnitOfWork> _mockUnitOfWork;
         private readonly Mock<IGenericRepository<Dependent>> _mockRepo;
+        private readonly Mock<IGenericRepository<DependentGroupCatalog>> _mockGroupRepo;
         private readonly DependentReminderService _service;
 
         public DependentReminderServiceTests()
         {
             _mockUnitOfWork = new Mock<IUnitOfWork>();
             _mockRepo = new Mock<IGenericRepository<Dependent>>();
+            _mockGroupRepo = new Mock<IGenericRepository<DependentGroupCatalog>>();
+
+            var defaultGroups = new List<DependentGroupCatalog>
+            {
+                new() { Code = "CHILD_UNDER_18", Name = "Con dưới 18 tuổi", RelationshipCode = "CHILD", MaxAge = 18, Level = 0, IsActive = true },
+                new() { Code = "CHILD_OVER_18_STUDYING", Name = "Con từ 18 tuổi trở lên đang đi học", RelationshipCode = "CHILD", MinAge = 18, Level = 1, RequireStudying = true, IsActive = true },
+                new() { Code = "CHILD_OVER_18_DISABLED", Name = "Con từ 18 tuổi trở lên bị khuyết tật", RelationshipCode = "CHILD", MinAge = 18, Level = 1, RequireDisabled = true, IsActive = true }
+            };
+            _mockGroupRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentGroupCatalog, bool>>>()))
+                .ReturnsAsync(defaultGroups);
+            _mockGroupRepo.Setup(r => r.GetAllAsync()).ReturnsAsync(defaultGroups);
 
             _mockUnitOfWork.Setup(u => u.Repository<Dependent>()).Returns(_mockRepo.Object);
+            _mockUnitOfWork.Setup(u => u.Repository<DependentGroupCatalog>()).Returns(_mockGroupRepo.Object);
 
             _service = new DependentReminderService(_mockUnitOfWork.Object);
         }

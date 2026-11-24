@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using TaxKeepVN.Application.DTOs.Catalog;
+using TaxKeepVN.Domain.Entities;
 
 namespace TaxKeepVN.Application.Service.Interfaces
 {
@@ -11,6 +12,10 @@ namespace TaxKeepVN.Application.Service.Interfaces
         /// Sử dụng cache (MemoryCache + Redis).
         /// </summary>
         Task<DependentCatalogResponseDto> GetActiveCatalogAsync();
+        Task<List<DependentGroupCatalog>> GetActiveGroupsAsync(string? relationshipCode = null);
+        Task<List<DependentRelationshipCatalog>> GetActiveRelationshipsAsync();
+        Task<DependentGroupCatalog?> GetGroupAsync(string code, bool includeInactive = false);
+        Task InvalidateCatalogCacheAsync();
 
         // Admin Groups CRUD
         Task<List<AdminDependentGroupDto>> GetAllGroupsAsync(bool? isActive = null);

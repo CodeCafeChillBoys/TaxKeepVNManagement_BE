@@ -82,44 +82,23 @@ namespace TaxKeepVNManagementSystem.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> GetDependentGroups([FromQuery] string? relationship = null)
         {
-            // ── Đọc từ DB (dependent_document_rules is_active=true) thông qua DependentRuleService ──
-            // Dữ liệu được đồng bộ từ TaxAIService khi Admin Approve bộ luật.
-            // IMemoryCache 1 tiếng — cực nhanh và không phụ thuộc TaxAIService nhạt mạng.
-            var dbGroups = (await _dependentRuleService.GetActiveGroupsAsync(relationship))?.ToList();
-
-            string[] result;
-            if (dbGroups != null && dbGroups.Count > 0)
+            if (!string.IsNullOrWhiteSpace(relationship))
             {
-                result = dbGroups.ToArray();
-            }
-            else
-            {
-                var defaultMap = new Dictionary<string, List<string>>(StringComparer.OrdinalIgnoreCase)
+                var relUpper = relationship.Trim().ToUpper();
+                if (_catalogService != null)
                 {
-                    ["CHILD"] = new() { "CHILD_UNDER_18", "CHILD_OVER_18_DISABLED", "CHILD_OVER_18_STUDYING" },
-                    ["SPOUSE"] = new() { "SPOUSE_DISABLED", "SPOUSE_RETIRED" },
-                    ["PARENT"] = new() { "PARENT_DISABLED", "PARENT_RETIRED" },
-                    ["OTHER_DEPENDENT"] = new() { "OTHER_HELPLESS" }
-                };
-
-                if (!string.IsNullOrWhiteSpace(relationship))
-                {
-                    var relUpper = relationship.Trim().ToUpper();
-                    if (!defaultMap.TryGetValue(relUpper, out var matchedList))
+                    var activeRels = await _catalogService.GetActiveRelationshipsAsync();
+                    if (!activeRels.Any(r => string.Equals(r.Code, relUpper, StringComparison.OrdinalIgnoreCase)))
                     {
                         return BadRequest(ApiResponse<object>.Fail(
                             "INVALID_RELATIONSHIP",
                             $"Nhóm quan hệ '{relUpper}' không hợp lệ."));
                     }
-                    result = matchedList.ToArray();
-                }
-                else
-                {
-                    result = defaultMap.Values.SelectMany(x => x).ToArray();
                 }
             }
 
-            return Ok(ApiResponse<object>.Ok(result, "Lấy danh sách nhóm người phụ thuộc thành công."));
+            var dbGroups = (await _dependentRuleService.GetActiveGroupsAsync(relationship))?.ToArray() ?? Array.Empty<string>();
+            return Ok(ApiResponse<object>.Ok(dbGroups, "Lấy danh sách nhóm người phụ thuộc thành công."));
         }
 
         /// <summary>

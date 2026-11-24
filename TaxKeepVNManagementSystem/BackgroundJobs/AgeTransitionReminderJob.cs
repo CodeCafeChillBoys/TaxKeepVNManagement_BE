@@ -56,14 +56,6 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
                 ? (await groupRepo.FindAsync(g => g.IsActive)).ToList()
                 : new List<DependentGroupCatalog>();
 
-            if (allGroups.Count == 0)
-            {
-                allGroups = new List<DependentGroupCatalog>
-                {
-                    new() { Code = "CHILD_UNDER_18", Name = "Con dưới 18 tuổi", RelationshipCode = "CHILD", MaxAge = 18, Level = 0, IsActive = true }
-                };
-            }
-
             var groupsWithMaxAge = allGroups
                 .Where(g => g.MaxAge.HasValue)
                 .ToDictionary(g => g.Code, StringComparer.OrdinalIgnoreCase);
@@ -95,10 +87,31 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
 
                     if (!existingNotifs.Any())
                     {
+                        var relCode = curGroup.RelationshipCode ?? dep.Relationship;
+                        var candidateGroups = allGroups
+                            .Where(g => string.Equals(g.RelationshipCode, relCode, StringComparison.OrdinalIgnoreCase)
+                                        && g.MinAge == maxAge
+                                        && g.Level > curGroup.Level)
+                            .OrderByDescending(g => g.RequireStudying)
+                            .ThenBy(g => g.Level)
+                            .ToList();
+
+                        var recommendedGroup = candidateGroups.FirstOrDefault();
+
                         string title = isTurningSoon ? "Sắp đến tuổi trưởng thành" : "Đã đến tuổi trưởng thành";
-                        string message = isTurningSoon 
-                            ? $"Người phụ thuộc {dep.FullName} sẽ tròn {maxAge} tuổi vào ngày {turningDate:dd/MM/yyyy}. Vui lòng cập nhật hồ sơ sinh viên nếu tiếp tục theo học."
-                            : $"Người phụ thuộc {dep.FullName} đã tròn {maxAge} tuổi. Khoản giảm trừ sẽ bị tạm dừng nếu không bổ sung giấy tờ sinh viên.";
+                        string message;
+                        if (isTurningSoon)
+                        {
+                            message = recommendedGroup != null
+                                ? $"Người phụ thuộc {dep.FullName} sẽ tròn {maxAge} tuổi vào ngày {turningDate:dd/MM/yyyy}. Vui lòng chuyển sang nhóm '{recommendedGroup.Name}' và bổ sung giấy tờ nếu tiếp tục đủ điều kiện."
+                                : $"Người phụ thuộc {dep.FullName} sẽ tròn {maxAge} tuổi vào ngày {turningDate:dd/MM/yyyy}. Vui lòng cập nhật thông tin nhóm và bổ sung giấy tờ phù hợp nếu tiếp tục đủ điều kiện.";
+                        }
+                        else
+                        {
+                            message = recommendedGroup != null
+                                ? $"Người phụ thuộc {dep.FullName} đã tròn {maxAge} tuổi. Vui lòng chuyển sang nhóm '{recommendedGroup.Name}' và bổ sung giấy tờ để tiếp tục được tính giảm trừ."
+                                : $"Người phụ thuộc {dep.FullName} đã tròn {maxAge} tuổi. Khoản giảm trừ sẽ bị tạm dừng nếu không cập nhật nhóm và bổ sung giấy tờ phù hợp.";
+                        }
 
                         var notification = new SystemNotification
                         {

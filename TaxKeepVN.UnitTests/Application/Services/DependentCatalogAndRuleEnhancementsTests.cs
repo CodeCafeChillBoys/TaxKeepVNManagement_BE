@@ -410,7 +410,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
         {
             var existingGroups = new List<DependentGroupCatalog>
             {
-                new() { Code = "OTHER_HELPLESS", Name = "Cá nhân không nơi nương tựa", IsActive = true }
+                new() { Code = "OTHER_HELPLESS", Name = "Cá nhân không nơi nương tựa", RelationshipCode = "OTHER_DEPENDENT", IsActive = true }
             };
             var existingRels = new List<DependentRelationshipCatalog>
             {
@@ -435,6 +435,305 @@ namespace TaxKeepVN.UnitTests.Application.Services
 
             added.Should().Be(1);
             _mockGroupRepo.Verify(r => r.AddAsync(It.Is<DependentGroupCatalog>(g => g.Code == "OTHER")), Times.Never);
+        }
+
+        [Fact]
+        public async Task SyncFromAiAsync_ParentWithoutFlags_MapsToBothParentDisabledAndRetired()
+        {
+            var existingGroups = new List<DependentGroupCatalog>
+            {
+                new() { Code = "PARENT_DISABLED", Name = "Cha/Mẹ khuyết tật", RelationshipCode = "PARENT", RequireDisabled = true, IsActive = true },
+                new() { Code = "PARENT_RETIRED", Name = "Cha/Mẹ ngoài độ tuổi lao động", RelationshipCode = "PARENT", IsActive = true }
+            };
+            var existingRels = new List<DependentRelationshipCatalog>
+            {
+                new() { Code = "PARENT", Name = "Cha/Mẹ", IsActive = true }
+            };
+            _mockGroupRepo.Setup(r => r.GetAllAsync()).ReturnsAsync(existingGroups);
+            _mockRelRepo.Setup(r => r.GetAllAsync()).ReturnsAsync(existingRels);
+            _mockRuleRepo.Setup(r => r.GetAllAsync()).ReturnsAsync(new List<DependentDocumentRule>());
+
+            var aiDto = new DependentRuleFromAiDto
+            {
+                DependentType = "PARENT",
+                RequiredDocuments = new List<RequiredDocumentFromAiDto>
+                {
+                    new() { DocType = "CITIZEN_ID", IsMandatory = true }
+                }
+            };
+
+            var (added, updated, deactivated) = await _ruleService.SyncFromAiAsync(new List<DependentRuleFromAiDto> { aiDto });
+
+            added.Should().Be(2); // Added to both PARENT_DISABLED and PARENT_RETIRED
+            _mockGroupRepo.Verify(r => r.AddAsync(It.Is<DependentGroupCatalog>(g => g.Code == "PARENT")), Times.Never);
+        }
+
+        [Fact]
+        public async Task SyncFromAiAsync_ParentWithIsDisabled_MapsOnlyToParentDisabled()
+        {
+            var existingGroups = new List<DependentGroupCatalog>
+            {
+                new() { Code = "PARENT_DISABLED", Name = "Cha/Mẹ khuyết tật", RelationshipCode = "PARENT", RequireDisabled = true, IsActive = true },
+                new() { Code = "PARENT_RETIRED", Name = "Cha/Mẹ ngoài độ tuổi lao động", RelationshipCode = "PARENT", IsActive = true }
+            };
+            var existingRels = new List<DependentRelationshipCatalog>
+            {
+                new() { Code = "PARENT", Name = "Cha/Mẹ", IsActive = true }
+            };
+            _mockGroupRepo.Setup(r => r.GetAllAsync()).ReturnsAsync(existingGroups);
+            _mockRelRepo.Setup(r => r.GetAllAsync()).ReturnsAsync(existingRels);
+            _mockRuleRepo.Setup(r => r.GetAllAsync()).ReturnsAsync(new List<DependentDocumentRule>());
+
+            var aiDto = new DependentRuleFromAiDto
+            {
+                DependentType = "PARENT",
+                IsDisabled = true,
+                RequiredDocuments = new List<RequiredDocumentFromAiDto>
+                {
+                    new() { DocType = "DISABILITY_CERTIFICATE", IsMandatory = true }
+                }
+            };
+
+            var (added, updated, deactivated) = await _ruleService.SyncFromAiAsync(new List<DependentRuleFromAiDto> { aiDto });
+
+            added.Should().Be(1);
+            _mockRuleRepo.Verify(r => r.AddAsync(It.Is<DependentDocumentRule>(rule => rule.TargetGroup == "PARENT_DISABLED")), Times.Once);
+            _mockRuleRepo.Verify(r => r.AddAsync(It.Is<DependentDocumentRule>(rule => rule.TargetGroup == "PARENT_RETIRED")), Times.Never);
+        }
+
+        [Fact]
+        public async Task SyncFromAiAsync_AdultChildWithIsStudying_MapsToChildOver18Studying()
+        {
+            var existingGroups = new List<DependentGroupCatalog>
+            {
+                new() { Code = "CHILD_UNDER_18", Name = "Con dưới 18 tuổi", RelationshipCode = "CHILD", MaxAge = 18, IsActive = true },
+                new() { Code = "CHILD_OVER_18_STUDYING", Name = "Con đi học", RelationshipCode = "CHILD", MinAge = 18, RequireStudying = true, IsActive = true },
+                new() { Code = "CHILD_OVER_18_DISABLED", Name = "Con khuyết tật", RelationshipCode = "CHILD", MinAge = 18, RequireDisabled = true, IsActive = true }
+            };
+            var existingRels = new List<DependentRelationshipCatalog>
+            {
+                new() { Code = "CHILD", Name = "Con cái", IsActive = true }
+            };
+            _mockGroupRepo.Setup(r => r.GetAllAsync()).ReturnsAsync(existingGroups);
+            _mockRelRepo.Setup(r => r.GetAllAsync()).ReturnsAsync(existingRels);
+            _mockRuleRepo.Setup(r => r.GetAllAsync()).ReturnsAsync(new List<DependentDocumentRule>());
+
+            var aiDto = new DependentRuleFromAiDto
+            {
+                DependentType = "ADULT_CHILD",
+                IsStudying = true,
+                RequiredDocuments = new List<RequiredDocumentFromAiDto>
+                {
+                    new() { DocType = "STUDENT_CARD", IsMandatory = true }
+                }
+            };
+
+            var (added, updated, deactivated) = await _ruleService.SyncFromAiAsync(new List<DependentRuleFromAiDto> { aiDto });
+
+            added.Should().Be(1);
+            _mockRuleRepo.Verify(r => r.AddAsync(It.Is<DependentDocumentRule>(rule => rule.TargetGroup == "CHILD_OVER_18_STUDYING")), Times.Once);
+        }
+
+        [Fact]
+        public async Task SyncFromAiAsync_FosterChild_CreatesNewInactiveAiGroup()
+        {
+            var existingGroups = new List<DependentGroupCatalog>
+            {
+                new() { Code = "CHILD_UNDER_18", RelationshipCode = "CHILD", IsActive = true }
+            };
+            var existingRels = new List<DependentRelationshipCatalog>
+            {
+                new() { Code = "CHILD", IsActive = true }
+            };
+            _mockGroupRepo.Setup(r => r.GetAllAsync()).ReturnsAsync(existingGroups);
+            _mockRelRepo.Setup(r => r.GetAllAsync()).ReturnsAsync(existingRels);
+            _mockRuleRepo.Setup(r => r.GetAllAsync()).ReturnsAsync(new List<DependentDocumentRule>());
+
+            var aiDto = new DependentRuleFromAiDto
+            {
+                DependentType = "FOSTER_CHILD",
+                Name = "Con nuôi",
+                Relationship = "CHILD",
+                RequiredDocuments = new List<RequiredDocumentFromAiDto>
+                {
+                    new() { DocType = "ADOPTION_CERTIFICATE", IsMandatory = true }
+                }
+            };
+
+            var (added, updated, deactivated) = await _ruleService.SyncFromAiAsync(new List<DependentRuleFromAiDto> { aiDto });
+
+            added.Should().Be(1);
+            _mockGroupRepo.Verify(r => r.AddAsync(It.Is<DependentGroupCatalog>(g =>
+                g.Code == "FOSTER_CHILD" &&
+                g.IsActive == false &&
+                g.Source == "AI")), Times.Once);
+        }
+
+        [Fact]
+        public async Task SyncFromAiAsync_AlternativeGroupExplicitNull_ClearsColumn()
+        {
+            var existingRule = new DependentDocumentRule
+            {
+                RuleId = Guid.NewGuid(),
+                TargetGroup = "CHILD_UNDER_18",
+                DocType = "CITIZEN_ID",
+                AlternativeGroup = "IDENTITY_PROOF",
+                IsActive = true
+            };
+            var existingGroups = new List<DependentGroupCatalog>
+            {
+                new() { Code = "CHILD_UNDER_18", RelationshipCode = "CHILD", IsActive = true }
+            };
+            _mockGroupRepo.Setup(r => r.GetAllAsync()).ReturnsAsync(existingGroups);
+            _mockRelRepo.Setup(r => r.GetAllAsync()).ReturnsAsync(new List<DependentRelationshipCatalog>());
+            _mockRuleRepo.Setup(r => r.GetAllAsync()).ReturnsAsync(new List<DependentDocumentRule> { existingRule });
+
+            var docDto = new RequiredDocumentFromAiDto
+            {
+                DocType = "CITIZEN_ID",
+                IsMandatory = true
+            };
+            docDto.AlternativeGroup = null; // explicit null sets HasAlternativeGroup = true
+
+            var aiDto = new DependentRuleFromAiDto
+            {
+                DependentType = "CHILD_UNDER_18",
+                RequiredDocuments = new List<RequiredDocumentFromAiDto> { docDto }
+            };
+
+            var (added, updated, deactivated) = await _ruleService.SyncFromAiAsync(new List<DependentRuleFromAiDto> { aiDto });
+
+            updated.Should().Be(1);
+            existingRule.AlternativeGroup.Should().BeNull();
+        }
+
+        [Fact]
+        public async Task SyncFromAiAsync_AlternativeGroupNotSent_PreservesExistingValue()
+        {
+            var existingRule = new DependentDocumentRule
+            {
+                RuleId = Guid.NewGuid(),
+                TargetGroup = "CHILD_UNDER_18",
+                DocType = "CITIZEN_ID",
+                AlternativeGroup = "IDENTITY_PROOF",
+                IsActive = true
+            };
+            var existingGroups = new List<DependentGroupCatalog>
+            {
+                new() { Code = "CHILD_UNDER_18", RelationshipCode = "CHILD", IsActive = true }
+            };
+            _mockGroupRepo.Setup(r => r.GetAllAsync()).ReturnsAsync(existingGroups);
+            _mockRelRepo.Setup(r => r.GetAllAsync()).ReturnsAsync(new List<DependentRelationshipCatalog>());
+            _mockRuleRepo.Setup(r => r.GetAllAsync()).ReturnsAsync(new List<DependentDocumentRule> { existingRule });
+
+            // Do not set AlternativeGroup at all -> HasAlternativeGroup remains false
+            var docDto = new RequiredDocumentFromAiDto
+            {
+                DocType = "CITIZEN_ID",
+                IsMandatory = true
+            };
+
+            var aiDto = new DependentRuleFromAiDto
+            {
+                DependentType = "CHILD_UNDER_18",
+                RequiredDocuments = new List<RequiredDocumentFromAiDto> { docDto }
+            };
+
+            var (added, updated, deactivated) = await _ruleService.SyncFromAiAsync(new List<DependentRuleFromAiDto> { aiDto });
+
+            updated.Should().Be(1);
+            existingRule.AlternativeGroup.Should().Be("IDENTITY_PROOF");
+        }
+
+        [Fact]
+        public async Task UpdateGroupAsync_InactiveGroupDowngrade_ThrowsGroupDowngradeNotAllowed()
+        {
+            var taxpayerId = Guid.NewGuid();
+            var depId = Guid.NewGuid();
+
+            // Nhóm cũ đang inactive nhưng Level = 1
+            var inactiveOldGroup = new DependentGroupCatalog
+            {
+                Code = "OLD_INACTIVE_GROUP",
+                Name = "Nhóm cũ đã tắt",
+                RelationshipCode = "CHILD",
+                Level = 1,
+                IsActive = false
+            };
+            // Nhóm mới active nhưng Level = 0
+            var newGroup = new DependentGroupCatalog
+            {
+                Code = "NEW_LEVEL_0_GROUP",
+                Name = "Nhóm cấp 0",
+                RelationshipCode = "CHILD",
+                Level = 0,
+                IsActive = true
+            };
+
+            var dependent = new Dependent
+            {
+                Id = depId,
+                TaxpayerId = taxpayerId,
+                Relationship = "CHILD",
+                CurrentGroup = "OLD_INACTIVE_GROUP",
+                IsDeleted = false
+            };
+
+            var mockDepRepo = new Mock<IGenericRepository<Dependent>>();
+            mockDepRepo.Setup(r => r.GetByIdAsync(depId)).ReturnsAsync(dependent);
+            _mockUow.Setup(u => u.Repository<Dependent>()).Returns(mockDepRepo.Object);
+
+            var allGroups = new List<DependentGroupCatalog> { inactiveOldGroup, newGroup };
+            _mockGroupRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentGroupCatalog, bool>>>()))
+                .ReturnsAsync(allGroups);
+
+            var depService = new DependentService(_mockUow.Object, _cache, _config, catalogService: _catalogService);
+
+            var req = new TaxKeepVN.Application.DTOs.Requests.Dependent.UpdateDependentGroupRequest { NewGroup = "NEW_LEVEL_0_GROUP" };
+            var act = async () => await depService.UpdateGroupAsync(taxpayerId, depId, req);
+
+            await act.Should().ThrowAsync<BadRequestException>()
+                .Where(e => e.ErrorCode == "GROUP_DOWNGRADE_NOT_ALLOWED");
+        }
+
+        [Fact]
+        public async Task UpdateGroupAsync_CurrentGroupNotFoundInDb_ThrowsInvalidGroup()
+        {
+            var taxpayerId = Guid.NewGuid();
+            var depId = Guid.NewGuid();
+
+            var newGroup = new DependentGroupCatalog
+            {
+                Code = "NEW_LEVEL_0_GROUP",
+                Name = "Nhóm cấp 0",
+                RelationshipCode = "CHILD",
+                Level = 0,
+                IsActive = true
+            };
+
+            var dependent = new Dependent
+            {
+                Id = depId,
+                TaxpayerId = taxpayerId,
+                Relationship = "CHILD",
+                CurrentGroup = "NON_EXISTENT_GROUP",
+                IsDeleted = false
+            };
+
+            var mockDepRepo = new Mock<IGenericRepository<Dependent>>();
+            mockDepRepo.Setup(r => r.GetByIdAsync(depId)).ReturnsAsync(dependent);
+            _mockUow.Setup(u => u.Repository<Dependent>()).Returns(mockDepRepo.Object);
+
+            _mockGroupRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentGroupCatalog, bool>>>()))
+                .ReturnsAsync(new List<DependentGroupCatalog> { newGroup });
+
+            var depService = new DependentService(_mockUow.Object, _cache, _config, catalogService: _catalogService);
+
+            var req = new TaxKeepVN.Application.DTOs.Requests.Dependent.UpdateDependentGroupRequest { NewGroup = "NEW_LEVEL_0_GROUP" };
+            var act = async () => await depService.UpdateGroupAsync(taxpayerId, depId, req);
+
+            await act.Should().ThrowAsync<BadRequestException>()
+                .Where(e => e.ErrorCode == "INVALID_GROUP");
         }
 
         #endregion

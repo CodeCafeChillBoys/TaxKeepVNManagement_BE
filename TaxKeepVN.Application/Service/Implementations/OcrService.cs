@@ -22,15 +22,18 @@ namespace TaxKeepVN.Application.Service.Implementations
         private readonly IHttpClientFactory _httpClientFactory;
         private readonly IUnitOfWork _unitOfWork;
         private readonly ILogger<OcrService> _logger;
+        private readonly IDependentCatalogService? _catalogService;
 
         public OcrService(
             IHttpClientFactory httpClientFactory,
             IUnitOfWork unitOfWork,
-            ILogger<OcrService> logger)
+            ILogger<OcrService> logger,
+            IDependentCatalogService? catalogService = null)
         {
             _httpClientFactory = httpClientFactory;
             _unitOfWork = unitOfWork;
             _logger = logger;
+            _catalogService = catalogService;
         }
 
         public async Task<ExtractedDependentDataDto> ExtractDocumentAsync(
@@ -177,7 +180,7 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             // Tính toán gợi ý mối quan hệ & nhóm
             string suggestedRel = "CHILD";
-            string suggestedGroup = data.SuggestedGroup ?? "CHILD_UNDER_18";
+            string? suggestedGroup = data.SuggestedGroup;
 
             if (DateTime.TryParse(data.BirthDate, out var bDate))
             {
@@ -186,20 +189,49 @@ namespace TaxKeepVN.Application.Service.Implementations
 
                 if (age < 18)
                 {
-                    suggestedGroup = "CHILD_UNDER_18";
-                    suggestedRel = "CHILD";
-                }
-                else if (age <= 22)
-                {
-                    suggestedGroup = "CHILD_OVER_18_STUDYING";
                     suggestedRel = "CHILD";
                 }
                 else if (age >= 60)
                 {
-                    suggestedGroup = "PARENT_RETIRED";
                     suggestedRel = "PARENT";
                 }
+                else
+                {
+                    suggestedRel = "CHILD";
+                }
+
+                List<DependentGroupCatalog>? activeGroups = null;
+                if (_catalogService != null)
+                {
+                    activeGroups = await _catalogService.GetActiveGroupsAsync(suggestedRel);
+                }
+                else
+                {
+                    var groupRepo = _unitOfWork.Repository<DependentGroupCatalog>();
+                    if (groupRepo != null)
+                    {
+                        activeGroups = (await groupRepo.FindAsync(g => g.IsActive && g.RelationshipCode == suggestedRel))
+                            .OrderBy(g => g.DisplayOrder).ToList();
+                    }
+                }
+
+                if (activeGroups != null && activeGroups.Count > 0)
+                {
+                    var matchedGroup = activeGroups
+                        .Where(g => (!g.MinAge.HasValue || age >= g.MinAge.Value) && (!g.MaxAge.HasValue || age < g.MaxAge.Value))
+                        .OrderBy(g => g.RequireDisabled)
+                        .ThenBy(g => g.RequireStudying)
+                        .ThenBy(g => g.DisplayOrder)
+                        .FirstOrDefault();
+
+                    if (matchedGroup != null)
+                    {
+                        suggestedGroup = matchedGroup.Code;
+                    }
+                }
             }
+
+            suggestedGroup ??= data.SuggestedGroup ?? string.Empty;
 
             return new DependentOcrResponseDto
             {
