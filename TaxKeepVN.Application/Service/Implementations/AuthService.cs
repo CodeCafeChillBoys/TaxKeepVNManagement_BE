@@ -64,6 +64,14 @@ namespace TaxKeepVN.Application.Service.Implementations
             var verificationToken = Guid.NewGuid().ToString("N");
             var tokenExpiry = DateTimeOffset.UtcNow.AddHours(24);
 
+            // Đọc vai trò mặc định (Người nộp thuế - taxpayer) từ bảng roles trong DB, không hardcode
+            var roleRepo = _unitOfWork.Repository<Role>();
+            var taxpayerRoles = await roleRepo.FindAsync(r => r.Code.ToLower() == "taxpayer" && r.IsActive);
+            var defaultRole = taxpayerRoles.FirstOrDefault();
+
+            var assignedRoleId = defaultRole?.Id ?? 1;
+            var assignedRoleCode = defaultRole?.Code ?? "taxpayer";
+
             var newUser = new User
             {
                 UserId = Guid.NewGuid(),
@@ -74,7 +82,8 @@ namespace TaxKeepVN.Application.Service.Implementations
                 PasswordHash = _passwordHasher.Hash(request.Password),
                 DateOfBirth = request.DateOfBirth,
                 Address = request.Address,
-                UserRole = "taxpayer",
+                RoleId = assignedRoleId,
+                UserRole = assignedRoleCode,
                 IsVerified = false,       // Xác minh MST — sẽ được set bởi ProfileService
                 IsEmailVerified = false,  // Xác minh email — sẽ được set sau khi click link
                 Status = "active",
@@ -132,6 +141,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 FullName = newUser.FullName,
                 Email = newUser.Email,
                 CitizenId = newUser.CitizenId,
+                RoleId = newUser.RoleId,
                 UserRole = newUser.UserRole,
                 IsVerified = newUser.IsVerified,
                 RequiresEmailVerification = _emailService != null
@@ -190,6 +200,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 FullName = user.FullName,
                 Email = user.Email,
                 CitizenId = user.CitizenId,
+                RoleId = user.RoleId,
                 UserRole = user.UserRole,
                 IsVerified = user.IsVerified
             };

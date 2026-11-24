@@ -208,6 +208,125 @@ namespace TaxKeepVN.UnitTests.Application.Services
 
             await Assert.ThrowsAsync<BadRequestException>(() => service.CheckCanExportPdfAsync(userId));
         }
+
+        [Fact]
+        public async Task CheckAndConsumeOcrScanAsync_WhenLimitReached_ShouldThrowBadRequestException()
+        {
+            var userId = Guid.NewGuid();
+            var sub = new UserSubscription
+            {
+                UserId = userId,
+                SnapshotMaxOcrScansPerMonth = 5 // Basic: 5 scans
+            };
+
+            var userSubService = new Mock<IUserSubscriptionService>();
+            userSubService.Setup(s => s.GetOrCreateActiveSubscriptionEntityAsync(userId)).ReturnsAsync(sub);
+
+            var usage = new SubscriptionQuotaUsage
+            {
+                UserId = userId,
+                PeriodMonth = DateTime.UtcNow.ToString("yyyy-MM"),
+                OcrScansUsed = 5 // Đã dùng hết 5 lượt
+            };
+            _mockUsageRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<SubscriptionQuotaUsage, bool>>>()))
+                .ReturnsAsync(new List<SubscriptionQuotaUsage> { usage });
+
+            var service = new SubscriptionQuotaService(_mockUnitOfWork.Object, userSubService.Object);
+
+            var ex = await Assert.ThrowsAsync<BadRequestException>(() => service.CheckAndConsumeOcrScanAsync(userId));
+            ex.ErrorCode.Should().Be("OCR_QUOTA_EXCEEDED");
+        }
+
+        [Fact]
+        public async Task CheckAndConsumeOcrScanAsync_WhenBatchExceedsRemaining_ShouldThrowBadRequestException()
+        {
+            var userId = Guid.NewGuid();
+            var sub = new UserSubscription
+            {
+                UserId = userId,
+                SnapshotMaxOcrScansPerMonth = 5
+            };
+
+            var userSubService = new Mock<IUserSubscriptionService>();
+            userSubService.Setup(s => s.GetOrCreateActiveSubscriptionEntityAsync(userId)).ReturnsAsync(sub);
+
+            var usage = new SubscriptionQuotaUsage
+            {
+                UserId = userId,
+                PeriodMonth = DateTime.UtcNow.ToString("yyyy-MM"),
+                OcrScansUsed = 4 // Còn 1 lượt
+            };
+            _mockUsageRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<SubscriptionQuotaUsage, bool>>>()))
+                .ReturnsAsync(new List<SubscriptionQuotaUsage> { usage });
+
+            var service = new SubscriptionQuotaService(_mockUnitOfWork.Object, userSubService.Object);
+
+            // Upload 2 files -> vượt quá 1 lượt còn lại
+            var ex = await Assert.ThrowsAsync<BadRequestException>(() => service.CheckAndConsumeOcrScanAsync(userId, 2));
+            ex.ErrorCode.Should().Be("OCR_QUOTA_EXCEEDED");
+        }
+
+        [Fact]
+        public async Task CheckAndConsumeOcrScanAsync_WhenValid_IncrementsOcrScansUsed()
+        {
+            var userId = Guid.NewGuid();
+            var sub = new UserSubscription
+            {
+                UserId = userId,
+                SnapshotMaxOcrScansPerMonth = 5
+            };
+
+            var userSubService = new Mock<IUserSubscriptionService>();
+            userSubService.Setup(s => s.GetOrCreateActiveSubscriptionEntityAsync(userId)).ReturnsAsync(sub);
+
+            var usage = new SubscriptionQuotaUsage
+            {
+                UserId = userId,
+                PeriodMonth = DateTime.UtcNow.ToString("yyyy-MM"),
+                OcrScansUsed = 2
+            };
+            _mockUsageRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<SubscriptionQuotaUsage, bool>>>()))
+                .ReturnsAsync(new List<SubscriptionQuotaUsage> { usage });
+
+            var service = new SubscriptionQuotaService(_mockUnitOfWork.Object, userSubService.Object);
+
+            await service.CheckAndConsumeOcrScanAsync(userId, 2);
+
+            usage.OcrScansUsed.Should().Be(4);
+            _mockUsageRepo.Verify(r => r.Update(usage), Times.Once);
+            _mockUnitOfWork.Verify(u => u.SaveChangesAsync(), Times.Once);
+        }
+
+        [Fact]
+        public async Task CheckAndConsumeOcrScanAsync_WhenUnlimited_StillIncrementsUsageAccurately()
+        {
+            var userId = Guid.NewGuid();
+            var sub = new UserSubscription
+            {
+                UserId = userId,
+                SnapshotMaxOcrScansPerMonth = -1 // Không giới hạn
+            };
+
+            var userSubService = new Mock<IUserSubscriptionService>();
+            userSubService.Setup(s => s.GetOrCreateActiveSubscriptionEntityAsync(userId)).ReturnsAsync(sub);
+
+            var usage = new SubscriptionQuotaUsage
+            {
+                UserId = userId,
+                PeriodMonth = DateTime.UtcNow.ToString("yyyy-MM"),
+                OcrScansUsed = 10
+            };
+            _mockUsageRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<SubscriptionQuotaUsage, bool>>>()))
+                .ReturnsAsync(new List<SubscriptionQuotaUsage> { usage });
+
+            var service = new SubscriptionQuotaService(_mockUnitOfWork.Object, userSubService.Object);
+
+            await service.CheckAndConsumeOcrScanAsync(userId, 3);
+
+            usage.OcrScansUsed.Should().Be(13);
+            _mockUsageRepo.Verify(r => r.Update(usage), Times.Once);
+            _mockUnitOfWork.Verify(u => u.SaveChangesAsync(), Times.Once);
+        }
     }
 }
 

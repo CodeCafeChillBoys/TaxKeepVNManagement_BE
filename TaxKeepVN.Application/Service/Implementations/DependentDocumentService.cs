@@ -24,6 +24,7 @@ namespace TaxKeepVN.Application.Service.Implementations
         private readonly IOcrService _ocrService;
         private readonly IRedisCacheService? _redisCache;
         private readonly ILogger<DependentDocumentService>? _logger;
+        private readonly ISubscriptionQuotaService? _quotaService;
 
         // Cấu hình các nhóm OR (giấy tờ có thể thay thế nhau) theo từng nhóm NPT
         private static readonly Dictionary<DependentGroup, List<List<string>>> OrDocumentRequirements = new()
@@ -61,7 +62,8 @@ namespace TaxKeepVN.Application.Service.Implementations
             IMemoryCache cache,
             IOcrService ocrService,
             IRedisCacheService? redisCache = null,
-            ILogger<DependentDocumentService>? logger = null)
+            ILogger<DependentDocumentService>? logger = null,
+            ISubscriptionQuotaService? quotaService = null)
         {
             _unitOfWork = unitOfWork;
             _fileStorageService = fileStorageService;
@@ -69,6 +71,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             _ocrService = ocrService;
             _redisCache = redisCache;
             _logger = logger;
+            _quotaService = quotaService;
         }
 
         public async Task<UploadDocumentResultDto> UploadDocumentAsync(Guid userId, Guid dependentId, string docTypeString, IFormFile file)
@@ -134,6 +137,12 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             var userRepo = _unitOfWork.Repository<User>();
             var taxpayer = userRepo != null ? await userRepo.GetByIdAsync(userId) : null;
+
+            // ── Kiểm tra và trừ lượt quét OCR theo gói dịch vụ ──
+            if (_quotaService != null)
+            {
+                await _quotaService.CheckAndConsumeOcrScanAsync(userId, 1);
+            }
 
             // ── AI OCR Cross-check Validation ──
             var rulesJson = activeRules != null && activeRules.Count > 0
