@@ -4,6 +4,7 @@ using System.Net.Http;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -70,6 +71,63 @@ namespace TaxKeepVNManagementSystem.Controllers
             };
             _producerService.PublishExtractionTask(message);
             return Accepted(new { message = "Tai lieu dang duoc AI phan tich.", taskId, adminId });
+        }
+
+        [HttpGet]
+        public Task<IActionResult> GetTaxRules(CancellationToken cancellationToken) =>
+            ForwardTaxRuleRequestAsync(HttpMethod.Get, "/api/tax-rules", cancellationToken);
+
+        [HttpGet("year/{taxYear:int}")]
+        public Task<IActionResult> GetTaxRulesByYear([FromRoute] int taxYear, CancellationToken cancellationToken) =>
+            ForwardTaxRuleRequestAsync(HttpMethod.Get, $"/api/tax-rules/year/{taxYear}", cancellationToken);
+
+        [HttpGet("{id:guid}")]
+        public Task<IActionResult> GetTaxRule([FromRoute] Guid id, CancellationToken cancellationToken) =>
+            ForwardTaxRuleRequestAsync(HttpMethod.Get, $"/api/tax-rules/{id}", cancellationToken);
+
+        [HttpPut("{id:guid}")]
+        [Consumes("application/json")]
+        public Task<IActionResult> UpdateTaxRule(
+            [FromRoute] Guid id,
+            [FromBody] JsonElement payload,
+            CancellationToken cancellationToken) =>
+            ForwardTaxRuleRequestAsync(HttpMethod.Put, $"/api/tax-rules/{id}", cancellationToken, JsonContent.Create(payload));
+
+        private async Task<IActionResult> ForwardTaxRuleRequestAsync(
+            HttpMethod method,
+            string path,
+            CancellationToken cancellationToken,
+            HttpContent? content = null)
+        {
+            using var request = new HttpRequestMessage(method, path) { Content = content };
+            var httpClient = _httpClientFactory.CreateClient("TaxAIService");
+
+            try
+            {
+                using var response = await httpClient.SendAsync(request, cancellationToken);
+                var body = await response.Content.ReadAsStringAsync(cancellationToken);
+                var mediaType = response.Content.Headers.ContentType?.MediaType;
+                var isJson = mediaType == "application/json" ||
+                    mediaType?.EndsWith("+json", StringComparison.OrdinalIgnoreCase) == true;
+
+                return new ContentResult
+                {
+                    StatusCode = (int)response.StatusCode,
+                    Content = body,
+                    ContentType = isJson ? mediaType : "text/plain"
+                };
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                return StatusCode(StatusCodes.Status504GatewayTimeout,
+                    new { message = "TaxAIService phan hoi qua thoi gian cho." });
+            }
+            catch (HttpRequestException ex)
+            {
+                _logger.LogWarning(ex, "[TaxAdmin] TaxAIService request failed for {Method} {Path}.", method, path);
+                return StatusCode(StatusCodes.Status503ServiceUnavailable,
+                    new { message = "Khong the ket noi TaxAIService." });
+            }
         }
 
         [HttpPost("{id:guid}/approve")]

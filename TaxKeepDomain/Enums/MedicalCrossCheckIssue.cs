@@ -19,6 +19,21 @@ namespace TaxKeepVN.Domain.Enums
 
         /// <summary>Người bệnh không phải người nộp thuế hoặc người phụ thuộc hợp lệ (Khoản 3b NĐ 253/2026/NĐ-CP)</summary>
         public const string PATIENT_NOT_TAXPAYER_OR_DEPENDENT = "PATIENT_NOT_TAXPAYER_OR_DEPENDENT";
+
+        /// <summary>Ngày sinh người bệnh trên bảng kê không khớp hồ sơ NNT/NPT</summary>
+        public const string PATIENT_DOB_MISMATCH = "PATIENT_DOB_MISMATCH";
+
+        /// <summary>Giới tính OCR trên bảng kê không thuộc danh mục hợp lệ</summary>
+        public const string PATIENT_GENDER_INVALID = "PATIENT_GENDER_INVALID";
+
+        /// <summary>Tên cơ sở khám chữa bệnh không khớp đơn vị bán trên hóa đơn</summary>
+        public const string HOSPITAL_NAME_MISMATCH = "HOSPITAL_NAME_MISMATCH";
+
+        /// <summary>Ngày vào/ra viện không hợp lệ hoặc không phù hợp hóa đơn</summary>
+        public const string TREATMENT_DATE_INVALID = "TREATMENT_DATE_INVALID";
+
+        /// <summary>Một hoặc nhiều field định dạng trong medicalHeader không hợp lệ</summary>
+        public const string HEADER_FIELD_INVALID = "HEADER_FIELD_INVALID";
     }
 
     /// <summary>
@@ -31,6 +46,8 @@ namespace TaxKeepVN.Domain.Enums
         public const string EXCLUDED_COSMETIC_SURGERY = "EXCLUDED_COSMETIC_SURGERY";
         public const string EXCLUDED_SKIN_CARE_SPA = "EXCLUDED_SKIN_CARE_SPA";
         public const string EXCLUDED_FUNCTIONAL_FOOD = "EXCLUDED_FUNCTIONAL_FOOD";
+        public const string EXCLUDED_VOLUNTARY_SCREENING = "EXCLUDED_VOLUNTARY_SCREENING";
+        public const string EXCLUDED_OUT_OF_COVERAGE = "EXCLUDED_OUT_OF_COVERAGE";
         public const string EXCLUDED_VIP_ROOM = "EXCLUDED_VIP_ROOM";
         public const string NEED_REVIEW_UNREADABLE = "NEED_REVIEW_UNREADABLE";
     }

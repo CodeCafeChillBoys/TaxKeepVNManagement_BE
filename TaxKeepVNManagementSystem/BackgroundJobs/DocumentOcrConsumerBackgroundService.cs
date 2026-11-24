@@ -298,28 +298,31 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
                             ? ds.GetString()
                             : (item.TryGetProperty("suggestedStatus", out var ss) ? ss.GetString() : null);
 
-                        if (!string.IsNullOrWhiteSpace(statusStr))
+                        var status = statusStr?.Trim().ToUpperInvariant();
+                        line.DeductionReason = line.DeductionReason?.Trim();
+                        if (status?.StartsWith("EXCLUDED_", StringComparison.Ordinal) == true)
                         {
-                            line.DeductionStatus = statusStr.Trim().ToUpperInvariant();
-                        }
-                        else
-                        {
-                            line.DeductionStatus = line.IsEligibleDeduction ? MedicalDeductionStatus.ELIGIBLE : MedicalDeductionStatus.EXCLUDED;
+                            if (string.IsNullOrWhiteSpace(line.DeductionReason) ||
+                                !line.DeductionReason.StartsWith("EXCLUDED_", StringComparison.OrdinalIgnoreCase))
+                            {
+                                line.DeductionReason = status;
+                            }
+
+                            status = MedicalDeductionStatus.EXCLUDED;
                         }
 
+                        line.DeductionStatus = string.IsNullOrWhiteSpace(status)
+                            ? (line.IsEligibleDeduction ? MedicalDeductionStatus.ELIGIBLE : MedicalDeductionStatus.EXCLUDED)
+                            : status;
+
                         if (!line.IsEligibleDeduction ||
+                            line.DeductionStatus == MedicalDeductionStatus.EXCLUDED ||
                             (!string.IsNullOrWhiteSpace(line.DeductionReason) && line.DeductionReason.StartsWith("EXCLUDED", StringComparison.OrdinalIgnoreCase)))
                         {
                             line.DeductionStatus = MedicalDeductionStatus.EXCLUDED;
                             line.IsEligibleDeduction = false;
                             line.EligibleAmount = 0m;
                         }
-                        else if (string.Equals(line.DeductionStatus, MedicalDeductionStatus.EXCLUDED, StringComparison.OrdinalIgnoreCase))
-                        {
-                            line.IsEligibleDeduction = false;
-                            line.EligibleAmount = 0m;
-                        }
-                      
                         else if (line.EligibleAmount == 0 && line.IsEligibleDeduction)
                         {
                             line.EligibleAmount = line.PatientCoPay;
