@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Text.Json.Serialization;
 
@@ -66,6 +66,9 @@ namespace TaxKeepVN.Application.DTOs.TaxAI
 
         [JsonPropertyName("isDisabled")]
         public bool IsDisabled { get; set; }
+
+        [JsonPropertyName("isRetired")]
+        public bool IsRetired { get; set; }
 
         [JsonPropertyName("conditions")]
         public object? Conditions { get; set; }

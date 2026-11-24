@@ -10,6 +10,7 @@ using TaxKeepVN.Application.DTOs.TaxAI;
 using TaxKeepVN.Application.Exceptions;
 using TaxKeepVN.Application.Service.Interfaces;
 using TaxKeepVN.Domain.Entities;
+using TaxKeepVN.Domain.Enums;
 using TaxKeepVN.Domain.IRepositories;
 
 namespace TaxKeepVN.Application.Service.Implementations
@@ -335,19 +336,27 @@ namespace TaxKeepVN.Application.Service.Implementations
 
         // ── Helper nội bộ: map dependentType của AI → TargetGroup của .NET ────────
         // Đọc hoàn toàn động từ cấu hình TaxAiSettings:TypeMapping trong appsettings.json.
-        // Không hardcode loại quan hệ hay nhóm đối tượng.
+        // Hỗ trợ cả enum chi tiết mới (PARENT_RETIRED, CHILD_UNDER_18, ...) và backward compatible với type cũ (PARENT, CHILD, ...)
         private List<string> MapAiDependentTypeToTargetGroups(DependentRuleFromAiDto dep)
         {
-            var type = (dep.DependentType ?? "DEFAULT").Trim().ToUpper();
+            var type = (dep.DependentType ?? "DEFAULT").Trim().ToUpperInvariant();
             var section = _configuration.GetSection($"TaxAiSettings:TypeMapping:{type}");
             if (!section.Exists())
             {
-                section = _configuration.GetSection("TaxAiSettings:TypeMapping:DEFAULT");
-            }
-
-            if (!section.Exists())
-            {
-                return new List<string> { "OTHER_HELPLESS" };
+                var defaultSection = _configuration.GetSection("TaxAiSettings:TypeMapping:DEFAULT");
+                if (defaultSection.Exists())
+                {
+                    // Nếu type AI gửi sang khớp trực tiếp với 1 enum DependentGroup hợp lệ (ví dụ PARENT_RETIRED)
+                    if (Enum.TryParse<DependentGroup>(type, true, out var matchedGroup))
+                    {
+                        return new List<string> { matchedGroup.ToString() };
+                    }
+                    section = defaultSection;
+                }
+                else
+                {
+                    return new List<string> { "OTHER_HELPLESS" };
+                }
             }
 
             List<string>? result = null;
@@ -359,6 +368,10 @@ namespace TaxKeepVN.Application.Service.Implementations
             else if (dep.IsStudying)
             {
                 result = ReadStringList(section, "IfStudying");
+            }
+            else if (dep.IsRetired)
+            {
+                result = ReadStringList(section, "IfRetired");
             }
 
             result ??= ReadStringList(section, "Default");

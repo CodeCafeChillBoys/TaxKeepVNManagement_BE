@@ -418,6 +418,79 @@ namespace TaxKeepVN.UnitTests.Application.Services
             _mockUnitOfWork.Verify(u => u.SaveChangesAsync(), Times.AtLeastOnce());
         }
 
+        [Fact]
+        public async Task UTCID16_SyncFromAiAsync_DetailedEnumsAndIsRetired_MapsCorrectly()
+        {
+            var configData = new Dictionary<string, string?>
+            {
+                ["TaxAiSettings:TypeMapping:PARENT:IfDisabled:0"] = "PARENT_DISABLED",
+                ["TaxAiSettings:TypeMapping:PARENT:IfRetired:0"] = "PARENT_RETIRED",
+                ["TaxAiSettings:TypeMapping:PARENT:Default:0"] = "PARENT_DISABLED",
+                ["TaxAiSettings:TypeMapping:PARENT_RETIRED:Default:0"] = "PARENT_RETIRED",
+                ["TaxAiSettings:TypeMapping:DEFAULT:Default:0"] = "OTHER_HELPLESS"
+            };
+            var configuration = new ConfigurationBuilder().AddInMemoryCollection(configData).Build();
+            var service = new DependentRuleService(_mockUnitOfWork.Object, _cache, configuration);
+
+            var addedRules = new List<DependentDocumentRule>();
+            _mockRepo.Setup(r => r.GetAllAsync()).ReturnsAsync(new List<DependentDocumentRule>());
+            _mockRepo.Setup(r => r.AddAsync(It.IsAny<DependentDocumentRule>()))
+                     .Callback<DependentDocumentRule>(r => addedRules.Add(r))
+                     .Returns(Task.CompletedTask);
+
+            var aiRules = new List<DependentRuleFromAiDto>
+            {
+                // Direct detailed enum PARENT_RETIRED
+                new DependentRuleFromAiDto
+                {
+                    DependentType = "PARENT_RETIRED",
+                    RequiredDocuments = new List<RequiredDocumentFromAiDto>
+                    {
+                        new RequiredDocumentFromAiDto { DocType = "PENSION_STATEMENT", IsMandatory = true }
+                    }
+                },
+                // PARENT with isRetired = true
+                new DependentRuleFromAiDto
+                {
+                    DependentType = "PARENT",
+                    IsRetired = true,
+                    RequiredDocuments = new List<RequiredDocumentFromAiDto>
+                    {
+                        new RequiredDocumentFromAiDto { DocType = "CITIZEN_ID", IsMandatory = true }
+                    }
+                },
+                // PARENT with isDisabled = true
+                new DependentRuleFromAiDto
+                {
+                    DependentType = "PARENT",
+                    IsDisabled = true,
+                    RequiredDocuments = new List<RequiredDocumentFromAiDto>
+                    {
+                        new RequiredDocumentFromAiDto { DocType = "DISABILITY_CERTIFICATE", IsMandatory = true }
+                    }
+                },
+                // SPOUSE_RETIRED not in config, but matches DependentGroup enum directly
+                new DependentRuleFromAiDto
+                {
+                    DependentType = "SPOUSE_RETIRED",
+                    RequiredDocuments = new List<RequiredDocumentFromAiDto>
+                    {
+                        new RequiredDocumentFromAiDto { DocType = "CITIZEN_ID", IsMandatory = true }
+                    }
+                }
+            };
+
+            var (added, updated) = await service.SyncFromAiAsync(aiRules);
+
+            added.Should().Be(4);
+            updated.Should().Be(0);
+
+            addedRules.Should().Contain(r => r.TargetGroup == "PARENT_RETIRED" && r.DocType == "PENSION_STATEMENT");
+            addedRules.Should().Contain(r => r.TargetGroup == "PARENT_RETIRED" && r.DocType == "CITIZEN_ID");
+            addedRules.Should().Contain(r => r.TargetGroup == "PARENT_DISABLED" && r.DocType == "DISABILITY_CERTIFICATE");
+            addedRules.Should().Contain(r => r.TargetGroup == "SPOUSE_RETIRED" && r.DocType == "CITIZEN_ID");
+        }
+
         [Theory]
         [InlineData("CT07", "RELATIONSHIP_CERTIFICATE")]
         [InlineData("RESIDENCE_CT07", "RELATIONSHIP_CERTIFICATE")]
