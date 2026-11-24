@@ -56,7 +56,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
                     TaxpayerId = userId,
                     FullName = "Nguyễn Văn Con",
                     BirthDate = birthDate,
-                    CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                    CurrentGroup = "CHILD_UNDER_18",
                     IsDeleted = false
                 }
             };
@@ -86,7 +86,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
                     TaxpayerId = userId,
                     FullName = "Nguyễn Thị Bé",
                     BirthDate = birthDate,
-                    CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                    CurrentGroup = "CHILD_UNDER_18",
                     IsDeleted = false
                 }
             };
@@ -114,7 +114,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
                     TaxpayerId = userId,
                     FullName = "Bùi Văn Bé",
                     BirthDate = DateTime.UtcNow.AddYears(-18).AddDays(10),
-                    CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                    CurrentGroup = "CHILD_UNDER_18",
                     IsDeleted = false
                 },
                 new Dependent
@@ -123,7 +123,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
                     TaxpayerId = userId,
                     FullName = "An Văn Lớn",
                     BirthDate = DateTime.UtcNow.AddYears(-18).AddDays(20),
-                    CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                    CurrentGroup = "CHILD_UNDER_18",
                     IsDeleted = false
                 }
             };

@@ -89,7 +89,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             {
                 Id = depId,
                 TaxpayerId = userId,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                CurrentGroup = "CHILD_UNDER_18",
                 Status = DependentStatus.PENDING_DOCUMENTS
             };
             _mockDependentRepo.Setup(r => r.GetByIdAsync(depId)).ReturnsAsync(dependent);
@@ -183,7 +183,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             {
                 Id = depId,
                 TaxpayerId = userId,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                CurrentGroup = "CHILD_UNDER_18",
                 Status = DependentStatus.PENDING_DOCUMENTS
             };
 
@@ -230,7 +230,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             {
                 Id = depId,
                 TaxpayerId = userId,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                CurrentGroup = "CHILD_UNDER_18",
                 Status = DependentStatus.PENDING_DOCUMENTS
             };
 
@@ -292,7 +292,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             {
                 Id = depId,
                 TaxpayerId = userId,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                CurrentGroup = "CHILD_UNDER_18",
                 Status = DependentStatus.PENDING_DOCUMENTS
             };
 
@@ -333,7 +333,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             {
                 Id = depId,
                 TaxpayerId = userId,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                CurrentGroup = "CHILD_UNDER_18",
                 IsProfileComplete = true,
                 Status = DependentStatus.ACTIVE
             };
@@ -382,7 +382,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             {
                 Id = depId,
                 TaxpayerId = userId,
-                CurrentGroup = DependentGroup.SPOUSE_DISABLED,
+                CurrentGroup = "SPOUSE_DISABLED",
                 Status = DependentStatus.PENDING_DOCUMENTS
             };
 
@@ -413,14 +413,14 @@ namespace TaxKeepVN.UnitTests.Application.Services
         }
 
         [Theory]
-        [InlineData(DependentGroup.CHILD_OVER_18_DISABLED, "CITIZEN_ID")]
-        [InlineData(DependentGroup.CHILD_OVER_18_STUDYING, "CITIZEN_ID")]
-        [InlineData(DependentGroup.SPOUSE_DISABLED, "CITIZEN_ID")]
-        [InlineData(DependentGroup.SPOUSE_RETIRED, "CITIZEN_ID")]
-        [InlineData(DependentGroup.PARENT_DISABLED, "CITIZEN_ID")]
-        [InlineData(DependentGroup.PARENT_RETIRED, "CITIZEN_ID")]
-        [InlineData(DependentGroup.OTHER_HELPLESS, "CITIZEN_ID")]
-        public async Task UTCID11_UploadDocumentAsync_EmptyRules_ThrowsRulesNotConfigured(DependentGroup group, string uploadedDoc)
+        [InlineData("CHILD_OVER_18_DISABLED", "CITIZEN_ID")]
+        [InlineData("CHILD_OVER_18_STUDYING", "CITIZEN_ID")]
+        [InlineData("SPOUSE_DISABLED", "CITIZEN_ID")]
+        [InlineData("SPOUSE_RETIRED", "CITIZEN_ID")]
+        [InlineData("PARENT_DISABLED", "CITIZEN_ID")]
+        [InlineData("PARENT_RETIRED", "CITIZEN_ID")]
+        [InlineData("OTHER_HELPLESS", "CITIZEN_ID")]
+        public async Task UTCID11_UploadDocumentAsync_EmptyRules_ThrowsRulesNotConfigured(string group, string uploadedDoc)
         {
             var userId = Guid.NewGuid();
             var depId = Guid.NewGuid();
@@ -468,7 +468,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             {
                 Id = depId,
                 TaxpayerId = userId,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                CurrentGroup = "CHILD_UNDER_18",
                 Status = DependentStatus.PENDING_DOCUMENTS
             };
 
@@ -515,7 +515,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             {
                 Id = depId,
                 TaxpayerId = userId,
-                CurrentGroup = DependentGroup.PARENT_RETIRED,
+                CurrentGroup = "PARENT_RETIRED",
                 Status = DependentStatus.PENDING_DOCUMENTS
             };
 
@@ -564,7 +564,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             {
                 Id = depId,
                 TaxpayerId = userId,
-                CurrentGroup = DependentGroup.PARENT_RETIRED,
+                CurrentGroup = "PARENT_RETIRED",
                 Status = DependentStatus.PENDING_DOCUMENTS
             };
 
@@ -615,7 +615,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             {
                 Id = depId,
                 TaxpayerId = userId,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                CurrentGroup = "CHILD_UNDER_18",
                 Status = DependentStatus.PENDING_DOCUMENTS
             };
 
@@ -653,7 +653,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             {
                 Id = depId,
                 TaxpayerId = userId,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                CurrentGroup = "CHILD_UNDER_18",
                 Status = DependentStatus.INACTIVE
             };
 

@@ -740,7 +740,8 @@ namespace TaxKeepVN.Infrastructure.Migrations
 
                     b.Property<string>("CurrentGroup")
                         .IsRequired()
-                        .HasColumnType("text")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
                         .HasColumnName("current_group");
 
                     b.Property<string>("EffectiveFromMonth")
@@ -780,7 +781,8 @@ namespace TaxKeepVN.Infrastructure.Migrations
 
                     b.Property<string>("Relationship")
                         .IsRequired()
-                        .HasColumnType("text")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
                         .HasColumnName("relationship");
 
                     b.Property<string>("Status")

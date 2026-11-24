@@ -26,39 +26,72 @@ namespace TaxKeepVN.Application.Service.Implementations
             if (taxYear < 2000 || taxYear > 2100)
                 throw new BadRequestException("INVALID_TAX_YEAR", "Năm tính thuế không hợp lệ. Vui lòng nhập năm trong khoảng từ 2000 đến 2100.");
 
+            var groupRepo = _unitOfWork.Repository<DependentGroupCatalog>();
+            var allGroups = groupRepo != null
+                ? (await groupRepo.FindAsync(g => g.IsActive)).ToList()
+                : new List<DependentGroupCatalog>();
+
+            if (allGroups.Count == 0)
+            {
+                allGroups = new List<DependentGroupCatalog>
+                {
+                    new() { Code = "CHILD_UNDER_18", Name = "Con dưới 18 tuổi", RelationshipCode = "CHILD", MaxAge = 18, Level = 0, IsActive = true },
+                    new() { Code = "CHILD_OVER_18_STUDYING", Name = "Con từ 18 tuổi trở lên đang đi học", RelationshipCode = "CHILD", MinAge = 18, Level = 1, RequireStudying = true, IsActive = true },
+                    new() { Code = "CHILD_OVER_18_DISABLED", Name = "Con từ 18 tuổi trở lên bị khuyết tật", RelationshipCode = "CHILD", MinAge = 18, Level = 1, RequireDisabled = true, IsActive = true }
+                };
+            }
+
+            var groupsWithMaxAge = allGroups
+                .Where(g => g.MaxAge.HasValue)
+                .ToDictionary(g => g.Code, StringComparer.OrdinalIgnoreCase);
+
             var dependentRepo = _unitOfWork.Repository<Dependent>();
-            var dependents = await dependentRepo.FindAsync(d =>
+            var allDeps = await dependentRepo.FindAsync(d =>
                 d.TaxpayerId == userId &&
-                !d.IsDeleted &&
-                d.CurrentGroup == DependentGroup.CHILD_UNDER_18);
+                !d.IsDeleted);
+
+            var dependents = allDeps.Where(d => groupsWithMaxAge.ContainsKey(d.CurrentGroup)).ToList();
 
             var currentDate = DateTime.UtcNow;
             var reminders = new List<AgeReminderItemDto>();
 
             foreach (var dep in dependents)
             {
-                var turning18Date = dep.BirthDate.AddYears(18);
-                var daysRemaining = (turning18Date - currentDate).Days;
+                var curGroup = groupsWithMaxAge[dep.CurrentGroup];
+                var maxAge = curGroup.MaxAge!.Value;
+                var turningDate = dep.BirthDate.AddYears(maxAge);
+                var daysRemaining = (turningDate - currentDate).Days;
 
                 bool isTurningSoon = daysRemaining >= 0 && daysRemaining <= 60;
-                bool isAlready18 = daysRemaining < 0 && turning18Date.Year <= taxYear;
+                bool isAlreadyAge = daysRemaining < 0 && turningDate.Year <= taxYear;
 
-                if (!isTurningSoon && !isAlready18) continue;
+                if (!isTurningSoon && !isAlreadyAge) continue;
 
-                string status = isTurningSoon ? "TURNING_18_SOON" : "ALREADY_18_PENDING_ACTION";
+                string status = isTurningSoon ? $"TURNING_{maxAge}_SOON" : $"ALREADY_{maxAge}_PENDING_ACTION";
                 string message = isTurningSoon
-                    ? $"Người phụ thuộc {dep.FullName} sẽ tròn 18 tuổi vào ngày {turning18Date:dd/MM/yyyy}. Vui lòng cập nhật hồ sơ sinh viên nếu tiếp tục theo học."
-                    : $"Người phụ thuộc {dep.FullName} đã tròn 18 tuổi. Khoản giảm trừ sẽ bị tạm dừng nếu không bổ sung giấy tờ sinh viên.";
+                    ? $"Người phụ thuộc {dep.FullName} sẽ tròn {maxAge} tuổi vào ngày {turningDate:dd/MM/yyyy}. Vui lòng cập nhật hồ sơ sinh viên nếu tiếp tục theo học."
+                    : $"Người phụ thuộc {dep.FullName} đã tròn {maxAge} tuổi. Khoản giảm trừ sẽ bị tạm dừng nếu không bổ sung giấy tờ sinh viên.";
+
+                var relCode = curGroup.RelationshipCode ?? dep.Relationship;
+                var candidateGroups = allGroups
+                    .Where(g => string.Equals(g.RelationshipCode, relCode, StringComparison.OrdinalIgnoreCase)
+                                && g.MinAge == maxAge
+                                && g.Level > curGroup.Level)
+                    .OrderByDescending(g => g.RequireStudying)
+                    .ThenBy(g => g.Level)
+                    .ToList();
+
+                var recommendedGroup = candidateGroups.FirstOrDefault()?.Code ?? "CHILD_OVER_18_STUDYING";
 
                 reminders.Add(new AgeReminderItemDto
                 {
                     DependentId = dep.Id,
                     FullName = dep.FullName,
                     BirthDate = dep.BirthDate.ToString("yyyy-MM-dd"),
-                    CurrentGroup = dep.CurrentGroup.ToString(),
-                    RecommendedGroup = DependentGroup.CHILD_OVER_18_STUDYING.ToString(),
+                    CurrentGroup = dep.CurrentGroup,
+                    RecommendedGroup = recommendedGroup,
                     TransitionStatus = status,
-                    Turning18Date = turning18Date.ToString("yyyy-MM-dd"),
+                    Turning18Date = turningDate.ToString("yyyy-MM-dd"),
                     DaysRemaining = daysRemaining,
                     Message = message,
                     RequiredAction = "UPDATE_GROUP_AND_UPLOAD_STUDENT_CARD"

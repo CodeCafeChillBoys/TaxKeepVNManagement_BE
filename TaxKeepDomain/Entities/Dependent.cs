@@ -14,7 +14,7 @@ namespace TaxKeepVN.Domain.Entities
         public string FullName { get; set; } = string.Empty;
 
         public DateTime BirthDate { get; set; } = DateTime.UtcNow;
-        public DependentGroup CurrentGroup { get; set; } = DependentGroup.CHILD_UNDER_18;   
+        public string CurrentGroup { get; set; } = "CHILD_UNDER_18";   
         public bool IsDeleted { get; set; } = false;
         public bool IsProfileComplete { get; set; } = false; // Added for profile completion tracking
 
@@ -25,7 +25,7 @@ namespace TaxKeepVN.Domain.Entities
         public DateTime? IdentityUpdatedAt { get; set; }
 
         /// <summary>Nhóm quan hệ theo Điều 9 TT 111/2013</summary>
-        public DependentRelationship Relationship { get; set; } = DependentRelationship.CHILD;
+        public string Relationship { get; set; } = "CHILD";
 
         /// <summary>
         /// Số Căn cước công dân (12 số). Nullable vì trẻ em nhỏ chưa có CCCD.

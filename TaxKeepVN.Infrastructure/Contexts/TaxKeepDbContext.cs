@@ -180,7 +180,7 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(d => d.TaxpayerId).HasColumnName("taxpayer_id");
                 entity.Property(d => d.FullName).HasColumnName("full_name").IsRequired();
                 entity.Property(d => d.Relationship).HasColumnName("relationship")
-                    .HasConversion<string>().IsRequired();
+                    .HasMaxLength(50).IsRequired();
                 entity.Property(d => d.CitizenId).HasColumnName("citizen_id");
                 entity.Property(d => d.BirthCertNumber).HasColumnName("birth_cert_number");
                 entity.Property(d => d.TaxIdNumber).HasColumnName("tax_id_number");
@@ -194,7 +194,7 @@ namespace TaxKeepVN.Infrastructure.Contexts
 
                 // Cột trong database PostgreSQL sử dụng quy ước snake_case
                 entity.Property(d => d.CurrentGroup).HasColumnName("current_group")
-                    .HasConversion<string>();
+                    .HasMaxLength(50).IsRequired();
                 entity.Property(d => d.BirthDate).HasColumnName("birth_date");
                 entity.Property(d => d.IsDeleted).HasColumnName("is_deleted").HasDefaultValue(false);
                 entity.Property(d => d.IsProfileComplete).HasColumnName("is_profile_complete").HasDefaultValue(false);

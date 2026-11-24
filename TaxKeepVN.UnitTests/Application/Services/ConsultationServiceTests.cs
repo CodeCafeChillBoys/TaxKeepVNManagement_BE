@@ -528,7 +528,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             dependentRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Dependent, bool>>>()))
                          .ReturnsAsync(new List<Dependent>
                          {
-                             new Dependent { Id = Guid.NewGuid(), FullName = "Nguyen Con A", Relationship = DependentRelationship.CHILD, CurrentGroup = DependentGroup.CHILD_UNDER_18 }
+                             new Dependent { Id = Guid.NewGuid(), FullName = "Nguyen Con A", Relationship = "CHILD", CurrentGroup = "CHILD_UNDER_18" }
                          });
             _mockUnitOfWork.Setup(u => u.Repository<Dependent>()).Returns(dependentRepo.Object);
 

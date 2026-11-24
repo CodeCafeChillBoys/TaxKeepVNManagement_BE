@@ -219,24 +219,17 @@ namespace TaxKeepVN.Application.Service.Implementations
 
         private static bool IsParentRelationship(Dependent dependent)
         {
-            return dependent.Relationship == DependentRelationship.PARENT ||
-                   dependent.CurrentGroup == DependentGroup.PARENT_DISABLED ||
-                   dependent.CurrentGroup == DependentGroup.PARENT_RETIRED;
+            return string.Equals(dependent.Relationship, "PARENT", StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool IsSpouseRelationship(Dependent dependent)
         {
-            return dependent.Relationship == DependentRelationship.SPOUSE ||
-                   dependent.CurrentGroup == DependentGroup.SPOUSE_DISABLED ||
-                   dependent.CurrentGroup == DependentGroup.SPOUSE_RETIRED;
+            return string.Equals(dependent.Relationship, "SPOUSE", StringComparison.OrdinalIgnoreCase);
         }
 
         private static bool IsChildRelationship(Dependent dependent)
         {
-            return dependent.Relationship == DependentRelationship.CHILD ||
-                   dependent.CurrentGroup == DependentGroup.CHILD_UNDER_18 ||
-                   dependent.CurrentGroup == DependentGroup.CHILD_OVER_18_DISABLED ||
-                   dependent.CurrentGroup == DependentGroup.CHILD_OVER_18_STUDYING;
+            return string.Equals(dependent.Relationship, "CHILD", StringComparison.OrdinalIgnoreCase);
         }
 
         private static string MaskCitizenId(string? id)

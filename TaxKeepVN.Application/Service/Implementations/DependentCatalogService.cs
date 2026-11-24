@@ -144,6 +144,11 @@ namespace TaxKeepVN.Application.Service.Implementations
                     throw new BadRequestException("INVALID_RELATIONSHIP", $"Mã quan hệ '{relCode}' không tồn tại trong hệ thống.");
             }
 
+            if (request.IsActive && string.IsNullOrWhiteSpace(relCode))
+            {
+                throw new BadRequestException("RELATIONSHIP_REQUIRED", "Không thể tạo nhóm người phụ thuộc ở trạng thái kích hoạt khi chưa gán nhóm quan hệ (relationship_code).");
+            }
+
             var newGroup = new DependentGroupCatalog
             {
                 Code = normCode,
@@ -200,6 +205,11 @@ namespace TaxKeepVN.Application.Service.Implementations
             if (request.Level.HasValue) group.Level = request.Level.Value;
             if (request.DisplayOrder.HasValue) group.DisplayOrder = request.DisplayOrder.Value;
             if (request.IsActive.HasValue) group.IsActive = request.IsActive.Value;
+
+            if (group.IsActive && string.IsNullOrWhiteSpace(group.RelationshipCode))
+            {
+                throw new BadRequestException("RELATIONSHIP_REQUIRED", "Không thể kích hoạt nhóm người phụ thuộc khi chưa gán nhóm quan hệ (relationship_code).");
+            }
 
             group.UpdatedAt = DateTime.UtcNow;
             repo.Update(group);
@@ -383,8 +393,32 @@ namespace TaxKeepVN.Application.Service.Implementations
         {
             _cache.Remove(CatalogCacheKey);
             _cache.Remove("ActiveDependentGroups");
+            _cache.Remove("ActiveDependentGroups_All");
+            _cache.Remove("ActiveDependentRelationships");
             _redisCache?.RemoveAsync(CatalogRedisKey);
             _redisCache?.RemoveAsync("taxkeep:dependent_rules:groups");
+
+            var knownRels = new HashSet<string>(new[] { "CHILD", "SPOUSE", "PARENT", "OTHER_DEPENDENT" }, StringComparer.OrdinalIgnoreCase);
+            var relRepo = _unitOfWork.Repository<DependentRelationshipCatalog>();
+            if (relRepo != null)
+            {
+                try
+                {
+                    var allRels = relRepo.GetAllAsync().GetAwaiter().GetResult();
+                    foreach (var r in allRels)
+                    {
+                        if (!string.IsNullOrWhiteSpace(r.Code))
+                            knownRels.Add(r.Code.Trim().ToUpper());
+                    }
+                }
+                catch { }
+            }
+
+            foreach (var rel in knownRels)
+            {
+                _cache.Remove($"ActiveDependentGroups_{rel}");
+                _redisCache?.RemoveAsync($"taxkeep:dependent_rules:groups:{rel}");
+            }
         }
 
         private static AdminDependentGroupDto MapGroupToAdminDto(DependentGroupCatalog g) => new()

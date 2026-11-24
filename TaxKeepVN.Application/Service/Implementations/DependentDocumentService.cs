@@ -205,14 +205,14 @@ namespace TaxKeepVN.Application.Service.Implementations
             }
         }
 
-        private async Task<List<DependentDocumentRule>?> GetActiveRulesForGroupAsync(DependentGroup group)
+        private async Task<List<DependentDocumentRule>?> GetActiveRulesForGroupAsync(string group)
         {
-            return await _dependentRuleService.GetActiveRulesForGroupAsync(group.ToString());
+            return await _dependentRuleService.GetActiveRulesForGroupAsync(group);
         }
 
-        private async Task<(bool isComplete, List<string> missing)> CheckProfileCompletionAsync(DependentGroup group, List<string> uploadedDocs)
+        private async Task<(bool isComplete, List<string> missing)> CheckProfileCompletionAsync(string group, List<string> uploadedDocs)
         {
-            return await _dependentRuleService.ComputeMissingDocumentsAsync(group.ToString(), uploadedDocs);
+            return await _dependentRuleService.ComputeMissingDocumentsAsync(group, uploadedDocs);
         }
     }
 }

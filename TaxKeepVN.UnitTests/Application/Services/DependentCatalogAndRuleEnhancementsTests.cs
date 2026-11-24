@@ -364,6 +364,79 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 .Where(e => e.ErrorCode == "INVALID_RELATIONSHIP");
         }
 
+        [Fact]
+        public async Task CreateGroupAsync_ActiveWithoutRelationship_ThrowsRelationshipRequired()
+        {
+            var req = new CreateDependentGroupRequest
+            {
+                Code = "NEW_GROUP",
+                Name = "Nhóm mới",
+                RelationshipCode = null,
+                IsActive = true
+            };
+
+            var act = async () => await _catalogService.CreateGroupAsync(req);
+
+            await act.Should().ThrowAsync<BadRequestException>()
+                .Where(e => e.ErrorCode == "RELATIONSHIP_REQUIRED");
+        }
+
+        [Fact]
+        public async Task UpdateGroupAsync_ActivatingWithoutRelationship_ThrowsRelationshipRequired()
+        {
+            var group = new DependentGroupCatalog
+            {
+                Code = "TEST_GROUP",
+                Name = "Nhóm test",
+                RelationshipCode = null,
+                IsActive = false
+            };
+            _mockGroupRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentGroupCatalog, bool>>>()))
+                .ReturnsAsync(new List<DependentGroupCatalog> { group });
+
+            var req = new UpdateDependentGroupRequest
+            {
+                IsActive = true
+            };
+
+            var act = async () => await _catalogService.UpdateGroupAsync("TEST_GROUP", req);
+
+            await act.Should().ThrowAsync<BadRequestException>()
+                .Where(e => e.ErrorCode == "RELATIONSHIP_REQUIRED");
+        }
+
+        [Fact]
+        public async Task SyncFromAiAsync_OtherType_MapsToHelplessInsteadOfCreatingOtherGroup()
+        {
+            var existingGroups = new List<DependentGroupCatalog>
+            {
+                new() { Code = "OTHER_HELPLESS", Name = "Cá nhân không nơi nương tựa", IsActive = true }
+            };
+            var existingRels = new List<DependentRelationshipCatalog>
+            {
+                new() { Code = "OTHER_DEPENDENT", Name = "Khác", IsActive = true }
+            };
+            _mockGroupRepo.Setup(r => r.GetAllAsync()).ReturnsAsync(existingGroups);
+            _mockRelRepo.Setup(r => r.GetAllAsync()).ReturnsAsync(existingRels);
+            _mockRuleRepo.Setup(r => r.GetAllAsync()).ReturnsAsync(new List<DependentDocumentRule>());
+
+            var aiDto = new DependentRuleFromAiDto
+            {
+                DependentType = "OTHER",
+                Name = "Người phụ thuộc khác",
+                Relationship = "OTHER_DEPENDENT",
+                RequiredDocuments = new List<RequiredDocumentFromAiDto>
+                {
+                    new() { DocType = "RESIDENCE_CONFIRMATION", Name = "Xác nhận cư trú", IsMandatory = true }
+                }
+            };
+
+            var (added, updated, deactivated) = await _ruleService.SyncFromAiAsync(new List<DependentRuleFromAiDto> { aiDto });
+
+            added.Should().Be(1);
+            _mockGroupRepo.Verify(r => r.AddAsync(It.Is<DependentGroupCatalog>(g => g.Code == "OTHER")), Times.Never);
+        }
+
         #endregion
     }
 }

@@ -344,59 +344,51 @@ namespace TaxKeepVN.Application.Service.Implementations
                 var rawType = (depRule.DependentType ?? "DEFAULT").Trim().ToUpperInvariant();
                 List<string> targetGroups;
 
-                // Kiểm tra xem rawType có trong bảng dependent_groups chưa
+                // 1. Kiểm tra xem rawType có trong bảng dependent_groups chưa
                 if (existingGroupCodes.Contains(rawType))
                 {
                     targetGroups = new List<string> { rawType };
                 }
+                // 2. Kiểm tra xem rawType có trong cấu hình TypeMapping không (hoặc là OTHER/DEFAULT cũ)
+                else if (_configuration.GetSection($"TaxAiSettings:TypeMapping:{rawType}").Exists() || rawType == "OTHER" || rawType == "DEFAULT")
+                {
+                    targetGroups = MapAiDependentTypeToTargetGroups(depRule);
+                }
+                // 3. Thực sự là nhóm mới từ AI chưa có trong catalog
                 else
                 {
-                    // Thử map qua TypeMapping cấu hình nếu có (cho backward compatibility)
-                    var mapped = MapAiDependentTypeToTargetGroups(depRule);
-                    if (mapped.Count > 0 && !mapped.Contains("OTHER_HELPLESS"))
+                    string? matchedRelCode = null;
+                    if (!string.IsNullOrWhiteSpace(depRule.Relationship))
                     {
-                        targetGroups = mapped;
-                    }
-                    else if (existingGroupCodes.Contains("OTHER_HELPLESS") && rawType == "DEFAULT")
-                    {
-                        targetGroups = new List<string> { "OTHER_HELPLESS" };
-                    }
-                    else
-                    {
-                        // Nhóm mới từ AI -> Thêm vào bảng dependent_groups với is_active=false, source="AI"
-                        string? matchedRelCode = null;
-                        if (!string.IsNullOrWhiteSpace(depRule.Relationship))
+                        var relUpper = depRule.Relationship.Trim().ToUpper();
+                        if (existingRelCodes.Contains(relUpper))
                         {
-                            var relUpper = depRule.Relationship.Trim().ToUpper();
-                            if (existingRelCodes.Contains(relUpper))
-                            {
-                                matchedRelCode = relUpper;
-                            }
+                            matchedRelCode = relUpper;
                         }
-
-                        if (groupRepo != null && !existingGroupCodes.Contains(rawType))
-                        {
-                            var newGroup = new DependentGroupCatalog
-                            {
-                                Code = rawType,
-                                Name = !string.IsNullOrWhiteSpace(depRule.Name) ? depRule.Name.Trim() : rawType,
-                                RelationshipCode = matchedRelCode,
-                                RequireDisabled = depRule.IsDisabled,
-                                RequireStudying = depRule.IsStudying,
-                                Level = 0,
-                                DisplayOrder = 99,
-                                IsActive = false, // Chờ Admin kiểm tra và bật
-                                Source = "AI",
-                                CreatedAt = DateTime.UtcNow,
-                                UpdatedAt = DateTime.UtcNow
-                            };
-                            await groupRepo.AddAsync(newGroup);
-                            existingGroups.Add(newGroup);
-                            existingGroupCodes.Add(rawType);
-                        }
-
-                        targetGroups = new List<string> { rawType };
                     }
+
+                    if (groupRepo != null && !existingGroupCodes.Contains(rawType))
+                    {
+                        var newGroup = new DependentGroupCatalog
+                        {
+                            Code = rawType,
+                            Name = !string.IsNullOrWhiteSpace(depRule.Name) ? depRule.Name.Trim() : rawType,
+                            RelationshipCode = matchedRelCode,
+                            RequireDisabled = depRule.IsDisabled,
+                            RequireStudying = depRule.IsStudying,
+                            Level = 0,
+                            DisplayOrder = 99,
+                            IsActive = false, // Chờ Admin kiểm tra và bật
+                            Source = "AI",
+                            CreatedAt = DateTime.UtcNow,
+                            UpdatedAt = DateTime.UtcNow
+                        };
+                        await groupRepo.AddAsync(newGroup);
+                        existingGroups.Add(newGroup);
+                        existingGroupCodes.Add(rawType);
+                    }
+
+                    targetGroups = new List<string> { rawType };
                 }
 
                 foreach (var targetGroup in targetGroups)
@@ -610,15 +602,20 @@ namespace TaxKeepVN.Application.Service.Implementations
                 var defaultSection = _configuration.GetSection("TaxAiSettings:TypeMapping:DEFAULT");
                 if (defaultSection.Exists())
                 {
-                    if (Enum.TryParse<DependentGroup>(type, true, out var matchedGroup))
-                    {
-                        return new List<string> { matchedGroup.ToString() };
-                    }
                     section = defaultSection;
                 }
                 else
                 {
-                    return new List<string> { "OTHER_HELPLESS" };
+                    // Fallback theo quy tắc mặc định nếu không có config
+                    return type switch
+                    {
+                        "CHILD" => dep.IsDisabled ? new List<string> { "CHILD_OVER_18_DISABLED" } :
+                                   (dep.IsStudying ? new List<string> { "CHILD_OVER_18_STUDYING" } :
+                                   new List<string> { "CHILD_UNDER_18" }),
+                        "PARENT" => dep.IsRetired ? new List<string> { "PARENT_RETIRED" } : new List<string> { "PARENT_DISABLED" },
+                        "SPOUSE" => dep.IsRetired ? new List<string> { "SPOUSE_RETIRED" } : new List<string> { "SPOUSE_DISABLED" },
+                        _ => new List<string> { "OTHER_HELPLESS" }
+                    };
                 }
             }
 
@@ -703,6 +700,8 @@ namespace TaxKeepVN.Application.Service.Implementations
             _cache.Remove($"DependentRules_Required_{normGroup}");
             _cache.Remove($"DependentRules_Active_{normGroup}");
             _cache.Remove("ActiveDependentGroups");
+            _cache.Remove("ActiveDependentGroups_All");
+            _cache.Remove("ActiveDependentRelationships");
             _cache.Remove("DependentCatalog");
 
             _redisCache?.RemoveAsync($"taxkeep:dependent_rules:{normGroup}");
@@ -710,6 +709,28 @@ namespace TaxKeepVN.Application.Service.Implementations
             _redisCache?.RemoveAsync($"taxkeep:dependent_rules:active:{normGroup}");
             _redisCache?.RemoveAsync("taxkeep:dependent_rules:groups");
             _redisCache?.RemoveAsync("taxkeep:dependents:catalog");
+
+            var knownRels = new HashSet<string>(new[] { "CHILD", "SPOUSE", "PARENT", "OTHER_DEPENDENT" }, StringComparer.OrdinalIgnoreCase);
+            var relRepo = _unitOfWork.Repository<DependentRelationshipCatalog>();
+            if (relRepo != null)
+            {
+                try
+                {
+                    var allRels = relRepo.GetAllAsync().GetAwaiter().GetResult();
+                    foreach (var r in allRels)
+                    {
+                        if (!string.IsNullOrWhiteSpace(r.Code))
+                            knownRels.Add(r.Code.Trim().ToUpper());
+                    }
+                }
+                catch { }
+            }
+
+            foreach (var rel in knownRels)
+            {
+                _cache.Remove($"ActiveDependentGroups_{rel}");
+                _redisCache?.RemoveAsync($"taxkeep:dependent_rules:groups:{rel}");
+            }
         }
 
         public static string NormalizeDocType(string rawDocType)
