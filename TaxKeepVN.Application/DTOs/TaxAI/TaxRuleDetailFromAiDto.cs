@@ -36,6 +36,9 @@ namespace TaxKeepVN.Application.DTOs.TaxAI
         [JsonPropertyName("taxYear")]
         public int TaxYear { get; set; }
 
+        [JsonPropertyName("effectiveDate")]
+        public DateTime? EffectiveDate { get; set; }
+
         [JsonPropertyName("status")]
         public string? Status { get; set; }
     }
@@ -54,6 +57,9 @@ namespace TaxKeepVN.Application.DTOs.TaxAI
 
         [JsonPropertyName("name")]
         public string? Name { get; set; }
+
+        [JsonPropertyName("relationship")]
+        public string? Relationship { get; set; }
 
         [JsonPropertyName("maxAge")]
         public int? MaxAge { get; set; }
@@ -83,8 +89,27 @@ namespace TaxKeepVN.Application.DTOs.TaxAI
 
     public class RequiredDocumentFromAiDto
     {
+        private string? _alternativeGroup;
+
         [JsonPropertyName("docType")]
         public string? DocType { get; set; }
+
+        [JsonPropertyName("name")]
+        public string? Name { get; set; }
+
+        [JsonIgnore]
+        public bool HasAlternativeGroup { get; set; }
+
+        [JsonPropertyName("alternativeGroup")]
+        public string? AlternativeGroup
+        {
+            get => _alternativeGroup;
+            set
+            {
+                _alternativeGroup = value;
+                HasAlternativeGroup = true;
+            }
+        }
 
         [JsonPropertyName("description")]
         public string? Description { get; set; }

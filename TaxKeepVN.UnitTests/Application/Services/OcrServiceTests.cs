@@ -811,7 +811,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             mockFile.Setup(f => f.ContentType).Returns("image/jpeg");
             mockFile.Setup(f => f.FileName).Returns("marriage.jpg");
 
-            var dependent = new Dependent { FullName = "Trần Thị Vợ", Relationship = DependentRelationship.SPOUSE };
+            var dependent = new Dependent { FullName = "Trần Thị Vợ", Relationship = "SPOUSE" };
 
             var act = () => _service.ValidateDependentDocumentAsync(dependent, DocumentType.MARRIAGE_CERTIFICATE, mockFile.Object, taxpayer);
             await act.Should().NotThrowAsync();
@@ -852,7 +852,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             mockFile.Setup(f => f.ContentType).Returns("image/jpeg");
             mockFile.Setup(f => f.FileName).Returns("marriage.jpg");
 
-            var dependent = new Dependent { FullName = "Trần Thị Vợ", Relationship = DependentRelationship.SPOUSE };
+            var dependent = new Dependent { FullName = "Trần Thị Vợ", Relationship = "SPOUSE" };
 
             var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
                 _service.ValidateDependentDocumentAsync(dependent, DocumentType.MARRIAGE_CERTIFICATE, mockFile.Object, taxpayer));
@@ -876,7 +876,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 FullName = "Nguyễn Văn Cha",
                 BirthDate = new DateTime(1960, 5, 20),
                 CitizenId = "001060000123",
-                Relationship = DependentRelationship.PARENT
+                Relationship = "PARENT"
             };
 
             // Khai sinh của NNT (sinh năm 1995) — Năm sinh khác nhưng KHÔNG được throw IDENTITY_MISMATCH
@@ -924,7 +924,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             var dependent = new Dependent
             {
                 FullName = "Nguyễn Văn Cha",
-                Relationship = DependentRelationship.PARENT
+                Relationship = "PARENT"
             };
 
             var ocrResponse = new OcrExtractResponseMessage
@@ -974,7 +974,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             {
                 FullName = "Nguyễn Văn Cha",
                 CitizenId = "001060000123",
-                Relationship = DependentRelationship.PARENT
+                Relationship = "PARENT"
             };
 
             var ocrResponse = new OcrExtractResponseMessage
@@ -1024,7 +1024,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             var dependent = new Dependent
             {
                 FullName = "Nguyễn Thị Mẹ Vợ",
-                Relationship = DependentRelationship.PARENT
+                Relationship = "PARENT"
             };
 
             // Giấy kết hôn của NNT và Vợ -> Chỉ cần NNT có mặt trên giấy kết hôn
@@ -1070,7 +1070,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             var dependent = new Dependent
             {
                 FullName = "Nguyễn Thị Mẹ Vợ",
-                Relationship = DependentRelationship.PARENT
+                Relationship = "PARENT"
             };
 
             // Giấy kết hôn không có tên NNT
@@ -1474,7 +1474,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 FullName = "Nguyễn Văn Bé",
                 BirthDate = new DateTime(2020, 1, 1),
                 BirthCertNumber = "GKS-9999/2020",
-                Relationship = DependentRelationship.CHILD
+                Relationship = "CHILD"
             };
 
             var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
@@ -1521,7 +1521,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             {
                 FullName = "Nguyễn Văn Sinh Viên",
                 BirthDate = new DateTime(2005, 8, 20),
-                CurrentGroup = DependentGroup.CHILD_OVER_18_STUDYING
+                CurrentGroup = "CHILD_OVER_18_STUDYING"
             };
 
             var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
@@ -1570,7 +1570,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 FullName = "Nguyễn Văn Sinh Viên",
                 BirthDate = new DateTime(2005, 8, 20),
                 EffectiveFromMonth = "2026-01",
-                CurrentGroup = DependentGroup.CHILD_OVER_18_STUDYING
+                CurrentGroup = "CHILD_OVER_18_STUDYING"
             };
 
             var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
@@ -1618,7 +1618,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             {
                 FullName = "Trần Thị Bệnh",
                 BirthDate = new DateTime(1960, 3, 10),
-                CurrentGroup = DependentGroup.PARENT_DISABLED
+                CurrentGroup = "PARENT_DISABLED"
             };
 
             var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
@@ -1665,7 +1665,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             {
                 FullName = "Trần Thị Bệnh",
                 BirthDate = new DateTime(1960, 3, 10),
-                CurrentGroup = DependentGroup.PARENT_DISABLED
+                CurrentGroup = "PARENT_DISABLED"
             };
 
             await _service.ValidateDependentDocumentAsync(dependent, "DISABILITY_CERTIFICATE", mockFile.Object);
@@ -1680,7 +1680,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             var dependent = new Dependent
             {
                 FullName = "Trần Thị Vợ",
-                Relationship = DependentRelationship.SPOUSE,
+                Relationship = "SPOUSE",
                 EffectiveFromMonth = "2026-01"
             };
 
@@ -1816,7 +1816,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             var dependent = new Dependent
             {
                 FullName = "Trần Văn Cha Nuôi",
-                Relationship = DependentRelationship.PARENT
+                Relationship = "PARENT"
             };
 
             var ocrResponse = new OcrExtractResponseMessage

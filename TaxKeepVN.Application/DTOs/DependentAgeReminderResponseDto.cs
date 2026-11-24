@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 
 namespace TaxKeepVN.Application.DTOs
@@ -10,7 +10,7 @@ namespace TaxKeepVN.Application.DTOs
         public string FullName { get; set; } = string.Empty;
         public string BirthDate { get; set; } = string.Empty;
         public string CurrentGroup { get; set; } = string.Empty;
-        public string RecommendedGroup { get; set; } = string.Empty;
+        public string? RecommendedGroup { get; set; }
         public string TransitionStatus { get; set; } = string.Empty;
         public string Turning18Date { get; set; } = string.Empty;
         public int DaysRemaining { get; set; }

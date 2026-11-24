@@ -154,7 +154,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 Id = Guid.NewGuid(),
                 TaxpayerId = taxpayerId,
                 FullName = "Nguyen Con",
-                Relationship = DependentRelationship.CHILD,
+                Relationship = "CHILD",
                 EffectiveFromMonth = "2025-01",
                 EffectiveToMonth = "2025-12",
                 Status = DependentStatus.ACTIVE,

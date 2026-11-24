@@ -29,6 +29,14 @@ namespace TaxKeepVN.Domain.Entities
         [Column("description")]
         public string? Description { get; set; }
 
+        [Column("alternative_group")]
+        [MaxLength(50)]
+        public string? AlternativeGroup { get; set; }
+
+        [Column("source")]
+        [MaxLength(20)]
+        public string Source { get; set; } = "ADMIN";
+
         [Column("is_active")]
         public bool IsActive { get; set; } = true;
 
