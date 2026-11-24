@@ -21,7 +21,7 @@ namespace TaxKeepVN.Application.Service.Interfaces
         Task<List<AdminDependentGroupDto>> GetAllGroupsAsync(bool? isActive = null);
         Task<AdminDependentGroupDto> GetGroupByCodeAsync(string code);
         Task<AdminDependentGroupDto> CreateGroupAsync(CreateDependentGroupRequest request);
-        Task<AdminDependentGroupDto> UpdateGroupAsync(string code, UpdateDependentGroupRequest request);
+        Task<AdminDependentGroupDto> UpdateGroupAsync(string code, AdminUpdateDependentGroupRequest request);
         Task DeleteGroupAsync(string code);
         Task<AdminDependentGroupDto> ActivateAiGroupAsync(string code, ActivateAiGroupRequest request);
 

@@ -75,7 +75,7 @@ namespace TaxKeepVN.Application.DTOs.Catalog
     }
 
     [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
-    public class UpdateDependentGroupRequest
+    public class AdminUpdateDependentGroupRequest
     {
         [MaxLength(255)]
         public string? Name { get; set; }

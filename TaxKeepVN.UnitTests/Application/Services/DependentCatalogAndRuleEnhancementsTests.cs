@@ -394,7 +394,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             _mockGroupRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentGroupCatalog, bool>>>()))
                 .ReturnsAsync(new List<DependentGroupCatalog> { group });
 
-            var req = new UpdateDependentGroupRequest
+            var req = new AdminUpdateDependentGroupRequest
             {
                 IsActive = true
             };

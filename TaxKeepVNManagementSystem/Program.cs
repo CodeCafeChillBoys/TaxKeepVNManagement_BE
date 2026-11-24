@@ -68,6 +68,9 @@ builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new() { Title = "TaxKeepVN API", Version = "v1" });
 
+    // Tránh xung đột SchemaId giữa các DTO trùng tên ở các namespace khác nhau
+    c.CustomSchemaIds(type => type.FullName?.Replace("+", ".") ?? type.Name);
+
     // Chỉ hiển thị chú thích cho các endpoint có khai báo [EndpointSummary] (như TaxSettlement)
     c.OperationFilter<EndpointSummaryOperationFilter>();
 

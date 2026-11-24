@@ -228,7 +228,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             return MapGroupToAdminDto(newGroup);
         }
 
-        public async Task<AdminDependentGroupDto> UpdateGroupAsync(string code, UpdateDependentGroupRequest request)
+        public async Task<AdminDependentGroupDto> UpdateGroupAsync(string code, AdminUpdateDependentGroupRequest request)
         {
             var repo = _unitOfWork.Repository<DependentGroupCatalog>();
             var group = (await repo.FindAsync(g => g.Code == code.Trim().ToUpper())).FirstOrDefault();
