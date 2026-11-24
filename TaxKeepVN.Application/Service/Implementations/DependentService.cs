@@ -4,6 +4,7 @@ using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
+using TaxKeepVN.Application.Constants;
 using TaxKeepVN.Application.DTOs.Common;
 using TaxKeepVN.Application.DTOs.Requests.Dependent;
 using TaxKeepVN.Application.DTOs.Responses.Dependent;
@@ -58,6 +59,12 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             // ── 3. Validate CurrentGroup phải khớp với Relationship ─────────────
             ValidateGroupMatchesRelationship(relationship, currentGroup);
+
+            // ── 3.5. Validate độ tuổi phù hợp với CurrentGroup nếu có BirthDate ─
+            if (request.BirthDate.HasValue)
+            {
+                ValidateGroupMatchesAge(request.BirthDate.Value, currentGroup);
+            }
 
             // ── 4. Validate định danh: phải có CitizenId HOẶC BirthCertNumber ──
             var hasCitizenId = !string.IsNullOrWhiteSpace(request.CitizenId);
@@ -219,6 +226,53 @@ namespace TaxKeepVN.Application.Service.Implementations
         {
             var configPath = $"DependentSettings:GroupOrders:{relationship}:{group}";
             return _configuration.GetValue<int?>(configPath) ?? -1;
+        }
+
+        // ── Helper: lấy tên hiển thị tiếng Việt thân thiện cho DependentGroup ────
+        public static string GetGroupDisplayName(DependentGroup group) => group switch
+        {
+            DependentGroup.CHILD_UNDER_18 => "Con dưới 18 tuổi",
+            DependentGroup.CHILD_OVER_18_STUDYING => "Con từ 18 tuổi trở lên đang đi học",
+            DependentGroup.CHILD_OVER_18_DISABLED => "Con từ 18 tuổi trở lên bị khuyết tật",
+            DependentGroup.SPOUSE_DISABLED => "Vợ/Chồng khuyết tật",
+            DependentGroup.SPOUSE_RETIRED => "Vợ/Chồng ngoài độ tuổi lao động",
+            DependentGroup.PARENT_DISABLED => "Cha/Mẹ khuyết tật",
+            DependentGroup.PARENT_RETIRED => "Cha/Mẹ ngoài độ tuổi lao động",
+            DependentGroup.OTHER_HELPLESS => "Cá nhân không nơi nương tựa khác",
+            _ => group.ToString()
+        };
+
+        // ── Helper: validate độ tuổi phải phù hợp với DependentGroup ─────────────
+        private static void ValidateGroupMatchesAge(DateTime birthDate, DependentGroup group)
+        {
+            if (birthDate == default || birthDate == DateTime.MinValue)
+                return;
+
+            var today = DateTime.UtcNow;
+            var age = today.Year - birthDate.Year;
+            if (birthDate.Date > today.AddYears(-age))
+            {
+                age--;
+            }
+
+            if (group == DependentGroup.CHILD_UNDER_18 && age >= 18)
+            {
+                throw new BadRequestException(
+                    ErrorCodes.Dependent.GroupAgeMismatch,
+                    $"Người phụ thuộc hiện tại {age} tuổi (đã từ đủ 18 tuổi trở lên). " +
+                    "Không thể chuyển hoặc đăng ký vào nhóm 'Con dưới 18 tuổi'."
+                );
+            }
+
+            if ((group == DependentGroup.CHILD_OVER_18_STUDYING || group == DependentGroup.CHILD_OVER_18_DISABLED) && age < 18)
+            {
+                throw new BadRequestException(
+                    ErrorCodes.Dependent.GroupAgeMismatch,
+                    $"Người phụ thuộc hiện tại {age} tuổi (chưa đủ 18 tuổi). " +
+                    $"Không thể chuyển sang nhóm '{GetGroupDisplayName(group)}'. " +
+                    "Nhóm này chỉ áp dụng cho con từ đủ 18 tuổi trở lên."
+                );
+            }
         }
 
         // ── Helper: danh sách giấy tờ bắt buộc — đọc từ DB + IMemoryCache + Redis ────────
@@ -586,6 +640,177 @@ namespace TaxKeepVN.Application.Service.Implementations
         }
 
         // ─────────────────────────────────────────────────────────────────────────
+        // PUT /api/v1/dependents/{id} — Cập nhật thông tin hồ sơ NPT
+        // ─────────────────────────────────────────────────────────────────────────
+        public async Task<DependentResponse> UpdateDependentAsync(
+            Guid taxpayerId, Guid dependentId, UpdateDependentRequest request)
+        {
+            var dependentRepo = _unitOfWork.Repository<Dependent>();
+
+            // ── 1. Tìm NPT theo id ───────────────────────────────────────────────
+            var dependent = await dependentRepo.GetByIdAsync(dependentId);
+
+            if (dependent == null || dependent.IsDeleted)
+                throw new NotFoundException($"Không tìm thấy người phụ thuộc với Id '{dependentId}'.");
+
+            // ── 2. Kiểm tra quyền sở hữu ─────────────────────────────────────────
+            if (dependent.TaxpayerId != taxpayerId)
+                throw new ForbiddenException(
+                    "Bạn không có quyền cập nhật thông tin người phụ thuộc này.");
+
+            // ── 3. Validate và parse Relationship nếu có truyền ───────────────────
+            var relationship = dependent.Relationship;
+            if (!string.IsNullOrWhiteSpace(request.Relationship))
+            {
+                if (!Enum.TryParse<DependentRelationship>(request.Relationship, true, out var parsedRel))
+                {
+                    throw new BadRequestException(
+                        "INVALID_RELATIONSHIP",
+                        $"Nhóm quan hệ '{request.Relationship}' không hợp lệ. " +
+                        "Các giá trị hợp lệ: CHILD, SPOUSE, PARENT, OTHER_DEPENDENT."
+                    );
+                }
+                relationship = parsedRel;
+            }
+
+            // ── 4. Validate và parse CurrentGroup nếu có truyền ───────────────────
+            var currentGroup = dependent.CurrentGroup;
+            if (!string.IsNullOrWhiteSpace(request.CurrentGroup))
+            {
+                if (!Enum.TryParse<DependentGroup>(request.CurrentGroup, true, out var parsedGroup))
+                {
+                    throw new BadRequestException(
+                        "INVALID_CURRENT_GROUP",
+                        $"Điều kiện đăng ký '{request.CurrentGroup}' không hợp lệ. " +
+                        "Vui lòng chọn đúng điều kiện đăng ký người phụ thuộc."
+                    );
+                }
+                currentGroup = parsedGroup;
+            }
+
+            // ── 5. Validate CurrentGroup phải khớp với Relationship ─────────────
+            ValidateGroupMatchesRelationship(relationship, currentGroup);
+
+            // ── 6. Validate độ tuổi phù hợp với CurrentGroup ─────────────────────
+            var birthDate = request.BirthDate.HasValue
+                ? DateTime.SpecifyKind(request.BirthDate.Value, DateTimeKind.Utc)
+                : dependent.BirthDate;
+            ValidateGroupMatchesAge(birthDate, currentGroup);
+
+            // ── 7. Validate định danh: phải có CitizenId HOẶC BirthCertNumber ──
+            var hasCitizenId = !string.IsNullOrWhiteSpace(request.CitizenId);
+            var hasBirthCert = !string.IsNullOrWhiteSpace(request.BirthCertNumber);
+
+            if (!hasCitizenId && !hasBirthCert)
+            {
+                throw new BadRequestException(
+                    "IDENTIFIER_REQUIRED",
+                    "Phải cung cấp ít nhất Số CCCD hoặc Số Giấy khai sinh của người phụ thuộc."
+                );
+            }
+
+            // ── 8. Validate khoảng thời gian: From <= To ───────────────────────
+            if (string.Compare(request.EffectiveFromMonth, request.EffectiveToMonth, StringComparison.Ordinal) > 0)
+            {
+                throw new BadRequestException(
+                    "INVALID_PERIOD",
+                    "Tháng bắt đầu tính giảm trừ phải nhỏ hơn hoặc bằng tháng kết thúc."
+                );
+            }
+
+            // ── 9. Kiểm tra trùng lặp thời gian với các NPT khác ────────────────
+            if (hasCitizenId)
+            {
+                var cleanCitizenId = request.CitizenId!.Trim();
+                var existingByCitizenId = await dependentRepo.FindAsync(d =>
+                    d.CitizenId == cleanCitizenId && d.Id != dependentId && !d.IsDeleted);
+
+                var conflict = existingByCitizenId.FirstOrDefault(d =>
+                    string.Compare(d.EffectiveFromMonth, request.EffectiveToMonth, StringComparison.Ordinal) <= 0 &&
+                    string.Compare(d.EffectiveToMonth, request.EffectiveFromMonth, StringComparison.Ordinal) >= 0
+                );
+
+                if (conflict != null)
+                {
+                    throw new BadRequestException(
+                        "DEPENDENT_PERIOD_OVERLAP",
+                        $"Người phụ thuộc có số CCCD '{cleanCitizenId}' đã được đăng ký " +
+                        $"trong khoảng thời gian từ {conflict.EffectiveFromMonth} đến {conflict.EffectiveToMonth}. " +
+                        "Một người phụ thuộc không thể được đăng ký trùng kỳ tính giảm trừ bởi nhiều người nộp thuế."
+                    );
+                }
+            }
+
+            if (hasBirthCert)
+            {
+                var cleanBirthCert = request.BirthCertNumber!.Trim();
+                var existingByBirthCert = await dependentRepo.FindAsync(d =>
+                    d.BirthCertNumber == cleanBirthCert && d.Id != dependentId && !d.IsDeleted);
+
+                var conflict = existingByBirthCert.FirstOrDefault(d =>
+                    string.Compare(d.EffectiveFromMonth, request.EffectiveToMonth, StringComparison.Ordinal) <= 0 &&
+                    string.Compare(d.EffectiveToMonth, request.EffectiveFromMonth, StringComparison.Ordinal) >= 0
+                );
+
+                if (conflict != null)
+                {
+                    throw new BadRequestException(
+                        "DEPENDENT_PERIOD_OVERLAP",
+                        $"Người phụ thuộc có số Giấy khai sinh '{cleanBirthCert}' đã được đăng ký " +
+                        $"trong khoảng thời gian từ {conflict.EffectiveFromMonth} đến {conflict.EffectiveToMonth}. " +
+                        "Một người phụ thuộc không thể được đăng ký trùng kỳ tính giảm trừ bởi nhiều người nộp thuế."
+                    );
+                }
+            }
+
+            // ── 10. Cập nhật entity ──────────────────────────────────────────────
+            dependent.FullName = request.FullName.Trim();
+            dependent.Relationship = relationship;
+            dependent.CurrentGroup = currentGroup;
+            dependent.BirthDate = birthDate;
+            dependent.CitizenId = string.IsNullOrWhiteSpace(request.CitizenId) ? null : request.CitizenId.Trim();
+            dependent.BirthCertNumber = string.IsNullOrWhiteSpace(request.BirthCertNumber) ? null : request.BirthCertNumber.Trim();
+            dependent.TaxIdNumber = string.IsNullOrWhiteSpace(request.TaxIdNumber) ? null : request.TaxIdNumber.Trim();
+            dependent.EffectiveFromMonth = request.EffectiveFromMonth;
+            dependent.EffectiveToMonth = request.EffectiveToMonth;
+            dependent.Note = request.Note;
+            dependent.UpdatedAt = DateTimeOffset.UtcNow;
+
+            dependentRepo.Update(dependent);
+            await _unitOfWork.SaveChangesAsync();
+
+            // ── 11. Trả về response kèm checklist giấy tờ ───────────────────────
+            var docRepo = _unitOfWork.Repository<DependentDocument>();
+            var uploadedDocs = (await docRepo.FindAsync(d => d.DependentId == dependentId))
+                .Select(d => d.DocType)
+                .ToList();
+
+            var requiredDocs = await GetRequiredDocumentsAsync(currentGroup);
+            var missingDocs = await GetMissingDocumentsAsync(currentGroup, dependent.IsProfileComplete, uploadedDocs);
+
+            return new DependentResponse
+            {
+                DependentId = dependent.Id,
+                TaxpayerId = dependent.TaxpayerId,
+                FullName = dependent.FullName,
+                Relationship = dependent.Relationship.ToString(),
+                CurrentGroup = dependent.CurrentGroup.ToString(),
+                BirthDate = dependent.BirthDate,
+                CitizenId = dependent.CitizenId,
+                BirthCertNumber = dependent.BirthCertNumber,
+                TaxIdNumber = dependent.TaxIdNumber,
+                EffectiveFromMonth = dependent.EffectiveFromMonth,
+                EffectiveToMonth = dependent.EffectiveToMonth,
+                Note = dependent.Note,
+                Status = dependent.Status.ToString(),
+                CreatedAt = dependent.CreatedAt,
+                UpdatedAt = dependent.UpdatedAt,
+                RequiredDocuments = requiredDocs,
+                MissingDocuments = missingDocs
+            };
+        }
+
+        // ─────────────────────────────────────────────────────────────────────────
         // PATCH /api/v1/dependents/{id}/group — Chuyển nhóm NPT
         // ─────────────────────────────────────────────────────────────────────────
         public async Task<UpdateDependentGroupResponse> UpdateGroupAsync(
@@ -620,7 +845,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             {
                 throw new BadRequestException(
                     "SAME_GROUP",
-                    $"Người phụ thuộc đã ở nhóm '{newGroup}'. Vui lòng chọn nhóm khác để chuyển."
+                    $"Người phụ thuộc đã ở nhóm '{GetGroupDisplayName(newGroup)}'. Vui lòng chọn nhóm khác để chuyển."
                 );
             }
 
@@ -639,11 +864,14 @@ namespace TaxKeepVN.Application.Service.Implementations
             {
                 throw new BadRequestException(
                     "GROUP_DOWNGRADE_NOT_ALLOWED",
-                    $"Không thể chuyển người phụ thuộc từ nhóm '{dependent.CurrentGroup}' " +
-                    $"xuống nhóm thấp hơn '{newGroup}'. " +
+                    $"Không thể chuyển người phụ thuộc từ nhóm '{GetGroupDisplayName(dependent.CurrentGroup)}' " +
+                    $"xuống nhóm thấp hơn '{GetGroupDisplayName(newGroup)}'. " +
                     "Nhóm mới phải tương đương hoặc cao hơn nhóm hiện tại."
                 );
             }
+
+            // ── 5.5. Validate độ tuổi phù hợp với NewGroup ─────────────────────
+            ValidateGroupMatchesAge(dependent.BirthDate, newGroup);
 
             // ── 6. Lưu nhóm cũ để đưa vào response ─────────────────────────────
             var previousGroup = dependent.CurrentGroup;
