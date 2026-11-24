@@ -24,17 +24,20 @@ namespace TaxKeepVN.Application.Service.Implementations
         private readonly IMemoryCache _cache;
         private readonly IConfiguration _configuration;
         private readonly IRedisCacheService? _redisCache;
+        private readonly IDependentRuleService _dependentRuleService;
 
         public DependentService(
             IUnitOfWork unitOfWork,
             IMemoryCache cache,
             IConfiguration configuration,
-            IRedisCacheService? redisCache = null)
+            IRedisCacheService? redisCache = null,
+            IDependentRuleService? dependentRuleService = null)
         {
             _unitOfWork = unitOfWork;
             _cache = cache;
             _configuration = configuration;
             _redisCache = redisCache;
+            _dependentRuleService = dependentRuleService ?? new DependentRuleService(_unitOfWork, _cache, _configuration, _redisCache);
         }
 
         public async Task<DependentResponse> CreateDependentAsync(Guid taxpayerId, CreateDependentRequest request)
@@ -384,136 +387,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             if (isProfileComplete)
                 return Array.Empty<string>();
 
-            var groupString = group.ToString();
-            var cacheKey = $"DependentRules_Active_{groupString}";
-            var redisKey = $"taxkeep:dependent_rules:active:{groupString}";
-
-            List<DependentDocumentRule>? activeRules = null;
-            if (_redisCache != null)
-            {
-                activeRules = await _redisCache.GetAsync<List<DependentDocumentRule>>(redisKey);
-            }
-
-            if (activeRules == null && (!_cache.TryGetValue(cacheKey, out activeRules) || activeRules == null))
-            {
-                var ruleRepo = _unitOfWork.Repository<DependentDocumentRule>();
-                activeRules = ruleRepo != null
-                    ? (await ruleRepo.FindAsync(r => r.TargetGroup == groupString && r.IsActive)).ToList()
-                    : new List<DependentDocumentRule>();
-
-                _cache.Set(cacheKey, activeRules,
-                    new MemoryCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromHours(1)));
-
-                if (_redisCache != null)
-                {
-                    await _redisCache.SetAsync(redisKey, activeRules, TimeSpan.FromHours(24));
-                }
-            }
-
-            var uploadedNames = uploadedDocTypes
-                .Select(DependentRuleService.NormalizeDocType)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var missing = new List<string>();
-
-            if (activeRules.Count > 0)
-            {
-                if (group == DependentGroup.CHILD_UNDER_18)
-                {
-                    // Theo Thông tư 87: Con dưới 18 tuổi cần Giấy khai sinh HOẶC Căn cước công dân
-                    bool hasBirthCert = uploadedNames.Contains("BIRTH_CERTIFICATE");
-                    bool hasCitizenId = uploadedNames.Contains("CITIZEN_ID");
-                    if (!hasBirthCert && !hasCitizenId)
-                    {
-                        missing.Add("BIRTH_CERTIFICATE");
-                    }
-
-                    var otherMandatory = activeRules.Where(r => r.IsMandatory &&
-                        !r.DocType.Equals("BIRTH_CERTIFICATE", StringComparison.OrdinalIgnoreCase) &&
-                        !r.DocType.Equals("CITIZEN_ID", StringComparison.OrdinalIgnoreCase));
-
-                    foreach (var r in otherMandatory)
-                    {
-                        if (!uploadedNames.Contains(r.DocType))
-                            missing.Add(r.DocType);
-                    }
-                }
-                else if (group == DependentGroup.PARENT_DISABLED || group == DependentGroup.PARENT_RETIRED)
-                {
-                    // Theo Thông tư 111/2013 và Thông tư 79/2022: Minh chứng quan hệ cha/mẹ gồm Giấy khai sinh HOẶC Giấy xác nhận quan hệ/cư trú (CT07, hộ khẩu)
-                    bool hasRelationshipProof = uploadedNames.Contains("RELATIONSHIP_CERTIFICATE") || uploadedNames.Contains("BIRTH_CERTIFICATE");
-
-                    bool requiresRelationshipProof = activeRules.Any(r => r.IsMandatory &&
-                        (r.DocType.Equals("BIRTH_CERTIFICATE", StringComparison.OrdinalIgnoreCase) ||
-                         r.DocType.Equals("RELATIONSHIP_CERTIFICATE", StringComparison.OrdinalIgnoreCase)));
-
-                    if (requiresRelationshipProof && !hasRelationshipProof)
-                    {
-                        var prefRule = activeRules.FirstOrDefault(r => r.IsMandatory && r.DocType.Equals("RELATIONSHIP_CERTIFICATE", StringComparison.OrdinalIgnoreCase))
-                            ?? activeRules.FirstOrDefault(r => r.IsMandatory && r.DocType.Equals("BIRTH_CERTIFICATE", StringComparison.OrdinalIgnoreCase));
-                        missing.Add(prefRule?.DocType ?? "RELATIONSHIP_CERTIFICATE");
-                    }
-
-                    var otherMandatory = activeRules.Where(r => r.IsMandatory &&
-                        !r.DocType.Equals("BIRTH_CERTIFICATE", StringComparison.OrdinalIgnoreCase) &&
-                        !r.DocType.Equals("RELATIONSHIP_CERTIFICATE", StringComparison.OrdinalIgnoreCase));
-
-                    foreach (var r in otherMandatory)
-                    {
-                        if (!uploadedNames.Contains(r.DocType))
-                            missing.Add(r.DocType);
-                    }
-                }
-                else
-                {
-                    var mandatoryRules = activeRules.Where(r => r.IsMandatory);
-                    foreach (var rule in mandatoryRules)
-                    {
-                        if (!uploadedNames.Contains(rule.DocType))
-                            missing.Add(rule.DocType);
-                    }
-                }
-            }
-            else
-            {
-                // Fallback theo quy định thuế khi chưa seed rules
-                switch (group)
-                {
-                    case DependentGroup.CHILD_UNDER_18:
-                        if (!uploadedNames.Contains("BIRTH_CERTIFICATE") && !uploadedNames.Contains("CITIZEN_ID"))
-                            missing.Add("BIRTH_CERTIFICATE");
-                        break;
-                    case DependentGroup.CHILD_OVER_18_DISABLED:
-                        if (!uploadedNames.Contains("CITIZEN_ID")) missing.Add("CITIZEN_ID");
-                        if (!uploadedNames.Contains("DISABILITY_CERTIFICATE")) missing.Add("DISABILITY_CERTIFICATE");
-                        break;
-                    case DependentGroup.CHILD_OVER_18_STUDYING:
-                        if (!uploadedNames.Contains("CITIZEN_ID")) missing.Add("CITIZEN_ID");
-                        if (!uploadedNames.Contains("STUDENT_CARD")) missing.Add("STUDENT_CARD");
-                        break;
-                    case DependentGroup.SPOUSE_DISABLED:
-                    case DependentGroup.SPOUSE_RETIRED:
-                        if (!uploadedNames.Contains("CITIZEN_ID")) missing.Add("CITIZEN_ID");
-                        if (!uploadedNames.Contains("MARRIAGE_CERTIFICATE")) missing.Add("MARRIAGE_CERTIFICATE");
-                        break;
-                    case DependentGroup.PARENT_DISABLED:
-                        if (!uploadedNames.Contains("CITIZEN_ID")) missing.Add("CITIZEN_ID");
-                        if (!uploadedNames.Contains("RELATIONSHIP_CERTIFICATE") && !uploadedNames.Contains("BIRTH_CERTIFICATE"))
-                            missing.Add("RELATIONSHIP_CERTIFICATE");
-                        if (!uploadedNames.Contains("DISABILITY_CERTIFICATE")) missing.Add("DISABILITY_CERTIFICATE");
-                        break;
-                    case DependentGroup.PARENT_RETIRED:
-                        if (!uploadedNames.Contains("CITIZEN_ID")) missing.Add("CITIZEN_ID");
-                        if (!uploadedNames.Contains("RELATIONSHIP_CERTIFICATE") && !uploadedNames.Contains("BIRTH_CERTIFICATE"))
-                            missing.Add("RELATIONSHIP_CERTIFICATE");
-                        break;
-                    case DependentGroup.OTHER_HELPLESS:
-                        if (!uploadedNames.Contains("CITIZEN_ID")) missing.Add("CITIZEN_ID");
-                        if (!uploadedNames.Contains("RELATIONSHIP_CERTIFICATE")) missing.Add("RELATIONSHIP_CERTIFICATE");
-                        if (!uploadedNames.Contains("SUPPORT_COMMITMENT_FORM")) missing.Add("SUPPORT_COMMITMENT_FORM");
-                        break;
-                }
-            }
-
+            var (isComplete, missing) = await _dependentRuleService.ComputeMissingDocumentsAsync(group.ToString(), uploadedDocTypes);
             return missing.ToArray();
         }
 

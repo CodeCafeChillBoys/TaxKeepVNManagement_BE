@@ -7,6 +7,7 @@ using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Microsoft.Extensions.Caching.Memory;
 using Moq;
+using TaxKeepVN.Application.Constants;
 using TaxKeepVN.Application.Exceptions;
 using TaxKeepVN.Application.Service.Implementations;
 using TaxKeepVN.Application.Service.Interfaces;
@@ -96,6 +97,15 @@ namespace TaxKeepVN.UnitTests.Application.Services
             var mockFile = new Mock<IFormFile>();
             mockFile.Setup(f => f.Length).Returns(1024);
             mockFile.Setup(f => f.FileName).Returns("document.pdf");
+
+            var mockRuleRepo = new Mock<IGenericRepository<DependentDocumentRule>>();
+            mockRuleRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentDocumentRule, bool>>>()))
+                        .ReturnsAsync(new List<DependentDocumentRule>
+                        {
+                            new DependentDocumentRule { TargetGroup = "CHILD_UNDER_18", DocType = "BIRTH_CERTIFICATE", AlternativeGroup = "IDENTITY_PROOF", IsMandatory = true, IsActive = true },
+                            new DependentDocumentRule { TargetGroup = "CHILD_UNDER_18", DocType = "CITIZEN_ID", AlternativeGroup = "IDENTITY_PROOF", IsMandatory = true, IsActive = true }
+                        });
+            _mockUnitOfWork.Setup(u => u.Repository<DependentDocumentRule>()).Returns(mockRuleRepo.Object);
 
             var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
                 _service.UploadDocumentAsync(userId, depId, "INVALID_TYPE", mockFile.Object));
@@ -293,6 +303,15 @@ namespace TaxKeepVN.UnitTests.Application.Services
             _mockDocRepo.Setup(r => r.AddAsync(It.IsAny<DependentDocument>()))
                         .ThrowsAsync(new InvalidOperationException("DB Failure"));
 
+            var mockRuleRepo = new Mock<IGenericRepository<DependentDocumentRule>>();
+            mockRuleRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentDocumentRule, bool>>>()))
+                        .ReturnsAsync(new List<DependentDocumentRule>
+                        {
+                            new DependentDocumentRule { TargetGroup = "CHILD_UNDER_18", DocType = "BIRTH_CERTIFICATE", AlternativeGroup = "IDENTITY_PROOF", IsMandatory = true, IsActive = true },
+                            new DependentDocumentRule { TargetGroup = "CHILD_UNDER_18", DocType = "CITIZEN_ID", AlternativeGroup = "IDENTITY_PROOF", IsMandatory = true, IsActive = true }
+                        });
+            _mockUnitOfWork.Setup(u => u.Repository<DependentDocumentRule>()).Returns(mockRuleRepo.Object);
+
             await Assert.ThrowsAsync<InvalidOperationException>(() =>
                 _service.UploadDocumentAsync(userId, depId, "BIRTH_CERTIFICATE", mockFile.Object));
 
@@ -343,7 +362,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
 
             result.Should().NotBeNull();
             result.IsProfileComplete.Should().BeFalse();
-            result.MissingDocuments.Should().Contain("BIRTH_CERTIFICATE_OR_CITIZEN_ID");
+            result.MissingDocuments.Should().Contain("BIRTH_CERTIFICATE");
             result.MissingDocuments.Should().Contain("STUDENT_CARD");
             dependent.Status.Should().Be(DependentStatus.PENDING_DOCUMENTS);
         }
@@ -394,14 +413,14 @@ namespace TaxKeepVN.UnitTests.Application.Services
         }
 
         [Theory]
-        [InlineData(DependentGroup.CHILD_OVER_18_DISABLED, "CITIZEN_ID", "DISABILITY_CERTIFICATE")]
-        [InlineData(DependentGroup.CHILD_OVER_18_STUDYING, "CITIZEN_ID", "STUDENT_CARD")]
-        [InlineData(DependentGroup.SPOUSE_DISABLED, "CITIZEN_ID", "MARRIAGE_CERTIFICATE")]
-        [InlineData(DependentGroup.SPOUSE_RETIRED, "CITIZEN_ID", "MARRIAGE_CERTIFICATE")]
-        [InlineData(DependentGroup.PARENT_DISABLED, "CITIZEN_ID", "RELATIONSHIP_CERTIFICATE")]
-        [InlineData(DependentGroup.PARENT_RETIRED, "CITIZEN_ID", "RELATIONSHIP_CERTIFICATE")]
-        [InlineData(DependentGroup.OTHER_HELPLESS, "CITIZEN_ID", "SUPPORT_COMMITMENT_FORM")]
-        public async Task UTCID11_UploadDocumentAsync_FallbackRules_CoversAllFallbackGroups(DependentGroup group, string uploadedDoc, string expectedMissing)
+        [InlineData(DependentGroup.CHILD_OVER_18_DISABLED, "CITIZEN_ID")]
+        [InlineData(DependentGroup.CHILD_OVER_18_STUDYING, "CITIZEN_ID")]
+        [InlineData(DependentGroup.SPOUSE_DISABLED, "CITIZEN_ID")]
+        [InlineData(DependentGroup.SPOUSE_RETIRED, "CITIZEN_ID")]
+        [InlineData(DependentGroup.PARENT_DISABLED, "CITIZEN_ID")]
+        [InlineData(DependentGroup.PARENT_RETIRED, "CITIZEN_ID")]
+        [InlineData(DependentGroup.OTHER_HELPLESS, "CITIZEN_ID")]
+        public async Task UTCID11_UploadDocumentAsync_EmptyRules_ThrowsRulesNotConfigured(DependentGroup group, string uploadedDoc)
         {
             var userId = Guid.NewGuid();
             var depId = Guid.NewGuid();
@@ -423,22 +442,15 @@ namespace TaxKeepVN.UnitTests.Application.Services
             _mockFileStorageService.Setup(f => f.SaveFileAsync(mockFile.Object, It.IsAny<string>()))
                                    .ReturnsAsync("https://storage/dependents/file.pdf");
 
-            _mockDocRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentDocument, bool>>>()))
-                        .ReturnsAsync(new List<DependentDocument>
-                        {
-                            new DependentDocument { DocType = uploadedDoc }
-                        });
-
             var mockRuleRepo = new Mock<IGenericRepository<DependentDocumentRule>>();
             mockRuleRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentDocumentRule, bool>>>()))
-                        .ReturnsAsync(new List<DependentDocumentRule>()); // Empty to trigger fallback
+                        .ReturnsAsync(new List<DependentDocumentRule>()); // Empty to trigger RulesNotConfigured
             _mockUnitOfWork.Setup(u => u.Repository<DependentDocumentRule>()).Returns(mockRuleRepo.Object);
 
-            var result = await _service.UploadDocumentAsync(userId, depId, uploadedDoc, mockFile.Object);
+            var act = async () => await _service.UploadDocumentAsync(userId, depId, uploadedDoc, mockFile.Object);
 
-            result.Should().NotBeNull();
-            result.IsProfileComplete.Should().BeFalse();
-            result.MissingDocuments.Should().Contain(expectedMissing);
+            var ex = await act.Should().ThrowAsync<BadRequestException>();
+            ex.Which.ErrorCode.Should().Be(ErrorCodes.Dependent.RulesNotConfigured);
         }
 
         [Fact]
@@ -520,7 +532,12 @@ namespace TaxKeepVN.UnitTests.Application.Services
 
             var mockRuleRepo = new Mock<IGenericRepository<DependentDocumentRule>>();
             mockRuleRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentDocumentRule, bool>>>()))
-                        .ReturnsAsync(new List<DependentDocumentRule>()); // Empty to test fallback OR condition
+                        .ReturnsAsync(new List<DependentDocumentRule>
+                        {
+                            new DependentDocumentRule { TargetGroup = "PARENT_RETIRED", DocType = "CITIZEN_ID", IsMandatory = true, IsActive = true },
+                            new DependentDocumentRule { TargetGroup = "PARENT_RETIRED", DocType = "RELATIONSHIP_CERTIFICATE", AlternativeGroup = "RELATION_PROOF", IsMandatory = true, IsActive = true },
+                            new DependentDocumentRule { TargetGroup = "PARENT_RETIRED", DocType = "BIRTH_CERTIFICATE", AlternativeGroup = "RELATION_PROOF", IsMandatory = true, IsActive = true }
+                        });
             _mockUnitOfWork.Setup(u => u.Repository<DependentDocumentRule>()).Returns(mockRuleRepo.Object);
 
             var result = await _service.UploadDocumentAsync(userId, depId, docTypeStr, mockFile.Object);

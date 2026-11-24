@@ -275,7 +275,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
         {
             var existingRule = new DependentDocumentRule
             {
-                TargetGroup = "OTHER_HELPLESS",
+                TargetGroup = "CHILD_UNDER_18",
                 DocType = "BIRTH_CERTIFICATE",
                 IsMandatory = false
             };
@@ -294,7 +294,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 }
             };
 
-            var (added, updated) = await _service.SyncFromAiAsync(aiRules);
+            var (added, updated, deactivated) = await _service.SyncFromAiAsync(aiRules);
 
             added.Should().Be(1);
             updated.Should().Be(1);
@@ -463,7 +463,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 }
             };
 
-            var (added, updated) = await service.SyncFromAiAsync(aiRules);
+            var (added, updated, deactivated) = await service.SyncFromAiAsync(aiRules);
             updated.Should().Be(1); // CITIZEN_ID was existing
             added.Should().Be(4);   // DISABILITY_CERTIFICATE, STUDENT_CARD, BIRTH_CERTIFICATE, OTHER_DOC
             _mockUnitOfWork.Verify(u => u.SaveChangesAsync(), Times.AtLeastOnce());
@@ -531,7 +531,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 }
             };
 
-            var (added, updated) = await service.SyncFromAiAsync(aiRules);
+            var (added, updated, deactivated) = await service.SyncFromAiAsync(aiRules);
 
             added.Should().Be(4);
             updated.Should().Be(0);

@@ -107,8 +107,8 @@ namespace TaxKeepVNManagementSystem.Controllers
                         var depRules = detail?.Data?.DependentRules;
                         if (depRules != null && depRules.Count > 0)
                         {
-                            var (added, updated) = await _dependentRuleService.SyncFromAiAsync(depRules);
-                            _logger.LogInformation("[TaxAdmin] Auto-sync sau Approve ruleSetId={Id}: +{Added} moi, {Updated} cap nhat.", id, added, updated);
+                            var (added, updated, deactivated) = await _dependentRuleService.SyncFromAiAsync(depRules);
+                            _logger.LogInformation("[TaxAdmin] Auto-sync sau Approve ruleSetId={Id}: +{Added} moi, {Updated} cap nhat, {Deactivated} vo hieu hoa.", id, added, updated, deactivated);
                         }
                         else
                         {
@@ -138,8 +138,9 @@ namespace TaxKeepVNManagementSystem.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
         [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
-        public async Task<IActionResult> SyncActiveTaxRules()
+        public async Task<IActionResult> SyncActiveTaxRules([FromQuery] int? taxYear = null)
         {
+            var targetYear = taxYear ?? DateTime.UtcNow.Year;
             var httpClient = _httpClientFactory.CreateClient("TaxAIService");
             try
             {
@@ -155,14 +156,21 @@ namespace TaxKeepVNManagementSystem.Controllers
                     return NotFound(new { message = "TaxAIService chua co bo luat nao." });
 
                 var activeSets = ruleSets.FindAll(r =>
-                    string.Equals(r.Status, "Active", StringComparison.OrdinalIgnoreCase) ||
-                    string.Equals(r.Status, "ACTIVE", StringComparison.OrdinalIgnoreCase));
+                    (string.Equals(r.Status, "Active", StringComparison.OrdinalIgnoreCase) ||
+                     string.Equals(r.Status, "ACTIVE", StringComparison.OrdinalIgnoreCase)) &&
+                    r.TaxYear == targetYear);
 
                 if (activeSets.Count == 0)
-                    return NotFound(new { message = "Khong co bo luat nao dang Active trong TaxAIService." });
+                    return NotFound(new { message = $"Khong co bo luat nao dang Active cho nam thue {targetYear} trong TaxAIService." });
+
+                // Có nhiều bộ cùng năm thì lấy bộ có effectiveDate mới nhất
+                var selectedSets = activeSets
+                    .OrderByDescending(r => r.EffectiveDate ?? DateTime.MinValue)
+                    .Take(1)
+                    .ToList();
 
                 var allDepRules = new System.Collections.Generic.List<TaxKeepVN.Application.DTOs.TaxAI.DependentRuleFromAiDto>();
-                foreach (var ruleSet in activeSets)
+                foreach (var ruleSet in selectedSets)
                 {
                     if (ruleSet.RuleSetId == null) continue;
                     var detailResp = await httpClient.GetAsync($"/api/tax-rules/{ruleSet.RuleSetId}");
@@ -175,22 +183,25 @@ namespace TaxKeepVNManagementSystem.Controllers
                     }
                 }
 
-                int totalAdded = 0, totalUpdated = 0;
+                int totalAdded = 0, totalUpdated = 0, totalDeactivated = 0;
                 if (allDepRules.Count > 0)
                 {
-                    var (added, updated) = await _dependentRuleService.SyncFromAiAsync(allDepRules);
+                    var (added, updated, deactivated) = await _dependentRuleService.SyncFromAiAsync(allDepRules);
                     totalAdded = added;
                     totalUpdated = updated;
+                    totalDeactivated = deactivated;
                 }
 
-                _logger.LogInformation("[TaxAdmin] sync-active hoan tat: +{Added} moi, {Updated} cap nhat.", totalAdded, totalUpdated);
+                _logger.LogInformation("[TaxAdmin] sync-active hoan tat: taxYear={TaxYear}, +{Added} moi, {Updated} cap nhat, {Deactivated} vo hieu hoa.", targetYear, totalAdded, totalUpdated, totalDeactivated);
 
                 return Ok(new
                 {
                     message = "Dong bo bo luat Active tu TaxAIService thanh cong.",
-                    activeSetsCount = activeSets.Count,
+                    taxYear = targetYear,
+                    activeSetsCount = selectedSets.Count,
                     added = totalAdded,
-                    updated = totalUpdated
+                    updated = totalUpdated,
+                    deactivated = totalDeactivated
                 });
             }
             catch (HttpRequestException ex)

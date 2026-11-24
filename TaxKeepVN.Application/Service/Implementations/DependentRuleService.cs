@@ -1,9 +1,11 @@
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using TaxKeepVN.Application.Constants;
 using TaxKeepVN.Application.DTOs.Common;
 using TaxKeepVN.Application.DTOs.Rules;
 using TaxKeepVN.Application.DTOs.TaxAI;
@@ -21,17 +23,20 @@ namespace TaxKeepVN.Application.Service.Implementations
         private readonly IMemoryCache _cache;
         private readonly IConfiguration _configuration;
         private readonly IRedisCacheService? _redisCache;
+        private readonly ILogger<DependentRuleService>? _logger;
 
         public DependentRuleService(
             IUnitOfWork unitOfWork,
             IMemoryCache cache,
             IConfiguration configuration,
-            IRedisCacheService? redisCache = null)
+            IRedisCacheService? redisCache = null,
+            ILogger<DependentRuleService>? logger = null)
         {
             _unitOfWork = unitOfWork;
             _cache = cache;
             _configuration = configuration;
             _redisCache = redisCache;
+            _logger = logger;
         }
 
         #region Public Methods
@@ -61,7 +66,8 @@ namespace TaxKeepVN.Application.Service.Implementations
                 rules = rules.Where(r =>
                     r.TargetGroup.ToLower().Contains(kw) ||
                     r.DocType.ToLower().Contains(kw) ||
-                    (!string.IsNullOrEmpty(r.Description) && r.Description.ToLower().Contains(kw)));
+                    (!string.IsNullOrEmpty(r.Description) && r.Description.ToLower().Contains(kw)) ||
+                    (!string.IsNullOrEmpty(r.AlternativeGroup) && r.AlternativeGroup.ToLower().Contains(kw)));
             }
 
             // Sorting
@@ -122,6 +128,8 @@ namespace TaxKeepVN.Application.Service.Implementations
                 DocName = dto.DocName?.Trim(),
                 IsMandatory = dto.IsMandatory,
                 Description = dto.Description?.Trim(),
+                AlternativeGroup = dto.AlternativeGroup?.Trim(),
+                Source = string.IsNullOrWhiteSpace(dto.Source) ? "ADMIN" : dto.Source.Trim().ToUpper(),
                 IsActive = dto.IsActive,
                 CreatedAt = DateTime.UtcNow,
                 UpdatedAt = DateTime.UtcNow
@@ -146,6 +154,14 @@ namespace TaxKeepVN.Application.Service.Implementations
             if (dto.DocName != null)
             {
                 rule.DocName = dto.DocName.Trim();
+            }
+            if (dto.AlternativeGroup != null)
+            {
+                rule.AlternativeGroup = string.IsNullOrWhiteSpace(dto.AlternativeGroup) ? null : dto.AlternativeGroup.Trim();
+            }
+            if (dto.Source != null)
+            {
+                rule.Source = dto.Source.Trim().ToUpper();
             }
             rule.IsMandatory = dto.IsMandatory;
             rule.Description = dto.Description?.Trim();
@@ -176,27 +192,132 @@ namespace TaxKeepVN.Application.Service.Implementations
             InvalidateGroupCache(targetGroup);
         }
 
+        /// <summary>
+        /// Lấy danh sách quy tắc tài liệu đang kích hoạt (active) cho một nhóm đối tượng.
+        /// Sử dụng cache 2 lớp (MemoryCache và RedisCache).
+        /// </summary>
+        public async Task<List<DependentDocumentRule>> GetActiveRulesForGroupAsync(string targetGroup)
+        {
+            if (string.IsNullOrWhiteSpace(targetGroup))
+                return new List<DependentDocumentRule>();
+
+            var normGroup = targetGroup.Trim().ToUpper();
+            var cacheKey = $"DependentRules_Active_{normGroup}";
+            var redisKey = $"taxkeep:dependent_rules:active:{normGroup}";
+
+            if (!_cache.TryGetValue(cacheKey, out List<DependentDocumentRule>? activeRules) || activeRules == null)
+            {
+                if (_redisCache != null)
+                {
+                    try
+                    {
+                        activeRules = await _redisCache.GetAsync<List<DependentDocumentRule>>(redisKey);
+                    }
+                    catch { }
+                }
+
+                if (activeRules == null)
+                {
+                    var repo = _unitOfWork?.Repository<DependentDocumentRule>();
+                    var rules = repo != null
+                        ? await repo.FindAsync(r => r.TargetGroup == normGroup && r.IsActive)
+                        : Enumerable.Empty<DependentDocumentRule>();
+                    activeRules = (rules ?? Enumerable.Empty<DependentDocumentRule>()).OrderBy(r => r.CreatedAt).ToList();
+
+                    _cache.Set(cacheKey, activeRules,
+                        new MemoryCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromHours(1)));
+
+                    if (_redisCache != null)
+                    {
+                        try
+                        {
+                            await _redisCache.SetAsync(redisKey, activeRules, TimeSpan.FromHours(24));
+                        }
+                        catch { }
+                    }
+                }
+                else
+                {
+                    _cache.Set(cacheKey, activeRules,
+                        new MemoryCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromHours(1)));
+                }
+            }
+
+            return activeRules ?? new List<DependentDocumentRule>();
+        }
+
+        /// <summary>
+        /// Tính toán danh sách giấy tờ còn thiếu của người phụ thuộc dựa trên quy tắc trong cơ sở dữ liệu.
+        /// Hỗ trợ kiểm tra các nhóm giấy tờ có thể thay thế nhau (AlternativeGroup).
+        /// Trả về (IsComplete = true/false, Danh sách mã giấy tờ còn thiếu).
+        /// Nếu nhóm chưa có quy tắc nào active, trả về (false, [ErrorCodes.Dependent.RulesNotConfigured]).
+        /// </summary>
+        public async Task<(bool IsComplete, List<string> MissingDocuments)> ComputeMissingDocumentsAsync(string targetGroup, IEnumerable<string> uploadedDocTypes)
+        {
+            var activeRules = await GetActiveRulesForGroupAsync(targetGroup);
+            if (activeRules == null || activeRules.Count == 0)
+            {
+                return (false, new List<string> { ErrorCodes.Dependent.RulesNotConfigured });
+            }
+
+            var uploadedNames = (uploadedDocTypes ?? Enumerable.Empty<string>())
+                .Select(NormalizeDocType)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var missing = new List<string>();
+            var mandatoryRules = activeRules.Where(r => r.IsMandatory).ToList();
+
+            // 1. Nhóm theo alternative_group (nộp 1 trong số các giấy tờ của alternative_group là đủ)
+            var alternativeGroups = mandatoryRules
+                .Where(r => !string.IsNullOrWhiteSpace(r.AlternativeGroup))
+                .GroupBy(r => r.AlternativeGroup!.Trim(), StringComparer.OrdinalIgnoreCase);
+
+            foreach (var altGroup in alternativeGroups)
+            {
+                var groupRules = altGroup.OrderBy(r => r.CreatedAt).ToList();
+                bool hasUploaded = groupRules.Any(r => uploadedNames.Contains(NormalizeDocType(r.DocType)));
+                if (!hasUploaded)
+                {
+                    // Nếu thiếu, trả ra mã của rule đầu tiên trong nhóm thay thế
+                    missing.Add(groupRules[0].DocType);
+                }
+            }
+
+            // 2. Các rule bắt buộc không thuộc alternative_group nào (độc lập, bắt buộc có đủ)
+            var standaloneMandatory = mandatoryRules
+                .Where(r => string.IsNullOrWhiteSpace(r.AlternativeGroup));
+
+            foreach (var rule in standaloneMandatory)
+            {
+                if (!uploadedNames.Contains(NormalizeDocType(rule.DocType)))
+                {
+                    missing.Add(rule.DocType);
+                }
+            }
+
+            return (missing.Count == 0, missing);
+        }
+
         #endregion
 
         #region AI Sync Methods
 
         // ── Đồng bộ giấy tờ từ TaxAIService sau khi Admin Approve bộ luật ────────
-        // Logic: Với mỗi (TargetGroup, DocType) trong danh sách dependentRules AI trả về:
-        //   - Nếu chưa tồn tại trong DB → thêm mới.
-        //   - Nếu đã tồn tại → cập nhật IsMandatory, Description.
-        // Sau khi sync xong, tất cả cache liên quan bị xóa để dữ liệu hiệu lực ngay lập tức.
-        public async Task<(int added, int updated)> SyncFromAiAsync(IEnumerable<DependentRuleFromAiDto> dependentRules)
+        public async Task<(int added, int updated, int deactivated)> SyncFromAiAsync(IEnumerable<DependentRuleFromAiDto> dependentRules)
         {
-            var repo = _unitOfWork.Repository<DependentDocumentRule>();
-            var allExisting = (await repo.GetAllAsync()).ToList();
+            var ruleRepo = _unitOfWork.Repository<DependentDocumentRule>();
+            var groupRepo = _unitOfWork.Repository<DependentGroupCatalog>();
+            var relRepo = _unitOfWork.Repository<DependentRelationshipCatalog>();
 
-            // Lưu trữ map các rule đã có trong DB: key = (TargetGroup, DocType) chuẩn hóa viết hoa, trim
+            var allExistingRules = (await ruleRepo.GetAllAsync()).ToList();
+
+            // Map existing rules by (TargetGroup, DocType)
             var existingMap = new Dictionary<(string TargetGroup, string DocType), DependentDocumentRule>();
-            foreach (var r in allExisting)
+            foreach (var r in allExistingRules)
             {
                 if (!string.IsNullOrWhiteSpace(r.TargetGroup) && !string.IsNullOrWhiteSpace(r.DocType))
                 {
-                    var k = (r.TargetGroup.Trim().ToUpper(), r.DocType.Trim().ToUpper());
+                    var k = (r.TargetGroup.Trim().ToUpper(), NormalizeDocType(r.DocType));
                     if (!existingMap.ContainsKey(k))
                     {
                         existingMap[k] = r;
@@ -204,9 +325,15 @@ namespace TaxKeepVN.Application.Service.Implementations
                 }
             }
 
-            // Bước 1: Gộp và khử trùng lặp toàn bộ danh sách (TargetGroup, DocType) từ AI gửi về
-            // Key = (TargetGroup, DocType), Value = (IsMandatory, Description)
-            var incomingMap = new Dictionary<(string TargetGroup, string DocType), (bool IsMandatory, string? Description)>();
+            // Map all existing groups in DB
+            var existingGroups = groupRepo != null ? (await groupRepo.GetAllAsync()).ToList() : new List<DependentGroupCatalog>();
+            var existingGroupCodes = existingGroups.Select(g => g.Code.Trim().ToUpper()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            var existingRels = relRepo != null ? (await relRepo.GetAllAsync()).ToList() : new List<DependentRelationshipCatalog>();
+            var existingRelCodes = existingRels.Select(r => r.Code.Trim().ToUpper()).ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+            // Bước 1: Gộp danh sách incoming từ AI
+            var incomingMap = new Dictionary<(string TargetGroup, string DocType), (bool IsMandatory, string? Description, string? DocName, string? AlternativeGroup)>();
             var affectedGroups = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
             foreach (var depRule in dependentRules)
@@ -214,8 +341,63 @@ namespace TaxKeepVN.Application.Service.Implementations
                 if (depRule.RequiredDocuments == null || depRule.RequiredDocuments.Count == 0)
                     continue;
 
-                // Map dependentType của AI sang TargetGroup enum của .NET
-                var targetGroups = MapAiDependentTypeToTargetGroups(depRule);
+                var rawType = (depRule.DependentType ?? "DEFAULT").Trim().ToUpperInvariant();
+                List<string> targetGroups;
+
+                // Kiểm tra xem rawType có trong bảng dependent_groups chưa
+                if (existingGroupCodes.Contains(rawType))
+                {
+                    targetGroups = new List<string> { rawType };
+                }
+                else
+                {
+                    // Thử map qua TypeMapping cấu hình nếu có (cho backward compatibility)
+                    var mapped = MapAiDependentTypeToTargetGroups(depRule);
+                    if (mapped.Count > 0 && !mapped.Contains("OTHER_HELPLESS"))
+                    {
+                        targetGroups = mapped;
+                    }
+                    else if (existingGroupCodes.Contains("OTHER_HELPLESS") && rawType == "DEFAULT")
+                    {
+                        targetGroups = new List<string> { "OTHER_HELPLESS" };
+                    }
+                    else
+                    {
+                        // Nhóm mới từ AI -> Thêm vào bảng dependent_groups với is_active=false, source="AI"
+                        string? matchedRelCode = null;
+                        if (!string.IsNullOrWhiteSpace(depRule.Relationship))
+                        {
+                            var relUpper = depRule.Relationship.Trim().ToUpper();
+                            if (existingRelCodes.Contains(relUpper))
+                            {
+                                matchedRelCode = relUpper;
+                            }
+                        }
+
+                        if (groupRepo != null && !existingGroupCodes.Contains(rawType))
+                        {
+                            var newGroup = new DependentGroupCatalog
+                            {
+                                Code = rawType,
+                                Name = !string.IsNullOrWhiteSpace(depRule.Name) ? depRule.Name.Trim() : rawType,
+                                RelationshipCode = matchedRelCode,
+                                RequireDisabled = depRule.IsDisabled,
+                                RequireStudying = depRule.IsStudying,
+                                Level = 0,
+                                DisplayOrder = 99,
+                                IsActive = false, // Chờ Admin kiểm tra và bật
+                                Source = "AI",
+                                CreatedAt = DateTime.UtcNow,
+                                UpdatedAt = DateTime.UtcNow
+                            };
+                            await groupRepo.AddAsync(newGroup);
+                            existingGroups.Add(newGroup);
+                            existingGroupCodes.Add(rawType);
+                        }
+
+                        targetGroups = new List<string> { rawType };
+                    }
+                }
 
                 foreach (var targetGroup in targetGroups)
                 {
@@ -232,116 +414,193 @@ namespace TaxKeepVN.Application.Service.Implementations
 
                         if (incomingMap.TryGetValue(key, out var existingIncoming))
                         {
-                            // Nếu đã có trong danh sách đến: ưu tiên IsMandatory = true, giữ lại Description có nội dung
+                            _logger?.LogWarning("Cặp ({TargetGroup}, {DocType}) xuất hiện nhiều lần trong dữ liệu đồng bộ AI. Lấy giá trị xuất hiện cuối cùng.", normGroup, normDocType);
                             incomingMap[key] = (
-                                IsMandatory: existingIncoming.IsMandatory || doc.IsMandatory,
-                                Description: !string.IsNullOrWhiteSpace(doc.Description) ? doc.Description.Trim() : existingIncoming.Description
+                                IsMandatory: doc.IsMandatory,
+                                Description: !string.IsNullOrWhiteSpace(doc.Description) ? doc.Description.Trim() : existingIncoming.Description,
+                                DocName: !string.IsNullOrWhiteSpace(doc.Name) ? doc.Name.Trim() : existingIncoming.DocName,
+                                AlternativeGroup: !string.IsNullOrWhiteSpace(doc.AlternativeGroup) ? doc.AlternativeGroup.Trim() : existingIncoming.AlternativeGroup
                             );
                         }
                         else
                         {
-                            incomingMap[key] = (doc.IsMandatory, doc.Description?.Trim());
+                            incomingMap[key] = (
+                                IsMandatory: doc.IsMandatory,
+                                Description: doc.Description?.Trim(),
+                                DocName: doc.Name?.Trim(),
+                                AlternativeGroup: doc.AlternativeGroup?.Trim()
+                            );
                         }
                     }
                 }
             }
 
-            int added = 0, updated = 0;
+            int added = 0, updated = 0, deactivated = 0;
 
-            // Bước 2: So sánh với DB và thêm mới hoặc cập nhật (mỗi cặp TargetGroup + DocType chỉ xử lý đúng 1 lần)
+            // Bước 2: Upsert các rule từ AI
             foreach (var (key, val) in incomingMap)
             {
                 if (existingMap.TryGetValue(key, out var existingRule))
                 {
-                    // Đã tồn tại trong DB -> cập nhật
                     existingRule.IsMandatory = val.IsMandatory;
                     if (!string.IsNullOrWhiteSpace(val.Description))
                     {
                         existingRule.Description = val.Description;
                     }
+                    if (!string.IsNullOrWhiteSpace(val.DocName))
+                    {
+                        existingRule.DocName = val.DocName;
+                    }
+                    if (!string.IsNullOrWhiteSpace(val.AlternativeGroup))
+                    {
+                        existingRule.AlternativeGroup = val.AlternativeGroup;
+                    }
                     existingRule.IsActive = true;
                     existingRule.UpdatedAt = DateTime.UtcNow;
-                    repo.Update(existingRule);
+                    ruleRepo.Update(existingRule);
                     updated++;
                 }
                 else
                 {
-                    // Chưa tồn tại -> thêm mới
                     var newRule = new DependentDocumentRule
                     {
                         RuleId = Guid.NewGuid(),
                         TargetGroup = key.TargetGroup,
                         DocType = key.DocType,
+                        DocName = val.DocName,
+                        AlternativeGroup = val.AlternativeGroup,
+                        Source = "AI",
                         IsMandatory = val.IsMandatory,
                         Description = val.Description,
                         IsActive = true,
                         CreatedAt = DateTime.UtcNow,
                         UpdatedAt = DateTime.UtcNow
                     };
-                    await repo.AddAsync(newRule);
-                    existingMap[key] = newRule; // cập nhật map để đồng nhất trạng thái
+                    await ruleRepo.AddAsync(newRule);
+                    existingMap[key] = newRule;
+                    allExistingRules.Add(newRule);
                     added++;
                 }
             }
 
-            if (added > 0 || updated > 0)
+            // Bước 3: Tắt rule cũ (với mỗi nhóm có trong lần sync, rule source='AI' không còn trong dữ liệu mới thì đặt IsActive = false)
+            foreach (var grp in affectedGroups)
+            {
+                var incomingDocTypesForGroup = incomingMap.Keys
+                    .Where(k => k.TargetGroup.Equals(grp, StringComparison.OrdinalIgnoreCase))
+                    .Select(k => k.DocType)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                var staleAiRules = allExistingRules.Where(r =>
+                    r.TargetGroup.Equals(grp, StringComparison.OrdinalIgnoreCase) &&
+                    r.Source == "AI" &&
+                    r.IsActive &&
+                    !incomingDocTypesForGroup.Contains(NormalizeDocType(r.DocType))).ToList();
+
+                foreach (var staleRule in staleAiRules)
+                {
+                    staleRule.IsActive = false;
+                    staleRule.UpdatedAt = DateTime.UtcNow;
+                    ruleRepo.Update(staleRule);
+                    deactivated++;
+                }
+            }
+
+            if (added > 0 || updated > 0 || deactivated > 0 || (groupRepo != null))
             {
                 await _unitOfWork.SaveChangesAsync();
 
-                // Xóa toàn bộ cache liên quan
                 foreach (var grp in affectedGroups)
                 {
                     InvalidateGroupCache(grp);
                 }
             }
 
-            return (added, updated);
+            return (added, updated, deactivated);
         }
 
         // ── Lấy danh sách TargetGroup đang active từ DB cho endpoint GET /groups ─
         public async Task<IEnumerable<string>> GetActiveGroupsAsync(string? relationshipFilter = null)
         {
-            const string CacheKey = "ActiveDependentGroups";
-            const string RedisKey = "taxkeep:dependent_rules:groups";
+            var normRel = !string.IsNullOrWhiteSpace(relationshipFilter) ? relationshipFilter.Trim().ToUpper() : null;
+            var cacheKey = normRel == null ? "ActiveDependentGroups" : $"ActiveDependentGroups_{normRel}";
+            var redisKey = normRel == null ? "taxkeep:dependent_rules:groups" : $"taxkeep:dependent_rules:groups:{normRel}";
 
             IEnumerable<string>? groups = null;
             if (_redisCache != null)
             {
-                groups = await _redisCache.GetAsync<List<string>>(RedisKey);
+                try
+                {
+                    groups = await _redisCache.GetAsync<List<string>>(redisKey);
+                }
+                catch { }
             }
 
-            if (groups == null && (!_cache.TryGetValue(CacheKey, out groups) || groups == null))
+            if (groups == null && (!_cache.TryGetValue(cacheKey, out groups) || groups == null))
             {
-                var repo = _unitOfWork.Repository<DependentDocumentRule>();
-                var allActive = await repo.FindAsync(r => r.IsActive);
-                groups = allActive
-                    .Select(r => r.TargetGroup)
-                    .Distinct(StringComparer.OrdinalIgnoreCase)
-                    .OrderBy(g => g)
-                    .ToList();
+                var groupRepo = _unitOfWork.Repository<DependentGroupCatalog>();
+                var ruleRepo = _unitOfWork.Repository<DependentDocumentRule>();
 
-                _cache.Set(CacheKey, groups,
-                    new MemoryCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromHours(1)));
+                List<string> activeGroupCodes;
+
+                if (groupRepo != null)
+                {
+                    // Lấy các group đang active từ bảng dependent_groups
+                    var dbGroups = (await groupRepo.FindAsync(g => g.IsActive)).ToList();
+                    if (!string.IsNullOrWhiteSpace(normRel))
+                    {
+                        dbGroups = dbGroups.Where(g => string.Equals(g.RelationshipCode, normRel, StringComparison.OrdinalIgnoreCase)).ToList();
+                    }
+
+                    // Và phải có ít nhất 1 rule active trong dependent_document_rules
+                    var activeRules = (await ruleRepo.FindAsync(r => r.IsActive)).ToList();
+                    var activeRuleTargetGroups = activeRules
+                        .Select(r => r.TargetGroup.Trim().ToUpper())
+                        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+                    activeGroupCodes = dbGroups
+                        .Where(g => activeRuleTargetGroups.Contains(g.Code.Trim().ToUpper()))
+                        .OrderBy(g => g.DisplayOrder)
+                        .ThenBy(g => g.Code)
+                        .Select(g => g.Code)
+                        .ToList();
+                }
+                else
+                {
+                    // Fallback nếu groupRepo chưa được mock hoặc không tồn tại (cho test cũ)
+                    var allActiveRules = await ruleRepo.FindAsync(r => r.IsActive);
+                    activeGroupCodes = allActiveRules
+                        .Select(r => r.TargetGroup)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .OrderBy(g => g)
+                        .ToList();
+
+                    if (!string.IsNullOrWhiteSpace(normRel))
+                    {
+                        activeGroupCodes = activeGroupCodes.Where(g =>
+                            g.StartsWith(normRel + "_", StringComparison.OrdinalIgnoreCase) ||
+                            (normRel == "OTHER_DEPENDENT" && g == "OTHER_HELPLESS")
+                        ).ToList();
+                    }
+                }
+
+                groups = activeGroupCodes;
+                _cache.Set(cacheKey, groups, new MemoryCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromHours(1)));
 
                 if (_redisCache != null)
                 {
-                    await _redisCache.SetAsync(RedisKey, groups, TimeSpan.FromHours(24));
+                    try
+                    {
+                        await _redisCache.SetAsync(redisKey, groups, TimeSpan.FromHours(24));
+                    }
+                    catch { }
                 }
-            }
-
-            if (!string.IsNullOrWhiteSpace(relationshipFilter))
-            {
-                var prefix = relationshipFilter.Trim().ToUpper();
-                groups = groups.Where(g => g.StartsWith(prefix + "_",
-                    StringComparison.OrdinalIgnoreCase));
             }
 
             return groups;
         }
 
         // ── Helper nội bộ: map dependentType của AI → TargetGroup của .NET ────────
-        // Đọc hoàn toàn động từ cấu hình TaxAiSettings:TypeMapping trong appsettings.json.
-        // Hỗ trợ cả enum chi tiết mới (PARENT_RETIRED, CHILD_UNDER_18, ...) và backward compatible với type cũ (PARENT, CHILD, ...)
         private List<string> MapAiDependentTypeToTargetGroups(DependentRuleFromAiDto dep)
         {
             var type = (dep.DependentType ?? "DEFAULT").Trim().ToUpperInvariant();
@@ -351,7 +610,6 @@ namespace TaxKeepVN.Application.Service.Implementations
                 var defaultSection = _configuration.GetSection("TaxAiSettings:TypeMapping:DEFAULT");
                 if (defaultSection.Exists())
                 {
-                    // Nếu type AI gửi sang khớp trực tiếp với 1 enum DependentGroup hợp lệ (ví dụ PARENT_RETIRED)
                     if (Enum.TryParse<DependentGroup>(type, true, out var matchedGroup))
                     {
                         return new List<string> { matchedGroup.ToString() };
@@ -410,6 +668,8 @@ namespace TaxKeepVN.Application.Service.Implementations
             DocName = r.DocName,
             IsMandatory = r.IsMandatory,
             Description = r.Description,
+            AlternativeGroup = r.AlternativeGroup,
+            Source = r.Source,
             IsActive = r.IsActive,
             CreatedAt = r.CreatedAt,
             UpdatedAt = r.UpdatedAt
@@ -443,11 +703,13 @@ namespace TaxKeepVN.Application.Service.Implementations
             _cache.Remove($"DependentRules_Required_{normGroup}");
             _cache.Remove($"DependentRules_Active_{normGroup}");
             _cache.Remove("ActiveDependentGroups");
+            _cache.Remove("DependentCatalog");
 
             _redisCache?.RemoveAsync($"taxkeep:dependent_rules:{normGroup}");
             _redisCache?.RemoveAsync($"taxkeep:dependent_rules:required:{normGroup}");
             _redisCache?.RemoveAsync($"taxkeep:dependent_rules:active:{normGroup}");
             _redisCache?.RemoveAsync("taxkeep:dependent_rules:groups");
+            _redisCache?.RemoveAsync("taxkeep:dependents:catalog");
         }
 
         public static string NormalizeDocType(string rawDocType)
