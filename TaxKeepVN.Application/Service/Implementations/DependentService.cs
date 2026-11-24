@@ -805,8 +805,31 @@ namespace TaxKeepVN.Application.Service.Implementations
                 );
             }
 
-            // ── 7. Validate độ tuổi phù hợp với nhóm hiện tại ────────────────────
-            ValidateGroupMatchesAge(newBirthDate, dependent.CurrentGroup);
+            // ── 7. Validate độ tuổi: Chỉ kiểm tra nếu ngày sinh bị thay đổi ──────
+            // Con thuộc nhóm CHILD_UNDER_18 khi đủ 18 tuổi thì người nộp thuế vẫn được
+            // sửa kỳ hiệu lực hoặc ghi chú mà không bị chặn bởi tuổi hiện tại.
+            if (isBirthDateChanged)
+            {
+                if (dependent.CurrentGroup == DependentGroup.CHILD_UNDER_18)
+                {
+                    var fromDate = DateTime.TryParseExact(newEffectiveFromMonth + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var fDate) ? fDate : DateTime.UtcNow;
+                    var ageAtStart = fromDate.Year - newBirthDate.Year;
+                    if (newBirthDate.Date > fromDate.AddYears(-ageAtStart)) ageAtStart--;
+
+                    if (ageAtStart >= 18)
+                    {
+                        throw new BadRequestException(
+                            ErrorCodes.Dependent.GroupAgeMismatch,
+                            $"Người phụ thuộc đã từ đủ 18 tuổi tại thời điểm bắt đầu giảm trừ ({newEffectiveFromMonth}). " +
+                            "Không thể áp dụng nhóm 'Con dưới 18 tuổi'."
+                        );
+                    }
+                }
+                else
+                {
+                    ValidateGroupMatchesAge(newBirthDate, dependent.CurrentGroup);
+                }
+            }
 
             // ── 8. Validate thời gian: From <= To và From >= BirthDate ──────────
             ValidateEffectivePeriod(newBirthDate, newEffectiveFromMonth, newEffectiveToMonth);

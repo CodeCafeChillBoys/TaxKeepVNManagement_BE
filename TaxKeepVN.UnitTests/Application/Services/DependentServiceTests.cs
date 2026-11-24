@@ -1317,6 +1317,48 @@ namespace TaxKeepVN.UnitTests.Application.Services
         }
 
         [Fact]
+        public async Task UpdateDependentAsync_ChildUnder18NowOver18_OnlyPeriodOrNoteChanged_DoesNotThrowGroupAgeMismatch()
+        {
+            var taxpayerId = Guid.NewGuid();
+            var depId = Guid.NewGuid();
+
+            // Sinh năm 2005 (nay đã 21 tuổi), nhưng nhóm cũ là CHILD_UNDER_18
+            var dependent = new Dependent
+            {
+                Id = depId,
+                TaxpayerId = taxpayerId,
+                IsDeleted = false,
+                Status = DependentStatus.ACTIVE,
+                IsProfileComplete = true,
+                FullName = "Nguyen Van Lon",
+                BirthDate = new DateTime(2005, 5, 10, 0, 0, 0, DateTimeKind.Utc),
+                Relationship = DependentRelationship.CHILD,
+                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                CitizenId = "079205001111",
+                EffectiveFromMonth = "2020-01",
+                EffectiveToMonth = "2022-12",
+                Note = "Ghi chu cu"
+            };
+
+            var mockRepo = new Mock<IGenericRepository<Dependent>>();
+            mockRepo.Setup(r => r.GetByIdAsync(depId)).ReturnsAsync(dependent);
+            mockRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Dependent, bool>>>()))
+                .ReturnsAsync(new List<Dependent>());
+            _mockUnitOfWork.Setup(u => u.Repository<Dependent>()).Returns(mockRepo.Object);
+
+            // Sửa ghi chú và gia hạn kỳ hiệu lực mà không đổi ngày sinh
+            var res = await _dependentService.UpdateDependentAsync(taxpayerId, depId, new UpdateDependentRequest
+            {
+                Note = "Ghi chu da tot nghiep THPT",
+                EffectiveToMonth = "2023-05"
+            });
+
+            res.Should().NotBeNull();
+            dependent.Note.Should().Be("Ghi chu da tot nghiep THPT");
+            dependent.EffectiveToMonth.Should().Be("2023-05");
+        }
+
+        [Fact]
         public async Task UpdateDependentAsync_PendingDocuments_IdentityChangedWithExistingDocs_SetsIdentityUpdatedAt()
         {
             var taxpayerId = Guid.NewGuid();
