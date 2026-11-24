@@ -6,9 +6,8 @@ namespace TaxKeepVN.Application.DTOs.Requests.Dependent
     [System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
     public class UpdateDependentRequest
     {
-        [Required(ErrorMessage = "Họ tên người phụ thuộc không được để trống.")]
         [MaxLength(150)]
-        public string FullName { get; set; } = string.Empty;
+        public string? FullName { get; set; }
 
         /// <summary>
         /// Nhóm quan hệ: CHILD | SPOUSE | PARENT | OTHER_DEPENDENT (Tùy chọn)
@@ -20,11 +19,10 @@ namespace TaxKeepVN.Application.DTOs.Requests.Dependent
         /// </summary>
         public string? CurrentGroup { get; set; }
 
-        [Required(ErrorMessage = "Ngày sinh người phụ thuộc không được để trống.")]
         public DateTime? BirthDate { get; set; }
 
         /// <summary>
-        /// Số CCCD (12 chữ số). Bắt buộc phải có CitizenId HOẶC BirthCertNumber.
+        /// Số CCCD (12 chữ số). Tùy chọn.
         /// </summary>
         [RegularExpression(@"^\d{12}$", ErrorMessage = "Số CCCD của người phụ thuộc phải đúng 12 chữ số.")]
         public string? CitizenId { get; set; }
@@ -45,20 +43,23 @@ namespace TaxKeepVN.Application.DTOs.Requests.Dependent
         /// <summary>
         /// Tháng bắt đầu tính giảm trừ gia cảnh, format "YYYY-MM".
         /// </summary>
-        [Required(ErrorMessage = "Tháng bắt đầu tính giảm trừ không được để trống.")]
         [RegularExpression(@"^\d{4}-(0[1-9]|1[0-2])$",
             ErrorMessage = "Tháng bắt đầu không đúng định dạng (YYYY-MM). Ví dụ: 2026-01")]
-        public string EffectiveFromMonth { get; set; } = string.Empty;
+        public string? EffectiveFromMonth { get; set; }
 
         /// <summary>
         /// Tháng kết thúc tính giảm trừ gia cảnh, format "YYYY-MM".
         /// </summary>
-        [Required(ErrorMessage = "Tháng kết thúc tính giảm trừ không được để trống.")]
         [RegularExpression(@"^\d{4}-(0[1-9]|1[0-2])$",
             ErrorMessage = "Tháng kết thúc không đúng định dạng (YYYY-MM). Ví dụ: 2026-12")]
-        public string EffectiveToMonth { get; set; } = string.Empty;
+        public string? EffectiveToMonth { get; set; }
 
         [MaxLength(500)]
         public string? Note { get; set; }
+
+        /// <summary>
+        /// Xác nhận thay đổi thông tin nhân thân khi hồ sơ đang ở trạng thái ACTIVE (mặc định false).
+        /// </summary>
+        public bool ConfirmIdentityChange { get; set; } = false;
     }
 }
