@@ -196,6 +196,7 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(d => d.BirthDate).HasColumnName("birth_date");
                 entity.Property(d => d.IsDeleted).HasColumnName("is_deleted").HasDefaultValue(false);
                 entity.Property(d => d.IsProfileComplete).HasColumnName("is_profile_complete").HasDefaultValue(false);
+                entity.Property(d => d.IdentityUpdatedAt).HasColumnName("identity_updated_at");
 
                 // Index để query overlap nhanh theo CitizenId và BirthCertNumber
                 entity.HasIndex(d => d.CitizenId).HasDatabaseName("idx_dependents_citizen_id");

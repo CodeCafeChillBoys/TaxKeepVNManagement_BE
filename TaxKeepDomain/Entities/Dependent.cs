@@ -18,6 +18,12 @@ namespace TaxKeepVN.Domain.Entities
         public bool IsDeleted { get; set; } = false;
         public bool IsProfileComplete { get; set; } = false; // Added for profile completion tracking
 
+        /// <summary>
+        /// Thời điểm cập nhật thông tin nhân thân gần nhất.
+        /// Chỉ những giấy tờ nộp sau thời điểm này mới được tính hợp lệ.
+        /// </summary>
+        public DateTime? IdentityUpdatedAt { get; set; }
+
         /// <summary>Nhóm quan hệ theo Điều 9 TT 111/2013</summary>
         public DependentRelationship Relationship { get; set; } = DependentRelationship.CHILD;
 
