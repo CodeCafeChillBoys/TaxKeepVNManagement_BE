@@ -6,12 +6,15 @@ using System.Threading.Tasks;
 using TaxKeepVN.Application.DTOs.Catalog;
 using TaxKeepVN.Application.DTOs.Responses;
 using TaxKeepVN.Application.Service.Interfaces;
+using TaxKeepVNManagementSystem.Attributes;
 
 namespace TaxKeepVNManagementSystem.Controllers
 {
     [ApiController]
     [Route("api/v1/admin")]
-    [Authorize(Roles = "ADMIN")]
+    [HasPermission("dependent.rule_manage")]
+    [Produces("application/json")]
+    [Tags("Admin - Dependent Catalog (Quản lý danh mục người phụ thuộc)")]
     public class AdminDependentCatalogController : ControllerBase
     {
         private readonly IDependentCatalogService _catalogService;
