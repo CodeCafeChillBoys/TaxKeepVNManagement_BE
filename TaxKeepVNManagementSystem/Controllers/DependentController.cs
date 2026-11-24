@@ -210,6 +210,30 @@ namespace TaxKeepVNManagementSystem.Controllers
         }
 
         /// <summary>
+        /// Cập nhật thông tin hồ sơ người phụ thuộc sau khi tạo (họ tên, ngày sinh, định danh, kỳ giảm trừ, ghi chú).
+        /// PUT /api/v1/dependents/{dependentId}
+        /// </summary>
+        [HttpPut("{dependentId:guid}", Name = "UpdateDependent")]
+        [HasPermission("dependent.manage")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> UpdateDependent(
+            [FromRoute] Guid dependentId,
+            [FromBody] UpdateDependentRequest request)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ApiResponse<object>.ValidationFail(ModelState));
+
+            var taxpayerId = GetUserIdFromToken();
+            var result = await _dependentService.UpdateDependentAsync(taxpayerId, dependentId, request);
+
+            return Ok(ApiResponse<object>.Ok(result, "Cập nhật thông tin người phụ thuộc thành công."));
+        }
+
+        /// <summary>
         /// Chuyển nhóm điều kiện của người phụ thuộc khi có sự thay đổi (ví dụ: con đủ 18 tuổi).
         /// Giữ nguyên toàn bộ thông tin định danh, chỉ cập nhật CurrentGroup và tùy chọn Note.
         /// Tự động reset trạng thái hồ sơ về PENDING_DOCUMENTS và gửi thông báo yêu cầu bổ sung giấy tờ.
