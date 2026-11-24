@@ -15,10 +15,12 @@ namespace TaxKeepVN.Application.Service.Implementations
     public class DependentReminderService : IDependentReminderService
     {
         private readonly IUnitOfWork _unitOfWork;
+        private readonly IDependentCatalogService? _catalogService;
 
-        public DependentReminderService(IUnitOfWork unitOfWork)
+        public DependentReminderService(IUnitOfWork unitOfWork, IDependentCatalogService? catalogService = null)
         {
             _unitOfWork = unitOfWork;
+            _catalogService = catalogService;
         }
 
         public async Task<PagedResult<AgeReminderItemDto>> GetAgeTransitionRemindersAsync(Guid userId, int taxYear, QueryParameters query)
@@ -26,39 +28,80 @@ namespace TaxKeepVN.Application.Service.Implementations
             if (taxYear < 2000 || taxYear > 2100)
                 throw new BadRequestException("INVALID_TAX_YEAR", "Năm tính thuế không hợp lệ. Vui lòng nhập năm trong khoảng từ 2000 đến 2100.");
 
+            List<DependentGroupCatalog> allGroups;
+            if (_catalogService != null)
+            {
+                allGroups = await _catalogService.GetActiveGroupsAsync();
+            }
+            else
+            {
+                var groupRepo = _unitOfWork.Repository<DependentGroupCatalog>();
+                allGroups = groupRepo != null
+                    ? (await groupRepo.FindAsync(g => g.IsActive)).ToList()
+                    : new List<DependentGroupCatalog>();
+            }
+
+            var groupsWithMaxAge = allGroups
+                .Where(g => g.MaxAge.HasValue)
+                .ToDictionary(g => g.Code, StringComparer.OrdinalIgnoreCase);
+
             var dependentRepo = _unitOfWork.Repository<Dependent>();
-            var dependents = await dependentRepo.FindAsync(d =>
+            var allDeps = await dependentRepo.FindAsync(d =>
                 d.TaxpayerId == userId &&
-                !d.IsDeleted &&
-                d.CurrentGroup == DependentGroup.CHILD_UNDER_18);
+                !d.IsDeleted);
+
+            var dependents = allDeps.Where(d => groupsWithMaxAge.ContainsKey(d.CurrentGroup)).ToList();
 
             var currentDate = DateTime.UtcNow;
             var reminders = new List<AgeReminderItemDto>();
 
             foreach (var dep in dependents)
             {
-                var turning18Date = dep.BirthDate.AddYears(18);
-                var daysRemaining = (turning18Date - currentDate).Days;
+                var curGroup = groupsWithMaxAge[dep.CurrentGroup];
+                var maxAge = curGroup.MaxAge!.Value;
+                var turningDate = dep.BirthDate.AddYears(maxAge);
+                var daysRemaining = (turningDate - currentDate).Days;
 
                 bool isTurningSoon = daysRemaining >= 0 && daysRemaining <= 60;
-                bool isAlready18 = daysRemaining < 0 && turning18Date.Year <= taxYear;
+                bool isAlreadyAge = daysRemaining < 0 && turningDate.Year <= taxYear;
 
-                if (!isTurningSoon && !isAlready18) continue;
+                if (!isTurningSoon && !isAlreadyAge) continue;
 
-                string status = isTurningSoon ? "TURNING_18_SOON" : "ALREADY_18_PENDING_ACTION";
-                string message = isTurningSoon
-                    ? $"Người phụ thuộc {dep.FullName} sẽ tròn 18 tuổi vào ngày {turning18Date:dd/MM/yyyy}. Vui lòng cập nhật hồ sơ sinh viên nếu tiếp tục theo học."
-                    : $"Người phụ thuộc {dep.FullName} đã tròn 18 tuổi. Khoản giảm trừ sẽ bị tạm dừng nếu không bổ sung giấy tờ sinh viên.";
+                var relCode = curGroup.RelationshipCode ?? dep.Relationship;
+                var candidateGroups = allGroups
+                    .Where(g => string.Equals(g.RelationshipCode, relCode, StringComparison.OrdinalIgnoreCase)
+                                && g.MinAge == maxAge
+                                && g.Level > curGroup.Level)
+                    .OrderByDescending(g => g.RequireStudying)
+                    .ThenBy(g => g.Level)
+                    .ToList();
+
+                var recommendedGroup = candidateGroups.FirstOrDefault();
+
+                string status = isTurningSoon ? $"TURNING_{maxAge}_SOON" : $"ALREADY_{maxAge}_PENDING_ACTION";
+                string message;
+                if (isTurningSoon)
+                {
+                    message = recommendedGroup != null
+                        ? $"Người phụ thuộc {dep.FullName} sẽ tròn {maxAge} tuổi vào ngày {turningDate:dd/MM/yyyy}. Vui lòng chuyển sang nhóm '{recommendedGroup.Name}' và bổ sung giấy tờ nếu tiếp tục đủ điều kiện."
+                        : $"Người phụ thuộc {dep.FullName} sẽ tròn {maxAge} tuổi vào ngày {turningDate:dd/MM/yyyy}. Vui lòng cập nhật thông tin nhóm và bổ sung giấy tờ phù hợp nếu tiếp tục đủ điều kiện.";
+                }
+                else
+                {
+                    message = recommendedGroup != null
+                        ? $"Người phụ thuộc {dep.FullName} đã tròn {maxAge} tuổi. Vui lòng chuyển sang nhóm '{recommendedGroup.Name}' và bổ sung giấy tờ để tiếp tục được tính giảm trừ."
+                        : $"Người phụ thuộc {dep.FullName} đã tròn {maxAge} tuổi. Khoản giảm trừ sẽ bị tạm dừng nếu không cập nhật nhóm và bổ sung giấy tờ phù hợp.";
+                }
 
                 reminders.Add(new AgeReminderItemDto
                 {
                     DependentId = dep.Id,
                     FullName = dep.FullName,
                     BirthDate = dep.BirthDate.ToString("yyyy-MM-dd"),
-                    CurrentGroup = dep.CurrentGroup.ToString(),
-                    RecommendedGroup = DependentGroup.CHILD_OVER_18_STUDYING.ToString(),
+                    CurrentGroup = dep.CurrentGroup,
+                    RecommendedGroup = recommendedGroup?.Code,
                     TransitionStatus = status,
-                    Turning18Date = turning18Date.ToString("yyyy-MM-dd"),
+                    Turning18Date = turningDate.ToString("yyyy-MM-dd"),
                     DaysRemaining = daysRemaining,
                     Message = message,
                     RequiredAction = "UPDATE_GROUP_AND_UPLOAD_STUDENT_CARD"

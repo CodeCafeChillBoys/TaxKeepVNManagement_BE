@@ -141,6 +141,7 @@ namespace TaxKeepVN.Application.Constants
             public const string InvalidRelationship = "INVALID_RELATIONSHIP";
             public const string InvalidTaxYear = "INVALID_TAX_YEAR";
             public const string PeriodBeforeBirth = "PERIOD_BEFORE_BIRTH";
+            public const string RulesNotConfigured = "RULES_NOT_CONFIGURED";
             public const string SameGroup = "SAME_GROUP";
             public const string SettlementLockedPeriod = "SETTLEMENT_LOCKED_PERIOD";
             public const string UnreadableDocument = "UNREADABLE_DOCUMENT";

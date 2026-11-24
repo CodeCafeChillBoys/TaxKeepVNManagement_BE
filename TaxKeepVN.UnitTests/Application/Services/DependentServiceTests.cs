@@ -58,6 +58,34 @@ namespace TaxKeepVN.UnitTests.Application.Services
             secDisabled.Setup(s => s.Value).Returns("3");
             _mockConfig.Setup(c => c.GetSection("DependentSettings:GroupOrders:CHILD:CHILD_OVER_18_DISABLED")).Returns(secDisabled.Object);
 
+            var defaultRels = new List<DependentRelationshipCatalog>
+            {
+                new() { Code = "CHILD", Name = "Con cái", DisplayOrder = 1, IsActive = true },
+                new() { Code = "SPOUSE", Name = "Vợ/Chồng", DisplayOrder = 2, IsActive = true },
+                new() { Code = "PARENT", Name = "Cha/Mẹ", DisplayOrder = 3, IsActive = true },
+                new() { Code = "OTHER_DEPENDENT", Name = "Người phụ thuộc khác", DisplayOrder = 4, IsActive = true }
+            };
+            var mockRelRepo = new Mock<IGenericRepository<DependentRelationshipCatalog>>();
+            mockRelRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentRelationshipCatalog, bool>>>()))
+                .ReturnsAsync(defaultRels);
+            _mockUnitOfWork.Setup(u => u.Repository<DependentRelationshipCatalog>()).Returns(mockRelRepo.Object);
+
+            var defaultGroups = new List<DependentGroupCatalog>
+            {
+                new() { Code = "CHILD_UNDER_18", Name = "Con dưới 18 tuổi", RelationshipCode = "CHILD", MaxAge = 18, Level = 0, DisplayOrder = 1, IsActive = true },
+                new() { Code = "CHILD_OVER_18_STUDYING", Name = "Con từ 18 tuổi trở lên đang đi học", RelationshipCode = "CHILD", MinAge = 18, Level = 1, RequireStudying = true, DisplayOrder = 2, IsActive = true },
+                new() { Code = "CHILD_OVER_18_DISABLED", Name = "Con từ 18 tuổi trở lên bị khuyết tật", RelationshipCode = "CHILD", MinAge = 18, Level = 1, RequireDisabled = true, DisplayOrder = 3, IsActive = true },
+                new() { Code = "SPOUSE_DISABLED", Name = "Vợ/Chồng khuyết tật", RelationshipCode = "SPOUSE", Level = 0, RequireDisabled = true, DisplayOrder = 4, IsActive = true },
+                new() { Code = "SPOUSE_RETIRED", Name = "Vợ/Chồng ngoài độ tuổi lao động", RelationshipCode = "SPOUSE", Level = 1, DisplayOrder = 5, IsActive = true },
+                new() { Code = "PARENT_DISABLED", Name = "Cha/Mẹ khuyết tật", RelationshipCode = "PARENT", Level = 0, RequireDisabled = true, DisplayOrder = 6, IsActive = true },
+                new() { Code = "PARENT_RETIRED", Name = "Cha/Mẹ ngoài độ tuổi lao động", RelationshipCode = "PARENT", Level = 1, DisplayOrder = 7, IsActive = true },
+                new() { Code = "OTHER_HELPLESS", Name = "Cá nhân không nơi nương tựa khác", RelationshipCode = "OTHER_DEPENDENT", Level = 0, DisplayOrder = 8, IsActive = true }
+            };
+            var mockGroupRepo = new Mock<IGenericRepository<DependentGroupCatalog>>();
+            mockGroupRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentGroupCatalog, bool>>>()))
+                .ReturnsAsync(defaultGroups);
+            _mockUnitOfWork.Setup(u => u.Repository<DependentGroupCatalog>()).Returns(mockGroupRepo.Object);
+
             _dependentService = new DependentService(
                 _mockUnitOfWork.Object,
                 _mockCache.Object,
@@ -175,14 +203,10 @@ namespace TaxKeepVN.UnitTests.Application.Services
         [Fact]
         public async Task UTCID05_CreateDependentAsync_GroupRelationshipMismatch_ThrowsBadRequestException()
         {
-            var emptySection = new Mock<IConfigurationSection>();
-            emptySection.Setup(s => s.GetChildren()).Returns(new List<IConfigurationSection>());
-            _mockConfig.Setup(c => c.GetSection(It.Is<string>(s => s.Contains("SPOUSE")))).Returns(emptySection.Object);
-
             var request = new CreateDependentRequest
             {
                 Relationship = "SPOUSE",
-                CurrentGroup = "SPOUSE_RETIRED"
+                CurrentGroup = "CHILD_UNDER_18"
             };
 
             var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
@@ -378,8 +402,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
                     Id = Guid.NewGuid(),
                     TaxpayerId = taxpayerId,
                     FullName = "Nguyen Van B",
-                    Relationship = DependentRelationship.CHILD,
-                    CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                    Relationship = "CHILD",
+                    CurrentGroup = "CHILD_UNDER_18",
                     Status = DependentStatus.PENDING_DOCUMENTS,
                     IsDeleted = false,
                     CreatedAt = DateTimeOffset.UtcNow
@@ -389,8 +413,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
                     Id = Guid.NewGuid(),
                     TaxpayerId = taxpayerId,
                     FullName = "Nguyen Van A",
-                    Relationship = DependentRelationship.CHILD,
-                    CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                    Relationship = "CHILD",
+                    CurrentGroup = "CHILD_UNDER_18",
                     Status = DependentStatus.PENDING_DOCUMENTS,
                     IsDeleted = false,
                     CreatedAt = DateTimeOffset.UtcNow
@@ -464,8 +488,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 Id = depId,
                 TaxpayerId = taxpayerId,
                 FullName = "Nguyen Van Con",
-                Relationship = DependentRelationship.CHILD,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
                 Status = DependentStatus.PENDING_DOCUMENTS,
                 IsDeleted = false,
                 CreatedAt = DateTimeOffset.UtcNow
@@ -514,8 +538,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 Id = depId,
                 TaxpayerId = taxpayerId,
                 FullName = "Vu Thi Lan",
-                Relationship = DependentRelationship.PARENT,
-                CurrentGroup = DependentGroup.PARENT_RETIRED,
+                Relationship = "PARENT",
+                CurrentGroup = "PARENT_RETIRED",
                 Status = DependentStatus.PENDING_DOCUMENTS,
                 IsDeleted = false,
                 CreatedAt = DateTimeOffset.UtcNow
@@ -617,8 +641,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
             {
                 Id = depId,
                 TaxpayerId = taxpayerId,
-                Relationship = DependentRelationship.CHILD,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
                 IsDeleted = false
             };
 
@@ -646,8 +670,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
             {
                 Id = depId,
                 TaxpayerId = taxpayerId,
-                Relationship = DependentRelationship.CHILD,
-                CurrentGroup = DependentGroup.CHILD_OVER_18_STUDYING, // Order = 2
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_OVER_18_STUDYING", // Order = 2
                 IsDeleted = false
             };
 
@@ -671,8 +695,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 Id = depId,
                 TaxpayerId = taxpayerId,
                 FullName = "Nguyen Van Con",
-                Relationship = DependentRelationship.CHILD,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18, // Order = 1
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18", // Order = 1
                 BirthDate = DateTime.UtcNow.AddYears(-19),
                 IsDeleted = false
             };
@@ -734,8 +758,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
             {
                 Id = depId,
                 TaxpayerId = taxpayerId,
-                Relationship = DependentRelationship.CHILD,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
                 IsDeleted = false
             };
 
@@ -758,8 +782,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 Id = depId,
                 TaxpayerId = taxpayerId,
                 FullName = "Nguyen Van Con",
-                Relationship = DependentRelationship.CHILD,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
                 BirthDate = DateTime.UtcNow.AddYears(-19),
                 Note = "Ghi chu ban dau",
                 IsDeleted = false
@@ -802,8 +826,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 Id = depId,
                 TaxpayerId = taxpayerId,
                 FullName = "Nguyen Van Con",
-                Relationship = DependentRelationship.CHILD,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
                 BirthDate = DateTime.UtcNow.AddYears(-19),
                 IsDeleted = false
             };
@@ -855,8 +879,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 Id = depId,
                 TaxpayerId = taxpayerId,
                 FullName = "Nguyen Van Con",
-                Relationship = DependentRelationship.CHILD,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
                 BirthDate = DateTime.UtcNow.AddYears(-15),
                 IsDeleted = false
             };
@@ -885,8 +909,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 Id = depId,
                 TaxpayerId = taxpayerId,
                 FullName = "Nguyen Van Con",
-                Relationship = DependentRelationship.CHILD,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
                 BirthDate = DateTime.UtcNow.AddYears(-10),
                 IsDeleted = false
             };
@@ -1023,8 +1047,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 TaxpayerId = taxpayerId,
                 IsDeleted = false,
                 BirthDate = new DateTime(2024, 5, 15),
-                Relationship = DependentRelationship.CHILD,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18"
             });
             _mockUnitOfWork.Setup(u => u.Repository<Dependent>()).Returns(mockRepo.Object);
 
@@ -1055,8 +1079,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 TaxpayerId = taxpayerId,
                 IsDeleted = false,
                 BirthDate = new DateTime(2024, 5, 15),
-                Relationship = DependentRelationship.CHILD,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
                 CitizenId = "079201009999",
                 EffectiveFromMonth = "2024-06",
                 EffectiveToMonth = "2024-12"
@@ -1089,8 +1113,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 TaxpayerId = taxpayerId,
                 IsDeleted = false,
                 BirthDate = new DateTime(2020, 1, 1),
-                Relationship = DependentRelationship.CHILD,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
                 CitizenId = "079201009999",
                 EffectiveFromMonth = "2025-01",
                 EffectiveToMonth = "2026-12"
@@ -1135,8 +1159,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 TaxpayerId = taxpayerId,
                 IsDeleted = false,
                 BirthDate = new DateTime(2020, 1, 1),
-                Relationship = DependentRelationship.CHILD,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
                 CitizenId = "079201009999",
                 EffectiveFromMonth = "2025-01",
                 EffectiveToMonth = "2026-12"
@@ -1182,8 +1206,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 TaxpayerId = taxpayerId,
                 IsDeleted = false,
                 BirthDate = new DateTime(2020, 1, 1),
-                Relationship = DependentRelationship.CHILD,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
                 CitizenId = "079201009999"
             });
             _mockUnitOfWork.Setup(u => u.Repository<Dependent>()).Returns(mockRepo.Object);
@@ -1212,8 +1236,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 Status = DependentStatus.ACTIVE,
                 FullName = "Nguyen Van Cu",
                 BirthDate = new DateTime(2020, 1, 1),
-                Relationship = DependentRelationship.CHILD,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
                 CitizenId = "079201009999"
             });
             _mockUnitOfWork.Setup(u => u.Repository<Dependent>()).Returns(mockRepo.Object);
@@ -1244,8 +1268,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 IsProfileComplete = true,
                 FullName = "Nguyen Van Cu",
                 BirthDate = new DateTime(2020, 1, 1),
-                Relationship = DependentRelationship.CHILD,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
                 CitizenId = "079201009999"
             };
 
@@ -1288,8 +1312,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 IsProfileComplete = true,
                 FullName = "Nguyen Van Cu",
                 BirthDate = new DateTime(2020, 1, 1),
-                Relationship = DependentRelationship.CHILD,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
                 CitizenId = "079201009999",
                 EffectiveFromMonth = "2024-01",
                 EffectiveToMonth = "2025-12",
@@ -1332,8 +1356,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 IsProfileComplete = true,
                 FullName = "Nguyen Van Lon",
                 BirthDate = new DateTime(2005, 5, 10, 0, 0, 0, DateTimeKind.Utc),
-                Relationship = DependentRelationship.CHILD,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
                 CitizenId = "079205001111",
                 EffectiveFromMonth = "2020-01",
                 EffectiveToMonth = "2022-12",
@@ -1372,8 +1396,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 Status = DependentStatus.PENDING_DOCUMENTS,
                 FullName = "Nguyen Van Cu",
                 BirthDate = new DateTime(2020, 1, 1),
-                Relationship = DependentRelationship.CHILD,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
                 CitizenId = "079201009999"
             };
 
@@ -1419,8 +1443,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 IsDeleted = false,
                 FullName = "Nguyen Van Cu",
                 BirthDate = new DateTime(2020, 1, 1),
-                Relationship = DependentRelationship.CHILD,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
                 BirthCertNumber = "KS-12345"
             };
 
@@ -1494,8 +1518,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 Id = depId,
                 TaxpayerId = taxpayerId,
                 FullName = "Ten Cu",
-                Relationship = DependentRelationship.CHILD,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
                 BirthDate = DateTime.UtcNow.AddYears(-10),
                 CitizenId = "079201001111",
                 EffectiveFromMonth = "2026-01",
@@ -1586,8 +1610,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 Id = depId,
                 TaxpayerId = taxpayerId,
                 FullName = "Nguyen Van Con",
-                Relationship = DependentRelationship.CHILD,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
                 IsDeleted = false,
                 Status = DependentStatus.ACTIVE
             };
@@ -1636,8 +1660,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 Id = depId,
                 TaxpayerId = taxpayerId,
                 FullName = "Nguyen Van Con",
-                Relationship = DependentRelationship.CHILD,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
                 Note = "Ghi chu cu",
                 IsDeleted = false,
                 Status = DependentStatus.ACTIVE
@@ -1668,8 +1692,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 Id = depId,
                 TaxpayerId = taxpayerId,
                 FullName = "Nguyen Van Con",
-                Relationship = DependentRelationship.CHILD,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
                 IsDeleted = false,
                 Status = DependentStatus.PENDING_DOCUMENTS
             };
@@ -1699,8 +1723,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 Id = depId,
                 TaxpayerId = taxpayerId,
                 FullName = "Nguyen Van Con",
-                Relationship = DependentRelationship.CHILD,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
                 IsDeleted = false,
                 Status = DependentStatus.ACTIVE
             };
