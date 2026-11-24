@@ -758,6 +758,10 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("full_name");
 
+                    b.Property<DateTime?>("IdentityUpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("identity_updated_at");
+
                     b.Property<bool>("IsDeleted")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("boolean")
@@ -769,10 +773,6 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(false)
                         .HasColumnName("is_profile_complete");
-
-                    b.Property<DateTime?>("IdentityUpdatedAt")
-                        .HasColumnType("timestamp with time zone")
-                        .HasColumnName("identity_updated_at");
 
                     b.Property<string>("Note")
                         .HasColumnType("text")
@@ -872,6 +872,11 @@ namespace TaxKeepVN.Infrastructure.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("text")
                         .HasColumnName("description");
+
+                    b.Property<string>("DocName")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("doc_name");
 
                     b.Property<string>("DocType")
                         .IsRequired()
@@ -2147,7 +2152,69 @@ namespace TaxKeepVN.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("income_sources", (string)null);
+                    b.ToTable("income_sources");
+                });
+
+            modelBuilder.Entity("TaxKeepVN.Domain.Entities.MedicalEligibleCategory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CategoryCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("category_code");
+
+                    b.Property<string>("CategoryName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("category_name");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_deleted");
+
+                    b.Property<bool>("IsEligible")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_eligible");
+
+                    b.Property<string>("Keywords")
+                        .HasColumnType("text")
+                        .HasColumnName("keywords");
+
+                    b.Property<string>("SectionCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("section_code");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategoryCode")
+                        .IsUnique()
+                        .HasDatabaseName("idx_medical_eligible_categories_code");
+
+                    b.ToTable("medical_eligible_categories", (string)null);
                 });
 
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.MedicalStatement", b =>
@@ -2319,6 +2386,14 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)")
                         .HasColumnName("deduction_reason");
+
+                    b.Property<string>("DeductionStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasDefaultValue("ELIGIBLE")
+                        .HasColumnName("deduction_status");
 
                     b.Property<decimal>("EligibleAmount")
                         .ValueGeneratedOnAdd()
@@ -3084,7 +3159,7 @@ namespace TaxKeepVN.Infrastructure.Migrations
 
                     b.HasKey("NotificationId");
 
-                    b.ToTable("system_notifications", (string)null);
+                    b.ToTable("system_notifications");
                 });
 
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.TaxBracket", b =>
