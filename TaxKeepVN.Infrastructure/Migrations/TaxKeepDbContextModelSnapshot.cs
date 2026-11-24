@@ -770,6 +770,10 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         .HasDefaultValue(false)
                         .HasColumnName("is_profile_complete");
 
+                    b.Property<DateTime?>("IdentityUpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("identity_updated_at");
+
                     b.Property<string>("Note")
                         .HasColumnType("text")
                         .HasColumnName("note");
