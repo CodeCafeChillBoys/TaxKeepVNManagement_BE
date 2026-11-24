@@ -71,7 +71,7 @@ namespace TaxKeepVNManagementSystem.Controllers
         [ProducesResponseType(StatusCodes.Status200OK)]
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         [ProducesResponseType(StatusCodes.Status404NotFound)]
-        public async Task<IActionResult> UpdateGroup([FromRoute] string code, [FromBody] UpdateDependentGroupRequest request)
+        public async Task<IActionResult> UpdateGroup([FromRoute] string code, [FromBody] AdminUpdateDependentGroupRequest request)
         {
             var updated = await _catalogService.UpdateGroupAsync(code, request);
             return Ok(ApiResponse<AdminDependentGroupDto>.Ok(updated, "Cập nhật nhóm người phụ thuộc thành công."));
