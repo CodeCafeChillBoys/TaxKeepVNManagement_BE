@@ -204,7 +204,10 @@ namespace TaxKeepVN.Application.Service.Implementations
                 await _unitOfWork.SaveChangesAsync();
 
                 var allDocs = await docRepo.FindAsync(d => d.DependentId == dependentId);
-                var uploadedTypes = allDocs.Select(d => d.DocType).Distinct().ToList();
+                var validDocs = allDocs
+                    .Where(d => !dependent.IdentityUpdatedAt.HasValue || d.UploadedAt >= dependent.IdentityUpdatedAt.Value)
+                    .ToList();
+                var uploadedTypes = validDocs.Select(d => d.DocType).Distinct().ToList();
                 
                 var (isComplete, missing) = await CheckProfileCompletionAsync(dependent.CurrentGroup, uploadedTypes);
 
