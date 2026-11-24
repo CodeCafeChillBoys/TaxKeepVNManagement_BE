@@ -132,6 +132,7 @@ namespace TaxKeepVN.Application.Constants
             public const string GroupDowngradeNotAllowed = "GROUP_DOWNGRADE_NOT_ALLOWED";
             public const string GroupRelationshipMismatch = "GROUP_RELATIONSHIP_MISMATCH";
             public const string IdentifierRequired = "IDENTIFIER_REQUIRED";
+            public const string IdentityChangeRequiresReverify = "IDENTITY_CHANGE_REQUIRES_REVERIFY";
             public const string InvalidCurrentGroup = "INVALID_CURRENT_GROUP";
             public const string InvalidDocType = "INVALID_DOC_TYPE";
             public const string InvalidFileType = "INVALID_FILE_TYPE";
@@ -139,8 +140,11 @@ namespace TaxKeepVN.Application.Constants
             public const string InvalidPeriod = "INVALID_PERIOD";
             public const string InvalidRelationship = "INVALID_RELATIONSHIP";
             public const string InvalidTaxYear = "INVALID_TAX_YEAR";
+            public const string PeriodBeforeBirth = "PERIOD_BEFORE_BIRTH";
             public const string SameGroup = "SAME_GROUP";
+            public const string SettlementLockedPeriod = "SETTLEMENT_LOCKED_PERIOD";
             public const string UnreadableDocument = "UNREADABLE_DOCUMENT";
+            public const string UseChangeGroupApi = "USE_CHANGE_GROUP_API";
         }
 
         /// <summary>

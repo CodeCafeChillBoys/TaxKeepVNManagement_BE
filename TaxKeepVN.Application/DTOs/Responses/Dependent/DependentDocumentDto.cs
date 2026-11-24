@@ -24,5 +24,10 @@ namespace TaxKeepVN.Application.DTOs.Responses.Dependent
         public bool IsReadable { get; set; }
 
         public DateTime UploadedAt { get; set; }
+
+        /// <summary>
+        /// true nếu tài liệu được tính hợp lệ theo thời điểm đổi nhân thân (IdentityUpdatedAt), false nếu cần nộp lại.
+        /// </summary>
+        public bool IsCurrent { get; set; } = true;
     }
 }

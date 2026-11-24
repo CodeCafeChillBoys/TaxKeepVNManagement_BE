@@ -196,6 +196,7 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(d => d.BirthDate).HasColumnName("birth_date");
                 entity.Property(d => d.IsDeleted).HasColumnName("is_deleted").HasDefaultValue(false);
                 entity.Property(d => d.IsProfileComplete).HasColumnName("is_profile_complete").HasDefaultValue(false);
+                entity.Property(d => d.IdentityUpdatedAt).HasColumnName("identity_updated_at");
 
                 // Index để query overlap nhanh theo CitizenId và BirthCertNumber
                 entity.HasIndex(d => d.CitizenId).HasDatabaseName("idx_dependents_citizen_id");
@@ -216,7 +217,7 @@ namespace TaxKeepVN.Infrastructure.Contexts
 
                 entity.Property(d => d.Id).HasColumnName("id");
                 entity.Property(d => d.DependentId).HasColumnName("dependent_id").IsRequired();
-                entity.Property(d => d.DocType).HasColumnName("doc_type").HasConversion<string>().IsRequired();
+                entity.Property(d => d.DocType).HasColumnName("doc_type").IsRequired();
                 entity.Property(d => d.FileMimeType).HasColumnName("file_mime_type").IsRequired();
                 entity.Property(d => d.FileUrl).HasColumnName("file_url").IsRequired();
                 entity.Property(d => d.IsReadable).HasColumnName("is_readable");
@@ -239,6 +240,7 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(r => r.RuleId).HasColumnName("rule_id");
                 entity.Property(r => r.TargetGroup).HasColumnName("target_group").HasMaxLength(50).IsRequired();
                 entity.Property(r => r.DocType).HasColumnName("doc_type").HasMaxLength(50).IsRequired();
+                entity.Property(r => r.DocName).HasColumnName("doc_name").HasMaxLength(150);
                 entity.Property(r => r.IsMandatory).HasColumnName("is_mandatory").HasDefaultValue(true);
                 entity.Property(r => r.Description).HasColumnName("description");
                 entity.Property(r => r.IsActive).HasColumnName("is_active").HasDefaultValue(true);

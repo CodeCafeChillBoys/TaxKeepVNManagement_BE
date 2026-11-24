@@ -1,0 +1,24 @@
+using System.Collections.Generic;
+using System.Text.Json.Serialization;
+
+namespace TaxKeepVN.Application.DTOs.OcrAI
+{
+[System.Diagnostics.CodeAnalysis.ExcludeFromCodeCoverage]
+    public class DependentThresholdValidationResultDto
+    {
+        [JsonPropertyName("appliedThreshold")]
+        public float? AppliedThreshold { get; set; }
+
+        [JsonPropertyName("overallConfidence")]
+        public float? OverallConfidence { get; set; }
+
+        [JsonPropertyName("isPassedThreshold")]
+        public bool IsPassedThreshold { get; set; } = true;
+
+        [JsonPropertyName("lowConfidenceFields")]
+        public List<string> LowConfidenceFields { get; set; } = new List<string>();
+
+        [JsonPropertyName("warningMessage")]
+        public string? WarningMessage { get; set; }
+    }
+}

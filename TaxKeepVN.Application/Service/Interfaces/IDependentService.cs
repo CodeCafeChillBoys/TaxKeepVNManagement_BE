@@ -28,6 +28,12 @@ namespace TaxKeepVN.Application.Service.Interfaces
         Task<DependentDetailResponse> GetDependentByIdAsync(Guid taxpayerId, Guid dependentId);
 
         /// <summary>
+        /// Cập nhật thông tin hồ sơ người phụ thuộc (họ tên, ngày sinh, định danh CCCD/GKS, kỳ giảm trừ, ghi chú).
+        /// Kiểm tra quyền sở hữu, định danh hợp lệ, và kiểm tra không trùng lặp kỳ giảm trừ với NPT khác.
+        /// </summary>
+        Task<DependentResponse> UpdateDependentAsync(Guid taxpayerId, Guid dependentId, UpdateDependentRequest request);
+
+        /// <summary>
         /// Chuyển nhóm điều kiện của người phụ thuộc (ví dụ: CHILD_UNDER_18 → CHILD_OVER_18_STUDYING).
         /// Reset IsProfileComplete = false và Status = PENDING_DOCUMENTS để yêu cầu upload lại tài liệu.
         /// Tạo SystemNotification thông báo cho người dùng.

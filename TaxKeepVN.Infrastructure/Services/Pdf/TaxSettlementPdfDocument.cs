@@ -37,7 +37,7 @@ namespace TaxKeepVN.Infrastructure.Services.Pdf
                 page.MarginBottom(25);
                 page.MarginLeft(30);
                 page.MarginRight(30);
-                page.DefaultTextStyle(x => x.FontSize(9).FontFamily(Fonts.Lato).FontColor(Colors.Grey.Darken4));
+                page.DefaultTextStyle(x => x.FontSize(9).FontFamily("Arial").FontColor(Colors.Grey.Darken4));
 
                 page.Header().Element(ComposeGlobalHeader);
                 page.Content().Element(ComposeContent);
@@ -58,27 +58,46 @@ namespace TaxKeepVN.Infrastructure.Services.Pdf
                 row.RelativeItem().AlignRight().Column(col =>
                 {
                     col.Item().Text("Mẫu số: 02/QTT-TNCN").Bold().FontSize(8);
-                    col.Item().Text("(Ban hành kèm Thông tư 80/2021/TT-BTC & Luật 109/2025/QH15)").Italic().FontSize(7).FontColor(Colors.Grey.Darken1);
+                    col.Item().Text("(Ban hành kèm Thông tư 89/2026/TT-BTC & Luật 109/2025/QH15)").Italic().FontSize(7).FontColor(Colors.Grey.Darken1);
                 });
             });
         }
 
         private void ComposeGlobalFooter(IContainer container)
         {
-            container.BorderTop(0.5f).BorderColor(Colors.Grey.Lighten1).PaddingTop(4).Row(row =>
+            container.BorderTop(0.5f).BorderColor(Colors.Grey.Lighten1).PaddingTop(4).Column(col =>
             {
-                row.RelativeItem().Text(x =>
+                col.Item().Row(row =>
                 {
-                    x.Span("Trích xuất từ CSDL TaxKeepVN — Ngày lập: ").FontSize(7).FontColor(Colors.Grey.Darken1);
-                    x.Span(DateTime.UtcNow.AddHours(7).ToString("dd/MM/yyyy HH:mm")).Bold().FontSize(7);
+                    row.RelativeItem().Text(x =>
+                    {
+                        x.Span("Mẫu số: 02/QTT-TNCN").Bold().FontSize(7.5f).FontColor(Colors.Grey.Darken3);
+                        x.Span(" — Theo Thông tư số 89/2026/TT-BTC của Bộ Tài chính").FontSize(7.5f).FontColor(Colors.Grey.Darken2);
+                    });
+
+                    row.RelativeItem().AlignRight().Text(x =>
+                    {
+                        x.Span("Trang ").FontSize(7.5f);
+                        x.CurrentPageNumber().Bold().FontSize(7.5f);
+                        x.Span(" / ").FontSize(7.5f);
+                        x.TotalPages().Bold().FontSize(7.5f);
+                    });
                 });
 
-                row.RelativeItem().AlignRight().Text(x =>
+                col.Item().PaddingTop(1).Row(row =>
                 {
-                    x.Span("Trang ").FontSize(7);
-                    x.CurrentPageNumber().FontSize(7);
-                    x.Span(" / ").FontSize(7);
-                    x.TotalPages().FontSize(7);
+                    row.RelativeItem().Text(x =>
+                    {
+                        x.Span("Trích xuất từ Hệ thống TaxKeepVN — Mã hồ sơ: ").FontSize(6.5f).FontColor(Colors.Grey.Medium);
+                        x.Span(Model.DossierId.ToString()[..8].ToUpper()).Bold().FontSize(6.5f).FontColor(Colors.Grey.Darken1);
+                        x.Span(" — Ngày lập: ").FontSize(6.5f).FontColor(Colors.Grey.Medium);
+                        x.Span(DateTime.UtcNow.AddHours(7).ToString("dd/MM/yyyy HH:mm")).FontSize(6.5f).FontColor(Colors.Grey.Darken1);
+                    });
+
+                    row.RelativeItem().AlignRight().Text(x =>
+                    {
+                        x.Span("Tờ khai quyết toán thuế TNCN điện tử").Italic().FontSize(6.5f).FontColor(Colors.Grey.Medium);
+                    });
                 });
             });
         }

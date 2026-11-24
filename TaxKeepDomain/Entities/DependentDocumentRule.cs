@@ -19,6 +19,10 @@ namespace TaxKeepVN.Domain.Entities
         [MaxLength(50)]
         public string DocType { get; set; } = string.Empty;
 
+        [Column("doc_name")]
+        [MaxLength(150)]
+        public string? DocName { get; set; }
+
         [Column("is_mandatory")]
         public bool IsMandatory { get; set; } = true;
 
