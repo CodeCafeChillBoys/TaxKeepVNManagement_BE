@@ -660,7 +660,6 @@ namespace TaxKeepVN.Application.Service.Implementations
             // ── 5. Key: DISABILITY_CERTIFICATE (Giấy xác nhận khuyết tật / KNLĐ) ──────
             else if (ruleKey == "DISABILITY_CERTIFICATE")
             {
-                var minLaborLoss = await GetRuleParamAsync("minLaborLossPercent", 61.0);
                 var acceptedLevelsRaw = await GetRuleParamAsync("acceptedLevels", "ĐẶC BIỆT NẶNG,NẶNG,DAC BIET NANG,NANG,SEVERE,EXTREMELY_SEVERE");
                 var acceptedList = acceptedLevelsRaw.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
@@ -697,12 +696,10 @@ namespace TaxKeepVN.Application.Service.Implementations
                     isLevelAccepted = acceptedList.Any(l => cleanLevel.Contains(StringComparisonHelper.RemoveDiacritics(l).ToUpperInvariant()));
                 }
 
-                bool isLossAccepted = ocrData.LaborCapacityLossPercent.HasValue && ocrData.LaborCapacityLossPercent.Value >= minLaborLoss;
-
-                if (!isLevelAccepted && !isLossAccepted)
+                if (!isLevelAccepted)
                 {
                     throw new BadRequestException("DISABILITY_NOT_QUALIFIED",
-                        $"Mức độ khuyết tật ('{ocrData.DisabilityLevel}') hoặc tỷ lệ suy giảm KNLĐ ({ocrData.LaborCapacityLossPercent}%) không đủ điều kiện theo quy định (yêu cầu thuộc [{string.Join(", ", acceptedList)}] hoặc suy giảm từ {minLaborLoss}% trở lên).");
+                        $"Mức độ khuyết tật ('{ocrData.DisabilityLevel}') không đủ điều kiện (yêu cầu thuộc [{string.Join(", ", acceptedList)}]).");
                 }
             }
             // ── 6. Key: MARRIAGE_CERTIFICATE (Giấy kết hôn - NPT vợ/chồng) ─────────────
