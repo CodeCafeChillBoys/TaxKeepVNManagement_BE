@@ -107,14 +107,14 @@ namespace TaxKeepVN.UnitTests.Application.Services
             var rules = new List<DependentDocumentRule>
             {
                 new() { TargetGroup = "PARENT_DISABLED", DocType = "CITIZEN_ID", IsMandatory = true, IsActive = true },
-                new() { TargetGroup = "PARENT_DISABLED", DocType = "RELATIONSHIP_CERTIFICATE", AlternativeGroup = "RELATION_PROOF", IsMandatory = true, IsActive = true, CreatedAt = DateTime.UtcNow.AddMinutes(-2) },
+                new() { TargetGroup = "PARENT_DISABLED", DocType = "RESIDENCE_CT07", AlternativeGroup = "RELATION_PROOF", IsMandatory = true, IsActive = true, CreatedAt = DateTime.UtcNow.AddMinutes(-2) },
                 new() { TargetGroup = "PARENT_DISABLED", DocType = "BIRTH_CERTIFICATE", AlternativeGroup = "RELATION_PROOF", IsMandatory = true, IsActive = true, CreatedAt = DateTime.UtcNow.AddMinutes(-1) },
                 new() { TargetGroup = "PARENT_DISABLED", DocType = "DISABILITY_CERTIFICATE", IsMandatory = true, IsActive = true }
             };
             _mockRuleRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentDocumentRule, bool>>>()))
                 .ReturnsAsync(rules);
 
-            // Uploaded CT07 (normalized to RELATIONSHIP_CERTIFICATE) + CCCD (CITIZEN_ID) + DISABILITY_CERTIFICATE
+            // Uploaded CT07 (normalized to RESIDENCE_CT07) + CCCD + DISABILITY_CERTIFICATE
             var (isComplete, missing) = await _ruleService.ComputeMissingDocumentsAsync("PARENT_DISABLED", new[] { "CT07", "CCCD", "DISABILITY_CERTIFICATE" });
 
             isComplete.Should().BeTrue();
@@ -127,7 +127,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             var rules = new List<DependentDocumentRule>
             {
                 new() { TargetGroup = "PARENT_DISABLED", DocType = "CITIZEN_ID", IsMandatory = true, IsActive = true },
-                new() { TargetGroup = "PARENT_DISABLED", DocType = "RELATIONSHIP_CERTIFICATE", AlternativeGroup = "RELATION_PROOF", IsMandatory = true, IsActive = true, CreatedAt = DateTime.UtcNow.AddMinutes(-2) },
+                new() { TargetGroup = "PARENT_DISABLED", DocType = "RESIDENCE_CT07", AlternativeGroup = "RELATION_PROOF", IsMandatory = true, IsActive = true, CreatedAt = DateTime.UtcNow.AddMinutes(-2) },
                 new() { TargetGroup = "PARENT_DISABLED", DocType = "BIRTH_CERTIFICATE", AlternativeGroup = "RELATION_PROOF", IsMandatory = true, IsActive = true, CreatedAt = DateTime.UtcNow.AddMinutes(-1) },
                 new() { TargetGroup = "PARENT_DISABLED", DocType = "DISABILITY_CERTIFICATE", IsMandatory = true, IsActive = true }
             };
@@ -137,7 +137,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             var (isComplete, missing) = await _ruleService.ComputeMissingDocumentsAsync("PARENT_DISABLED", new[] { "CITIZEN_ID" });
 
             isComplete.Should().BeFalse();
-            missing.Should().Contain("RELATIONSHIP_CERTIFICATE");
+            missing.Should().Contain("RESIDENCE_CT07");
             missing.Should().Contain("DISABILITY_CERTIFICATE");
         }
 

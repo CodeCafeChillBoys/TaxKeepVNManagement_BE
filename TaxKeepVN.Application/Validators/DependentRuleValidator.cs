@@ -20,6 +20,9 @@ namespace TaxKeepVN.Application.Validators
             RuleFor(x => x.DocName)
                 .MaximumLength(150).WithMessage("Tên loại giấy tờ không được vượt quá 150 ký tự.");
 
+            RuleFor(x => x.AlternativeGroup)
+                .MaximumLength(50).WithMessage("Nhóm thay thế không được vượt quá 50 ký tự.");
+
             RuleFor(x => x.Description)
                 .MaximumLength(500).WithMessage("Mô tả hướng dẫn không được vượt quá 500 ký tự.");
         }
