@@ -287,5 +287,89 @@ namespace TaxKeepVN.UnitTests.Application.Services
             data.Status.Should().Be("FAILED");
             statement.Status.Should().Be("FAILED");
         }
+
+        [Fact]
+        public async Task PerformMedicalCrossCheck_PatientDobMismatch_FailsValidation()
+        {
+            var userId = Guid.NewGuid();
+            var periodId = Guid.NewGuid();
+            var parentDoc = new Document
+            {
+                Id = Guid.NewGuid(),
+                PeriodId = periodId,
+                BuyerName = "NGUYỄN VĂN AN",
+                BuyerIdCard = "079109001111",
+                TotalAmount = 500000m
+            };
+
+            var data = new DocumentOcrData
+            {
+                Status = "EXTRACTED",
+                MedicalHeader = JsonSerializer.Deserialize<JsonElement>(
+                    "{\"patientName\":\"Nguyễn Văn An\",\"idCard\":\"079109001111\",\"dob\":\"1990-01-02\",\"gender\":\"Nam\",\"hospitalName\":\"Bệnh viện A\",\"admissionDate\":\"2026-01-10\",\"dischargeDate\":\"2026-01-12\"}")
+            };
+            var statement = new MedicalStatement
+            {
+                Id = Guid.NewGuid(),
+                DocumentId = parentDoc.Id,
+                PatientDob = new DateOnly(1990, 1, 2)
+            };
+
+            var mockPeriodRepo = new Mock<IGenericRepository<TaxPeriod>>();
+            mockPeriodRepo.Setup(r => r.GetByIdAsync(periodId)).ReturnsAsync(new TaxPeriod { Id = periodId, UserId = userId });
+            _mockUow.Setup(u => u.Repository<TaxPeriod>()).Returns(mockPeriodRepo.Object);
+
+            var mockUserRepo = new Mock<IGenericRepository<User>>();
+            mockUserRepo.Setup(r => r.GetByIdAsync(userId)).ReturnsAsync(new User
+            {
+                UserId = userId,
+                FullName = "Nguyễn Văn An",
+                CitizenId = "079109001111",
+                DateOfBirth = new DateOnly(1990, 1, 1)
+            });
+            _mockUow.Setup(u => u.Repository<User>()).Returns(mockUserRepo.Object);
+
+            var mockDepRepo = new Mock<IGenericRepository<Dependent>>();
+            mockDepRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Dependent, bool>>>()))
+                .ReturnsAsync(new List<Dependent>());
+            _mockUow.Setup(u => u.Repository<Dependent>()).Returns(mockDepRepo.Object);
+            _mockItemRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DocumentItem, bool>>>()))
+                .ReturnsAsync(new List<DocumentItem>());
+
+            await MedicalCrossCheckHelper.PerformMedicalCrossCheckAsync(_mockUow.Object, parentDoc, statement, data);
+
+            data.CrossCheckIssues.Should().Contain("PATIENT_DOB_MISMATCH");
+            data.ValidationErrors.Should().Contain(e => e.Contains("Ngày sinh trên bảng kê"));
+            data.Status.Should().Be("FAILED");
+        }
+
+        [Fact]
+        public async Task PerformMedicalCrossCheck_InvalidTreatmentDates_FailsValidation()
+        {
+            var parentDoc = new Document
+            {
+                Id = Guid.NewGuid(),
+                BuyerName = "LÊ THỊ THU HƯƠNG",
+                BuyerIdCard = "079109001234",
+                SellerName = "Bệnh viện A",
+                TotalAmount = 1000000m
+            };
+            var statement = new MedicalStatement { Id = Guid.NewGuid(), DocumentId = parentDoc.Id };
+            var data = new DocumentOcrData
+            {
+                Status = "EXTRACTED",
+                MedicalHeader = JsonSerializer.Deserialize<JsonElement>(
+                    "{\"patientName\":\"Lê Thị Thu Hương\",\"idCard\":\"079109001234\",\"hospitalName\":\"Bệnh viện A\",\"admissionDate\":\"2026-01-12\",\"dischargeDate\":\"2026-01-10\"}")
+            };
+
+            _mockItemRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DocumentItem, bool>>>()))
+                .ReturnsAsync(new List<DocumentItem>());
+
+            await MedicalCrossCheckHelper.PerformMedicalCrossCheckAsync(_mockUow.Object, parentDoc, statement, data);
+
+            data.CrossCheckIssues.Should().Contain("TREATMENT_DATE_INVALID");
+            data.ValidationErrors.Should().Contain(e => e.Contains("không được trước ngày vào viện"));
+            data.Status.Should().Be("FAILED");
+        }
     }
 }
