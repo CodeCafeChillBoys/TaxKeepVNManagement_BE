@@ -10,6 +10,7 @@ using TaxKeepVN.Application.DTOs.Common;
 using TaxKeepVN.Application.DTOs.Rules;
 using TaxKeepVN.Application.DTOs.TaxAI;
 using TaxKeepVN.Application.Exceptions;
+using TaxKeepVN.Application.Helpers;
 using TaxKeepVN.Application.Service.Implementations;
 using TaxKeepVN.Domain.Entities;
 using TaxKeepVN.Domain.IRepositories;
@@ -164,6 +165,32 @@ namespace TaxKeepVN.UnitTests.Application.Services
         }
 
         [Fact]
+        public async Task CreateAsync_AllowsSameDocumentTypeInDifferentAlternativeGroups()
+        {
+            _mockRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentDocumentRule, bool>>>()))
+                .ReturnsAsync(new List<DependentDocumentRule>
+                {
+                    new()
+                    {
+                        TargetGroup = "CHILD_UNDER_18",
+                        DocType = "BIRTH_CERTIFICATE",
+                        AlternativeGroup = "RELATION_PROOF"
+                    }
+                });
+
+            var result = await _service.CreateAsync(new CreateDependentRuleDto
+            {
+                TargetGroup = "CHILD_UNDER_18",
+                DocType = "BIRTH_CERTIFICATE",
+                AlternativeGroup = "identity_proof"
+            });
+
+            result.AlternativeGroup.Should().Be("IDENTITY_PROOF");
+            _mockRepo.Verify(r => r.AddAsync(It.Is<DependentDocumentRule>(
+                rule => rule.AlternativeGroup == "IDENTITY_PROOF")), Times.Once);
+        }
+
+        [Fact]
         public async Task UTCID05b_CreateAsync_WithDocName_SavesDocName()
         {
             _mockRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentDocumentRule, bool>>>()))
@@ -249,6 +276,37 @@ namespace TaxKeepVN.UnitTests.Application.Services
             result.IsMandatory.Should().BeTrue();
             _mockRepo.Verify(r => r.Update(rule), Times.Once);
             _mockUnitOfWork.Verify(u => u.SaveChangesAsync(), Times.Once);
+        }
+
+        [Fact]
+        public async Task UpdateAsync_RejectsAnExistingAlternativeGroupVariant()
+        {
+            var rule = new DependentDocumentRule
+            {
+                RuleId = Guid.NewGuid(),
+                TargetGroup = "CHILD_UNDER_18",
+                DocType = "BIRTH_CERTIFICATE",
+                AlternativeGroup = "RELATION_PROOF"
+            };
+            var conflictingRule = new DependentDocumentRule
+            {
+                RuleId = Guid.NewGuid(),
+                TargetGroup = "CHILD_UNDER_18",
+                DocType = "BIRTH_CERTIFICATE",
+                AlternativeGroup = "IDENTITY_PROOF"
+            };
+            _mockRepo.Setup(r => r.GetByIdAsync(rule.RuleId)).ReturnsAsync(rule);
+            _mockRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentDocumentRule, bool>>>()))
+                .ReturnsAsync(new List<DependentDocumentRule> { conflictingRule });
+
+            var exception = await Assert.ThrowsAsync<ConflictException>(() =>
+                _service.UpdateAsync(rule.RuleId, new UpdateDependentRuleDto
+                {
+                    AlternativeGroup = "identity_proof"
+                }));
+
+            exception.ErrorCode.Should().Be("DUPLICATE_RULE");
+            _mockUnitOfWork.Verify(u => u.SaveChangesAsync(), Times.Never);
         }
 
         [Fact]
@@ -340,6 +398,158 @@ namespace TaxKeepVN.UnitTests.Application.Services
             added.Should().Be(1);
             updated.Should().Be(1);
             _mockUnitOfWork.Verify(u => u.SaveChangesAsync(), Times.Once);
+        }
+
+        [Fact]
+        public async Task SyncFromAiAsync_PreservesSameDocumentTypeInDifferentAlternativeGroups()
+        {
+            var addedRules = new List<DependentDocumentRule>();
+            _mockRepo.Setup(r => r.GetAllAsync())
+                .Returns(() => Task.FromResult<IEnumerable<DependentDocumentRule>>(addedRules.ToList()));
+            _mockRepo.Setup(r => r.AddAsync(It.IsAny<DependentDocumentRule>()))
+                .Callback<DependentDocumentRule>(rule => addedRules.Add(rule))
+                .Returns(Task.CompletedTask);
+
+            var aiRules = new[]
+            {
+                new DependentRuleFromAiDto
+                {
+                    DependentType = "CHILD_UNDER_18",
+                    RequiredDocuments = new List<RequiredDocumentFromAiDto>
+                    {
+                        new()
+                        {
+                            DocType = "BIRTH_CERTIFICATE",
+                            Name = "Giấy khai sinh của người nộp thuế",
+                            AlternativeGroup = "RELATION_PROOF"
+                        },
+                        new()
+                        {
+                            DocType = "BIRTH_CERTIFICATE",
+                            Name = "Giấy khai sinh hoặc trích lục khai sinh",
+                            AlternativeGroup = "IDENTITY_PROOF"
+                        }
+                    }
+                }
+            };
+
+            var (added, updated, _) = await _service.SyncFromAiAsync(aiRules);
+
+            added.Should().Be(2);
+            updated.Should().Be(0);
+            addedRules.Should().HaveCount(2);
+            addedRules.Should().OnlyContain(rule => rule.DocType == "BIRTH_CERTIFICATE");
+            addedRules.Select(rule => rule.AlternativeGroup).Should().BeEquivalentTo(
+                new[] { "RELATION_PROOF", "IDENTITY_PROOF" });
+            addedRules.Select(rule => rule.DocName).Should().BeEquivalentTo(
+                new[] { "Giấy khai sinh của người nộp thuế", "Giấy khai sinh hoặc trích lục khai sinh" });
+
+            var (secondAdded, secondUpdated, _) = await _service.SyncFromAiAsync(aiRules);
+
+            secondAdded.Should().Be(0);
+            secondUpdated.Should().Be(2);
+            addedRules.Should().HaveCount(2);
+        }
+
+        [Fact]
+        public async Task SyncFromAiAsync_KeepsResidenceCt07SeparateFromRelationshipCertificate()
+        {
+            var existingRelationshipRule = new DependentDocumentRule
+            {
+                TargetGroup = "CHILD_UNDER_18",
+                DocType = "RELATIONSHIP_CERTIFICATE",
+                DocName = "Giấy xác nhận thông tin về cư trú (Mẫu CT07)",
+                Source = "AI",
+                IsMandatory = true,
+                IsActive = true
+            };
+            var rulesInDb = new List<DependentDocumentRule> { existingRelationshipRule };
+            _mockRepo.Setup(r => r.GetAllAsync())
+                .Returns(() => Task.FromResult<IEnumerable<DependentDocumentRule>>(rulesInDb.ToList()));
+            _mockRepo.Setup(r => r.AddAsync(It.IsAny<DependentDocumentRule>()))
+                .Callback<DependentDocumentRule>(rule => rulesInDb.Add(rule))
+                .Returns(Task.CompletedTask);
+
+            var aiRules = new[]
+            {
+                new DependentRuleFromAiDto
+                {
+                    DependentType = "CHILD_UNDER_18",
+                    RequiredDocuments = new List<RequiredDocumentFromAiDto>
+                    {
+                        new()
+                        {
+                            DocType = "RELATIONSHIP_CERTIFICATE",
+                            Name = "Giấy tờ chứng minh quan hệ nhân thân khác",
+                            AlternativeGroup = "RELATION_PROOF"
+                        },
+                        new()
+                        {
+                            DocType = "RESIDENCE_CT07",
+                            Name = "Giấy xác nhận thông tin về cư trú (Mẫu CT07)",
+                            AlternativeGroup = "RELATION_PROOF"
+                        }
+                    }
+                }
+            };
+
+            var (added, updated, _) = await _service.SyncFromAiAsync(aiRules);
+
+            added.Should().Be(1);
+            updated.Should().Be(1);
+            rulesInDb.Should().HaveCount(2);
+            rulesInDb.Should().ContainSingle(rule =>
+                rule.DocType == "RELATIONSHIP_CERTIFICATE" &&
+                rule.DocName == "Giấy tờ chứng minh quan hệ nhân thân khác");
+            rulesInDb.Should().ContainSingle(rule =>
+                rule.DocType == "RESIDENCE_CT07" &&
+                rule.DocName == "Giấy xác nhận thông tin về cư trú (Mẫu CT07)");
+
+            var (secondAdded, secondUpdated, _) = await _service.SyncFromAiAsync(aiRules);
+
+            secondAdded.Should().Be(0);
+            secondUpdated.Should().Be(2);
+            rulesInDb.Should().HaveCount(2);
+        }
+
+        [Fact]
+        public async Task ComputeMissingDocumentsAsync_OneDocumentCanSatisfyTwoAlternativeGroups()
+        {
+            var rules = new List<DependentDocumentRule>
+            {
+                new()
+                {
+                    TargetGroup = "CHILD_UNDER_18",
+                    DocType = "BIRTH_CERTIFICATE",
+                    AlternativeGroup = "RELATION_PROOF",
+                    IsMandatory = true,
+                    IsActive = true
+                },
+                new()
+                {
+                    TargetGroup = "CHILD_UNDER_18",
+                    DocType = "BIRTH_CERTIFICATE",
+                    AlternativeGroup = "IDENTITY_PROOF",
+                    IsMandatory = true,
+                    IsActive = true
+                }
+            };
+            _mockRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentDocumentRule, bool>>>()))
+                .ReturnsAsync(rules);
+
+            var (isComplete, missingDocuments) = await _service.ComputeMissingDocumentsAsync(
+                "CHILD_UNDER_18",
+                new[] { "BIRTH_CERTIFICATE" });
+
+            isComplete.Should().BeTrue();
+            missingDocuments.Should().BeEmpty();
+
+            var (isIncomplete, missingWithoutUpload) = await _service.ComputeMissingDocumentsAsync(
+                "CHILD_UNDER_18",
+                Array.Empty<string>());
+
+            isIncomplete.Should().BeFalse();
+            missingWithoutUpload.Should().ContainSingle().Which.Should().Be("BIRTH_CERTIFICATE");
         }
 
         [Theory]
@@ -584,9 +794,12 @@ namespace TaxKeepVN.UnitTests.Application.Services
         }
 
         [Theory]
-        [InlineData("CT07", "RELATIONSHIP_CERTIFICATE")]
-        [InlineData("RESIDENCE_CT07", "RELATIONSHIP_CERTIFICATE")]
-        [InlineData("ho_khau", "RELATIONSHIP_CERTIFICATE")]
+        [InlineData("CT07", "RESIDENCE_CT07")]
+        [InlineData("RESIDENCE_CT07", "RESIDENCE_CT07")]
+        [InlineData("RESIDENCE", "RESIDENCE_CT07")]
+        [InlineData("GIAY_XAC_NHAN_CU_TRU", "RESIDENCE_CT07")]
+        [InlineData("ho_khau", "RESIDENCE_CT07")]
+        [InlineData("HOUSEHOLD_CERTIFICATE", "RESIDENCE_CT07")]
         [InlineData("KHAI_SINH", "BIRTH_CERTIFICATE")]
         [InlineData("CCCD", "CITIZEN_ID")]
         [InlineData("CMND", "CITIZEN_ID")]
@@ -602,6 +815,19 @@ namespace TaxKeepVN.UnitTests.Application.Services
         {
             var result = DependentRuleService.NormalizeDocType(input);
             result.Should().Be(expected);
+        }
+
+        [Theory]
+        [InlineData("RESIDENCE_CT07", "CT07", true)]
+        [InlineData("CT07", "RELATIONSHIP_CERTIFICATE", false)]
+        [InlineData("RELATIONSHIP_CERTIFICATE", "RESIDENCE_CT07", false)]
+        [InlineData("RELATIONSHIP_CERTIFICATE", "RELATIONSHIP_CERTIFICATE", true)]
+        public void IsDocTypeMatching_KeepsResidenceAndRelationshipTypesDistinct(
+            string expected,
+            string detected,
+            bool matches)
+        {
+            StringComparisonHelper.IsDocTypeMatching(expected, detected).Should().Be(matches);
         }
 
         #endregion

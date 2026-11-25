@@ -472,7 +472,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             {
                 var cachedRedis = await _redisCache.GetAsync<string[]>(redisKey);
                 if (cachedRedis != null && cachedRedis.Length > 0)
-                    return cachedRedis;
+                    return cachedRedis.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
             }
 
             if (!_cache.TryGetValue(cacheKey, out string[]? requiredDocs) || requiredDocs == null)
@@ -491,6 +491,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 if (requiredDocs.Length == 0)
                     requiredDocs = new[] { "OTHER" };
 
+                requiredDocs = requiredDocs.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
                 _cache.Set(cacheKey, requiredDocs,
                     new MemoryCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromHours(1)));
 
@@ -500,7 +501,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 }
             }
 
-            return requiredDocs;
+            return requiredDocs.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         }
 
         // ── Helper: danh sách giấy tờ còn thiếu ─────────────────────────────────

@@ -781,8 +781,8 @@ namespace TaxKeepVN.Application.Service.Implementations
                         taxpayer.FullName, spouseName);
                 }
             }
-            // ── 8. Key: HOUSEHOLD_CERTIFICATE (CT07 / sổ hộ tịch) ─────────────────────
-            else if (ruleKey == "HOUSEHOLD_CERTIFICATE" || ruleKey == "RELATIONSHIP_CERTIFICATE")
+            // ── 8. Key: RESIDENCE_CT07 ─────────────────────────────────────────────────
+            else if (ruleKey == "RESIDENCE_CT07")
             {
                 var maxIssueAgeDays = await GetRuleParamAsync("maxIssueAgeDays", 365);
 

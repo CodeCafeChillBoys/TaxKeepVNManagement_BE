@@ -252,9 +252,15 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(r => r.CreatedAt).HasColumnName("created_at");
                 entity.Property(r => r.UpdatedAt).HasColumnName("updated_at");
 
+                entity.HasIndex(r => new { r.TargetGroup, r.DocType, r.AlternativeGroup })
+                    .IsUnique()
+                    .HasFilter("\"alternative_group\" IS NOT NULL")
+                    .HasDatabaseName("uq_group_doc_rule_with_alternative_group");
+
                 entity.HasIndex(r => new { r.TargetGroup, r.DocType })
                     .IsUnique()
-                    .HasDatabaseName("uq_group_doc_rule");
+                    .HasFilter("\"alternative_group\" IS NULL")
+                    .HasDatabaseName("uq_group_doc_rule_without_alternative_group");
             });
 
             // ── DependentRelationshipCatalog ─────────────────────────────────────
