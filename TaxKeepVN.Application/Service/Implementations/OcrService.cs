@@ -510,12 +510,20 @@ namespace TaxKeepVN.Application.Service.Implementations
                         $"Ngày sinh trên giấy khai sinh ({parsedBirth.Value:dd/MM/yyyy}) không khớp với ngày sinh đã đăng ký ({dependent.BirthDate:dd/MM/yyyy}).");
                 }
 
-                if (!string.IsNullOrWhiteSpace(dependent.BirthCertNumber) && !string.IsNullOrWhiteSpace(ocrData.DocumentNumber))
+                var depBirthCert = dependent.BirthCertNumber?.Trim();
+                var ocrDocNum = ocrData.DocumentNumber?.Trim();
+                var ocrCitId = ocrData.CitizenId?.Trim();
+
+                if (!string.IsNullOrWhiteSpace(depBirthCert) && (!string.IsNullOrWhiteSpace(ocrDocNum) || !string.IsNullOrWhiteSpace(ocrCitId)))
                 {
-                    if (dependent.BirthCertNumber.Trim() != ocrData.DocumentNumber.Trim())
+                    bool isMatched = (!string.IsNullOrWhiteSpace(ocrDocNum) && string.Equals(depBirthCert, ocrDocNum, StringComparison.OrdinalIgnoreCase)) ||
+                                     (!string.IsNullOrWhiteSpace(ocrCitId) && string.Equals(depBirthCert, ocrCitId, StringComparison.OrdinalIgnoreCase));
+
+                    if (!isMatched)
                     {
+                        var displayDoc = !string.IsNullOrWhiteSpace(ocrDocNum) ? ocrDocNum : ocrCitId;
                         throw new BadRequestException("IDENTITY_MISMATCH",
-                            $"Số giấy khai sinh trên giấy tờ ('{ocrData.DocumentNumber}') không khớp với số khai sinh đã đăng ký ('{dependent.BirthCertNumber}').");
+                            $"Số giấy khai sinh trên giấy tờ ('{displayDoc}') không khớp với số khai sinh đã đăng ký ('{depBirthCert}').");
                     }
                 }
 

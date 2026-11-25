@@ -1929,6 +1929,106 @@ namespace TaxKeepVN.UnitTests.Application.Services
             await _service.ValidateDependentDocumentAsync(dependent, "OTHER", mockFile.Object);
         }
 
+        [Fact]
+        public async Task UTCID46_ValidateDependentDocumentAsync_ChildBirthCert_BirthCertMatchesCitizenId_Success()
+        {
+            _mockUnitOfWork.Setup(u => u.Repository<SystemConfig>()).Returns((IGenericRepository<SystemConfig>)null!);
+
+            var taxpayer = new User { FullName = "Nguyễn Văn Cha" };
+            var dependent = new Dependent
+            {
+                FullName = "Nguyễn Minh Khôi",
+                Relationship = "CHILD",
+                BirthDate = new DateTime(2015, 5, 10),
+                BirthCertNumber = "038215001234"
+            };
+
+            var ocrResponse = new OcrExtractResponseMessage
+            {
+                Success = true,
+                Data = new ExtractedDependentDataDto
+                {
+                    IsReadable = true,
+                    IsPassedThreshold = true,
+                    DocumentType = "BIRTH_CERTIFICATE",
+                    FullName = "Nguyễn Minh Khôi",
+                    BirthDate = "2015-05-10",
+                    DocumentNumber = "123/2015",
+                    CitizenId = "038215001234",
+                    FatherFullName = "Nguyễn Văn Cha"
+                }
+            };
+
+            var responseMessage = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(ocrResponse), System.Text.Encoding.UTF8, "application/json")
+            };
+
+            _mockHandler.Protected()
+                .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
+                .ReturnsAsync(responseMessage);
+
+            var mockFile = new Mock<IFormFile>();
+            mockFile.Setup(f => f.Length).Returns(100);
+            mockFile.Setup(f => f.OpenReadStream()).Returns(new MemoryStream(new byte[100]));
+            mockFile.Setup(f => f.ContentType).Returns("image/jpeg");
+            mockFile.Setup(f => f.FileName).Returns("birth_cert.jpg");
+
+            var act = () => _service.ValidateDependentDocumentAsync(dependent, "BIRTH_CERTIFICATE", mockFile.Object, taxpayer);
+            await act.Should().NotThrowAsync();
+        }
+
+        [Fact]
+        public async Task UTCID47_ValidateDependentDocumentAsync_ChildBirthCert_BirthCertMismatchCitizenId_ThrowsIdentityMismatch()
+        {
+            _mockUnitOfWork.Setup(u => u.Repository<SystemConfig>()).Returns((IGenericRepository<SystemConfig>)null!);
+
+            var taxpayer = new User { FullName = "Nguyễn Văn Cha" };
+            var dependent = new Dependent
+            {
+                FullName = "Nguyễn Minh Khôi",
+                Relationship = "CHILD",
+                BirthDate = new DateTime(2015, 5, 10),
+                BirthCertNumber = "038215001234"
+            };
+
+            var ocrResponse = new OcrExtractResponseMessage
+            {
+                Success = true,
+                Data = new ExtractedDependentDataDto
+                {
+                    IsReadable = true,
+                    IsPassedThreshold = true,
+                    DocumentType = "BIRTH_CERTIFICATE",
+                    FullName = "Nguyễn Minh Khôi",
+                    BirthDate = "2015-05-10",
+                    DocumentNumber = "123/2015",
+                    CitizenId = "038215999999",
+                    FatherFullName = "Nguyễn Văn Cha"
+                }
+            };
+
+            var responseMessage = new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(JsonSerializer.Serialize(ocrResponse), System.Text.Encoding.UTF8, "application/json")
+            };
+
+            _mockHandler.Protected()
+                .Setup<Task<HttpResponseMessage>>("SendAsync", ItExpr.IsAny<HttpRequestMessage>(), ItExpr.IsAny<CancellationToken>())
+                .ReturnsAsync(responseMessage);
+
+            var mockFile = new Mock<IFormFile>();
+            mockFile.Setup(f => f.Length).Returns(100);
+            mockFile.Setup(f => f.OpenReadStream()).Returns(new MemoryStream(new byte[100]));
+            mockFile.Setup(f => f.ContentType).Returns("image/jpeg");
+            mockFile.Setup(f => f.FileName).Returns("birth_cert.jpg");
+
+            var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
+                _service.ValidateDependentDocumentAsync(dependent, "BIRTH_CERTIFICATE", mockFile.Object, taxpayer));
+
+            ex.ErrorCode.Should().Be("IDENTITY_MISMATCH");
+        }
+
         #endregion
     }
 }
