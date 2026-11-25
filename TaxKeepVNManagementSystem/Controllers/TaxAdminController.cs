@@ -17,7 +17,7 @@ using TaxKeepVNManagementSystem.Attributes;
 namespace TaxKeepVNManagementSystem.Controllers
 {
     [ApiController]
-    [Route("api/admin/tax-rules")]
+    [Route("api/v1/admin/tax-rules")]
     [HasPermission("admin.tax_rule.manage")]
     public class TaxAdminController : ControllerBase
     {
