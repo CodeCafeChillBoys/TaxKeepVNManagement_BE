@@ -190,6 +190,17 @@ namespace TaxKeepVN.UnitTests.Application.Services
             _mockDependentRepo.Setup(r => r.GetByIdAsync(depId)).ReturnsAsync(dependent);
             _mockFileStorageService.Setup(f => f.SaveFileAsync(mockFile.Object, It.IsAny<string>()))
                                    .ReturnsAsync("https://storage/dependents/cert.pdf");
+            string? capturedRulesJson = null;
+            _mockOcrService.Setup(o => o.ValidateDependentDocumentAsync(
+                    It.IsAny<Dependent>(),
+                    It.IsAny<string>(),
+                    It.IsAny<IFormFile>(),
+                    It.IsAny<User?>(),
+                    It.IsAny<string?>(),
+                    It.IsAny<string?>()))
+                .Callback<Dependent, string, IFormFile, User?, string?, string?>(
+                    (_, _, _, _, _, rulesJson) => capturedRulesJson = rulesJson)
+                .Returns(Task.CompletedTask);
 
             var docsInDb = new List<DependentDocument>();
             _mockDocRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentDocument, bool>>>()))
@@ -202,7 +213,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
             mockRuleRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentDocumentRule, bool>>>()))
                         .ReturnsAsync(new List<DependentDocumentRule>
                         {
-                            new DependentDocumentRule { DocType = "BIRTH_CERTIFICATE", IsMandatory = true, IsActive = true, TargetGroup = "CHILD_UNDER_18" }
+                            new DependentDocumentRule { DocType = "BIRTH_CERTIFICATE", DocName = "Birth certificate for relationship", AlternativeGroup = "RELATION_PROOF", IsMandatory = true, IsActive = true, TargetGroup = "CHILD_UNDER_18" },
+                            new DependentDocumentRule { DocType = "BIRTH_CERTIFICATE", DocName = "Birth certificate for identity", AlternativeGroup = "IDENTITY_PROOF", IsMandatory = true, IsActive = true, TargetGroup = "CHILD_UNDER_18" }
                         });
             _mockUnitOfWork.Setup(u => u.Repository<DependentDocumentRule>()).Returns(mockRuleRepo.Object);
 
@@ -211,6 +223,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
             result.Should().NotBeNull();
             result.Document.FileUrl.Should().Be("https://storage/dependents/cert.pdf");
             result.IsProfileComplete.Should().BeTrue();
+            capturedRulesJson.Should().Contain("\"alternative_group\":\"RELATION_PROOF\"");
+            capturedRulesJson.Should().Contain("\"alternative_group\":\"IDENTITY_PROOF\"");
             _mockDocRepo.Verify(r => r.AddAsync(It.IsAny<DependentDocument>()), Times.Once);
             _mockUnitOfWork.Verify(u => u.CommitTransactionAsync(), Times.Once);
         }

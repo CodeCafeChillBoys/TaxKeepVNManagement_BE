@@ -925,7 +925,13 @@ namespace TaxKeepVN.Infrastructure.Migrations
 
                     b.HasIndex("TargetGroup", "DocType")
                         .IsUnique()
-                        .HasDatabaseName("uq_group_doc_rule");
+                        .HasDatabaseName("uq_group_doc_rule_without_alternative_group")
+                        .HasFilter("\"alternative_group\" IS NULL");
+
+                    b.HasIndex("TargetGroup", "DocType", "AlternativeGroup")
+                        .IsUnique()
+                        .HasDatabaseName("uq_group_doc_rule_with_alternative_group")
+                        .HasFilter("\"alternative_group\" IS NOT NULL");
 
                     b.ToTable("dependent_document_rules", (string)null);
                 });

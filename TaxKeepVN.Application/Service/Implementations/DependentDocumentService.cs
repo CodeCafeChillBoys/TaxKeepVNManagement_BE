@@ -117,7 +117,8 @@ namespace TaxKeepVN.Application.Service.Implementations
                     doc_type = r.DocType,
                     doc_name = r.DocName,
                     is_mandatory = r.IsMandatory,
-                    description = r.Description
+                    description = r.Description,
+                    alternative_group = r.AlternativeGroup
                 }))
                 : null;
 

@@ -363,7 +363,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
             mockRuleRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentDocumentRule, bool>>>()))
                 .ReturnsAsync(new List<DependentDocumentRule>
                 {
-                    new DependentDocumentRule { TargetGroup = "CHILD_UNDER_18", DocType = "BIRTH_CERTIFICATE", IsMandatory = true, IsActive = true }
+                    new DependentDocumentRule { TargetGroup = "CHILD_UNDER_18", DocType = "BIRTH_CERTIFICATE", AlternativeGroup = "RELATION_PROOF", IsMandatory = true, IsActive = true },
+                    new DependentDocumentRule { TargetGroup = "CHILD_UNDER_18", DocType = "BIRTH_CERTIFICATE", AlternativeGroup = "IDENTITY_PROOF", IsMandatory = true, IsActive = true }
                 });
             _mockUnitOfWork.Setup(u => u.Repository<DependentDocumentRule>()).Returns(mockRuleRepo.Object);
 
@@ -374,6 +375,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             result.Relationship.Should().Be("CHILD");
             result.CurrentGroup.Should().Be("CHILD_UNDER_18");
             result.RequiredDocuments.Should().Contain("BIRTH_CERTIFICATE");
+            result.RequiredDocuments.Should().ContainSingle(document => document == "BIRTH_CERTIFICATE");
             _mockUnitOfWork.Verify(u => u.SaveChangesAsync(), Times.Once);
         }
 
