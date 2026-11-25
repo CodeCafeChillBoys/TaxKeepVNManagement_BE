@@ -32,6 +32,14 @@ namespace TaxKeepVN.Application.Helpers
             // 1. Đối chiếu thông tin bệnh nhân (Họ tên & CCCD)
             string? patientName = statement.PatientName;
             string? patientIdCard = statement.PatientIdCard;
+            DateOnly? patientDob = statement.PatientDob;
+            string? patientGender = statement.PatientGender;
+            string? hospitalName = statement.HospitalName;
+            DateOnly? admissionDate = statement.AdmissionDate;
+            DateOnly? dischargeDate = statement.DischargeDate;
+            string? insuranceNumber = statement.InsuranceNumber;
+            decimal? benefitRate = statement.BenefitRate;
+            string? treatmentType = statement.TreatmentType;
 
             if (data.MedicalHeader.HasValue && data.MedicalHeader.Value.ValueKind == JsonValueKind.Object)
             {
@@ -39,6 +47,59 @@ namespace TaxKeepVN.Application.Helpers
                     patientName = pn.GetString();
                 if (data.MedicalHeader.Value.TryGetProperty("idCard", out var idc) && idc.ValueKind == JsonValueKind.String)
                     patientIdCard = idc.GetString();
+                if ((data.MedicalHeader.Value.TryGetProperty("dob", out var dob) ||
+                     data.MedicalHeader.Value.TryGetProperty("patientDateOfBirth", out dob)) &&
+                    dob.ValueKind == JsonValueKind.String &&
+                    DateOnly.TryParse(dob.GetString(), out var parsedDob))
+                {
+                    patientDob = parsedDob;
+                }
+                if (data.MedicalHeader.Value.TryGetProperty("gender", out var gender) &&
+                    gender.ValueKind == JsonValueKind.String)
+                {
+                    patientGender = gender.GetString();
+                }
+                if ((data.MedicalHeader.Value.TryGetProperty("hospitalName", out var hospital) ||
+                     data.MedicalHeader.Value.TryGetProperty("facilityName", out hospital)) &&
+                    hospital.ValueKind == JsonValueKind.String)
+                {
+                    hospitalName = hospital.GetString();
+                }
+                if ((data.MedicalHeader.Value.TryGetProperty("admissionDate", out var admission) ||
+                     data.MedicalHeader.Value.TryGetProperty("visitDate", out admission) ||
+                     data.MedicalHeader.Value.TryGetProperty("treatmentFrom", out admission)) &&
+                    admission.ValueKind == JsonValueKind.String &&
+                    DateOnly.TryParse(admission.GetString(), out var parsedAdmission))
+                {
+                    admissionDate = parsedAdmission;
+                }
+                if ((data.MedicalHeader.Value.TryGetProperty("dischargeDate", out var discharge) ||
+                     data.MedicalHeader.Value.TryGetProperty("treatmentTo", out discharge)) &&
+                    discharge.ValueKind == JsonValueKind.String &&
+                    DateOnly.TryParse(discharge.GetString(), out var parsedDischarge))
+                {
+                    dischargeDate = parsedDischarge;
+                }
+                if (data.MedicalHeader.Value.TryGetProperty("insuranceNumber", out var insurance) &&
+                    insurance.ValueKind == JsonValueKind.String)
+                {
+                    insuranceNumber = insurance.GetString();
+                }
+                if (data.MedicalHeader.Value.TryGetProperty("benefitRate", out var benefit) &&
+                    (benefit.ValueKind == JsonValueKind.Number || benefit.ValueKind == JsonValueKind.String))
+                {
+                    if (decimal.TryParse(
+                        benefit.ValueKind == JsonValueKind.Number ? benefit.GetRawText() : benefit.GetString(),
+                        out var benefitValue))
+                    {
+                        benefitRate = benefitValue;
+                    }
+                }
+                if (data.MedicalHeader.Value.TryGetProperty("treatmentType", out var treatment) &&
+                    treatment.ValueKind == JsonValueKind.String)
+                {
+                    treatmentType = treatment.GetString();
+                }
             }
 
             patientName ??= data.BuyerName;
@@ -69,6 +130,8 @@ namespace TaxKeepVN.Application.Helpers
             // 1.2 [Khoản 3b Điều 49 Nghị định 253/2026/NĐ-CP & Rule R2]
             // Bệnh nhân bắt buộc phải là chính Người nộp thuế hoặc Người phụ thuộc được đăng ký giảm trừ
             bool isPatientTaxpayerOrDependent = false;
+            Dependent? matchedDependent = null;
+            bool matchedTaxpayer = false;
             if (!string.IsNullOrWhiteSpace(patientName))
             {
                 // Kiểm tra trùng với chính người nộp thuế
@@ -76,6 +139,7 @@ namespace TaxKeepVN.Application.Helpers
                     StringComparisonHelper.IsNameMatching(patientName, taxpayer.FullName))
                 {
                     isPatientTaxpayerOrDependent = true;
+                    matchedTaxpayer = true;
                 }
                 else
                 {
@@ -87,6 +151,7 @@ namespace TaxKeepVN.Application.Helpers
                     if (matchedDep != null)
                     {
                         isPatientTaxpayerOrDependent = true;
+                        matchedDependent = matchedDep;
                         if (matchedDep.Status != DependentStatus.ACTIVE)
                         {
                             var warnMsg = $"Người bệnh là người phụ thuộc '{matchedDep.FullName}' nhưng trạng thái hồ sơ đang là '{matchedDep.Status}'. Cần hoàn tất hồ sơ người phụ thuộc để được tính giảm trừ chính thức.";
@@ -105,10 +170,15 @@ namespace TaxKeepVN.Application.Helpers
                             cleanPatientId == Regex.Replace(taxpayer.CitizenId, @"\D", ""))
                         {
                             isPatientTaxpayerOrDependent = true;
+                            matchedTaxpayer = true;
                         }
-                        else if (dependents.Any(d => !string.IsNullOrEmpty(d.CitizenId) && cleanPatientId == Regex.Replace(d.CitizenId, @"\D", "")))
+                        else
                         {
-                            isPatientTaxpayerOrDependent = true;
+                            matchedDependent = dependents.FirstOrDefault(d =>
+                                !string.IsNullOrEmpty(d.CitizenId) &&
+                                cleanPatientId == Regex.Replace(d.CitizenId, @"\D", ""));
+                            if (matchedDependent != null)
+                                isPatientTaxpayerOrDependent = true;
                         }
                     }
                 }
@@ -169,7 +239,43 @@ namespace TaxKeepVN.Application.Helpers
                 }
             }
 
+            // 1.4 So sánh ngày sinh của bệnh nhân với hồ sơ NNT hoặc NPT
+            if (patientDob.HasValue)
+            {
+                DateOnly? registeredDob = null;
+                if (matchedTaxpayer)
+                    registeredDob = taxpayer?.DateOfBirth;
+                else
+                    registeredDob = matchedDependent != null
+                        ? DateOnly.FromDateTime(matchedDependent.BirthDate)
+                        : null;
+
+                if (registeredDob.HasValue && patientDob.Value != registeredDob.Value)
+                {
+                    var msg = $"Ngày sinh trên bảng kê ('{patientDob.Value:dd/MM/yyyy}') không khớp với ngày sinh đã đăng ký ('{registeredDob.Value:dd/MM/yyyy}').";
+                    data.ValidationErrors.Add(msg);
+                    if (!data.CrossCheckIssues.Contains(MedicalCrossCheckIssue.PATIENT_DOB_MISMATCH))
+                        data.CrossCheckIssues.Add(MedicalCrossCheckIssue.PATIENT_DOB_MISMATCH);
+                    hasCriticalMismatch = true;
+                }
+            }
+
+            // 1.5 Kiểm tra định dạng giới tính và độ nhất quán nội bộ
+            if (!string.IsNullOrWhiteSpace(patientGender))
+            {
+                var normalizedGender = StringComparisonHelper.RemoveDiacritics(patientGender).Trim().ToUpperInvariant();
+                if (!normalizedGender.Equals("NAM") && !normalizedGender.Equals("NU") &&
+                    !normalizedGender.Equals("MALE") && !normalizedGender.Equals("FEMALE"))
+                {
+                    var msg = $"Giới tính trên bảng kê ('{patientGender.Trim()}') không hợp lệ. Chỉ chấp nhận Nam/Nữ.";
+                    data.ValidationErrors.Add(msg);
+                    if (!data.CrossCheckIssues.Contains(MedicalCrossCheckIssue.PATIENT_GENDER_INVALID))
+                        data.CrossCheckIssues.Add(MedicalCrossCheckIssue.PATIENT_GENDER_INVALID);
+                }
+            }
+
             // 2. Đối chiếu số tiền người bệnh thực trả
+            // số tiền mà bệnh nhân trả trên bảng kê khai
             decimal? patientPaidOnStatement = statement.PatientPaidAmount;
 
             // Ưu tiên 1: Tự động cộng từ danh sách các dòng chi tiết (Cột 11 + Cột 13)
@@ -288,7 +394,75 @@ namespace TaxKeepVN.Application.Helpers
                 }
             }
 
-            // 4. Nếu có lỗi nghiêm trọng (thông tin bệnh nhân hoặc số tiền không khớp)
+            // 4. Kiểm tra thông tin cơ sở khám chữa bệnh và thời gian điều trị trong medicalHeader
+            if (!string.IsNullOrWhiteSpace(hospitalName) && !string.IsNullOrWhiteSpace(parentDoc.SellerName))
+            {
+                var isHospitalSame = StringComparisonHelper.IsNameMatching(hospitalName, parentDoc.SellerName);
+                if (!isHospitalSame)
+                {
+                    var msg = $"Tên cơ sở khám chữa bệnh trên bảng kê ('{hospitalName.Trim()}') không khớp với đơn vị bán trên hóa đơn ('{parentDoc.SellerName.Trim()}').";
+                    data.ValidationErrors.Add(msg);
+                    if (!data.CrossCheckIssues.Contains(MedicalCrossCheckIssue.HOSPITAL_NAME_MISMATCH))
+                        data.CrossCheckIssues.Add(MedicalCrossCheckIssue.HOSPITAL_NAME_MISMATCH);
+                    hasCriticalMismatch = true;
+                }
+            }
+
+            if (admissionDate.HasValue && dischargeDate.HasValue && dischargeDate.Value < admissionDate.Value)
+            {
+                var msg = $"Ngày ra viện ({dischargeDate.Value:dd/MM/yyyy}) không được trước ngày vào viện ({admissionDate.Value:dd/MM/yyyy}).";
+                data.ValidationErrors.Add(msg);
+                if (!data.CrossCheckIssues.Contains(MedicalCrossCheckIssue.TREATMENT_DATE_INVALID))
+                    data.CrossCheckIssues.Add(MedicalCrossCheckIssue.TREATMENT_DATE_INVALID);
+                hasCriticalMismatch = true;
+            }
+
+            if (admissionDate.HasValue && parentDoc.InvoiceDate.HasValue &&
+                Math.Abs(admissionDate.Value.DayNumber - parentDoc.InvoiceDate.Value.DayNumber) > 366)
+            {
+                var msg = $"Ngày điều trị trên bảng kê ({admissionDate.Value:dd/MM/yyyy}) không nằm gần ngày lập hóa đơn ({parentDoc.InvoiceDate.Value:dd/MM/yyyy}).";
+                data.ValidationErrors.Add(msg);
+                if (!data.CrossCheckIssues.Contains(MedicalCrossCheckIssue.TREATMENT_DATE_INVALID))
+                    data.CrossCheckIssues.Add(MedicalCrossCheckIssue.TREATMENT_DATE_INVALID);
+                hasCriticalMismatch = true;
+            }
+
+            if (benefitRate.HasValue && (benefitRate.Value < 0m || benefitRate.Value > 100m))
+            {
+                var msg = $"Mức hưởng BHYT trên bảng kê ('{benefitRate.Value}') không hợp lệ. Mức hưởng phải nằm trong khoảng 0-100%.";
+                data.ValidationErrors.Add(msg);
+                if (!data.CrossCheckIssues.Contains(MedicalCrossCheckIssue.HEADER_FIELD_INVALID))
+                    data.CrossCheckIssues.Add(MedicalCrossCheckIssue.HEADER_FIELD_INVALID);
+            }
+
+            if (!string.IsNullOrWhiteSpace(insuranceNumber))
+            {
+                var cleanInsuranceNumber = Regex.Replace(insuranceNumber, @"[\s\-]", "").ToUpperInvariant();
+                if (!Regex.IsMatch(cleanInsuranceNumber, @"^[A-Z0-9]{10,15}$"))
+                {
+                    var msg = $"Số thẻ BHYT trên bảng kê ('{insuranceNumber.Trim()}') không đúng định dạng.";
+                    data.ValidationErrors.Add(msg);
+                    if (!data.CrossCheckIssues.Contains(MedicalCrossCheckIssue.HEADER_FIELD_INVALID))
+                        data.CrossCheckIssues.Add(MedicalCrossCheckIssue.HEADER_FIELD_INVALID);
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(treatmentType))
+            {
+                var normalizedTreatmentType = StringComparisonHelper.RemoveDiacritics(treatmentType).Trim().ToUpperInvariant();
+                if (!normalizedTreatmentType.Contains("NOI TRU") &&
+                    !normalizedTreatmentType.Contains("NGOAI TRU") &&
+                    !normalizedTreatmentType.Contains("INPATIENT") &&
+                    !normalizedTreatmentType.Contains("OUTPATIENT"))
+                {
+                    var msg = $"Hình thức điều trị trên bảng kê ('{treatmentType.Trim()}') không hợp lệ.";
+                    data.ValidationErrors.Add(msg);
+                    if (!data.CrossCheckIssues.Contains(MedicalCrossCheckIssue.HEADER_FIELD_INVALID))
+                        data.CrossCheckIssues.Add(MedicalCrossCheckIssue.HEADER_FIELD_INVALID);
+                }
+            }
+
+            // 5. Nếu có lỗi nghiêm trọng (thông tin bệnh nhân, cơ sở y tế hoặc số tiền không khớp)
             if (hasCriticalMismatch)
             {
                 data.Status = MedicalStatementStatus.FAILED;
