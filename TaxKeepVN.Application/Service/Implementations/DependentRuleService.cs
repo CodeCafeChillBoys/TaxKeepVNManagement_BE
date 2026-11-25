@@ -113,18 +113,18 @@ namespace TaxKeepVN.Application.Service.Implementations
         {
             var targetGroup = dto.TargetGroup.Trim().ToUpper();
             var docType = dto.DocType.Trim().ToUpper();
+            var alternativeGroup = NormalizeAlternativeGroup(dto.AlternativeGroup);
 
             var repo = _unitOfWork.Repository<DependentDocumentRule>();
 
-            // Check unique constraint (TargetGroup, DocType)
             var existing = await repo.FindAsync(r =>
                 r.TargetGroup.ToUpper() == targetGroup &&
                 r.DocType.ToUpper() == docType);
 
-            if (existing.Any())
+            if (existing.Any(r => NormalizeAlternativeGroup(r.AlternativeGroup) == alternativeGroup))
             {
                 throw new ConflictException("DUPLICATE_RULE",
-                    $"Quy tắc cho nhóm đối tượng '{targetGroup}' và loại giấy tờ '{docType}' đã tồn tại trong hệ thống.");
+                    $"Quy tắc cho nhóm đối tượng '{targetGroup}', loại giấy tờ '{docType}' và nhóm thay thế '{alternativeGroup ?? "(không có)"}' đã tồn tại trong hệ thống.");
             }
 
             var rule = new DependentDocumentRule
@@ -135,7 +135,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 DocName = dto.DocName?.Trim(),
                 IsMandatory = dto.IsMandatory,
                 Description = dto.Description?.Trim(),
-                AlternativeGroup = dto.AlternativeGroup?.Trim(),
+                AlternativeGroup = alternativeGroup,
                 Source = string.IsNullOrWhiteSpace(dto.Source) ? "ADMIN" : dto.Source.Trim().ToUpper(),
                 IsActive = dto.IsActive,
                 CreatedAt = DateTime.UtcNow,
@@ -158,13 +158,26 @@ namespace TaxKeepVN.Application.Service.Implementations
             if (rule == null)
                 throw new NotFoundException($"Không tìm thấy quy tắc giấy tờ với mã '{ruleId}'.");
 
+            if (dto.AlternativeGroup != null)
+            {
+                var alternativeGroup = NormalizeAlternativeGroup(dto.AlternativeGroup);
+                var matchingDocumentRules = await repo.FindAsync(r =>
+                    r.RuleId != ruleId &&
+                    r.TargetGroup.ToUpper() == rule.TargetGroup.ToUpper() &&
+                    r.DocType.ToUpper() == rule.DocType.ToUpper());
+
+                if (matchingDocumentRules.Any(r => NormalizeAlternativeGroup(r.AlternativeGroup) == alternativeGroup))
+                {
+                    throw new ConflictException("DUPLICATE_RULE",
+                        $"Quy tắc cho nhóm đối tượng '{rule.TargetGroup}', loại giấy tờ '{rule.DocType}' và nhóm thay thế '{alternativeGroup ?? "(không có)"}' đã tồn tại trong hệ thống.");
+                }
+
+                rule.AlternativeGroup = alternativeGroup;
+            }
+
             if (dto.DocName != null)
             {
                 rule.DocName = dto.DocName.Trim();
-            }
-            if (dto.AlternativeGroup != null)
-            {
-                rule.AlternativeGroup = string.IsNullOrWhiteSpace(dto.AlternativeGroup) ? null : dto.AlternativeGroup.Trim();
             }
             if (dto.Source != null)
             {
@@ -302,7 +315,8 @@ namespace TaxKeepVN.Application.Service.Implementations
                 }
             }
 
-            return (missing.Count == 0, missing);
+            var distinctMissing = missing.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            return (distinctMissing.Count == 0, distinctMissing);
         }
 
         #endregion
@@ -318,13 +332,13 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             var allExistingRules = (await ruleRepo.GetAllAsync()).ToList();
 
-            // Map existing rules by (TargetGroup, DocType)
-            var existingMap = new Dictionary<(string TargetGroup, string DocType), DependentDocumentRule>();
+            // Map existing rules by their persisted identity.
+            var existingMap = new Dictionary<(string TargetGroup, string DocType, string? AlternativeGroup), DependentDocumentRule>();
             foreach (var r in allExistingRules)
             {
                 if (!string.IsNullOrWhiteSpace(r.TargetGroup) && !string.IsNullOrWhiteSpace(r.DocType))
                 {
-                    var k = (r.TargetGroup.Trim().ToUpper(), NormalizeDocType(r.DocType));
+                    var k = (r.TargetGroup.Trim().ToUpperInvariant(), NormalizeDocType(r.DocType), NormalizeAlternativeGroup(r.AlternativeGroup));
                     if (!existingMap.ContainsKey(k))
                     {
                         existingMap[k] = r;
@@ -340,8 +354,10 @@ namespace TaxKeepVN.Application.Service.Implementations
             var existingRelCodes = existingRels.Select(r => r.Code.Trim().ToUpper()).ToHashSet(StringComparer.OrdinalIgnoreCase);
 
             // Bước 1: Gộp danh sách incoming từ AI
-            var incomingMap = new Dictionary<(string TargetGroup, string DocType), (bool IsMandatory, string? Description, string? DocName, string? AlternativeGroup, bool HasAlternativeGroup)>();
+            var incomingMap = new Dictionary<(string TargetGroup, string DocType, string? AlternativeGroup), (bool IsMandatory, string? Description, string? DocName, string? AlternativeGroup, bool HasAlternativeGroup)>();
             var affectedGroups = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var ambiguousIncomingDocuments = new HashSet<(string TargetGroup, string DocType)>();
+            var incomingDocuments = new List<(string TargetGroup, string DocType, RequiredDocumentFromAiDto Document)>();
 
             foreach (var depRule in dependentRules)
             {
@@ -455,31 +471,78 @@ namespace TaxKeepVN.Application.Service.Implementations
                     {
                         if (string.IsNullOrWhiteSpace(doc.DocType)) continue;
 
-                        var normDocType = NormalizeDocType(doc.DocType);
-                        var key = (normGroup, normDocType);
-
-                        if (incomingMap.TryGetValue(key, out var existingIncoming))
-                        {
-                            _logger?.LogWarning("Cặp ({TargetGroup}, {DocType}) xuất hiện nhiều lần trong dữ liệu đồng bộ AI. Lấy giá trị xuất hiện cuối cùng.", normGroup, normDocType);
-                            incomingMap[key] = (
-                                IsMandatory: doc.IsMandatory,
-                                Description: !string.IsNullOrWhiteSpace(doc.Description) ? doc.Description.Trim() : existingIncoming.Description,
-                                DocName: !string.IsNullOrWhiteSpace(doc.Name) ? doc.Name.Trim() : existingIncoming.DocName,
-                                AlternativeGroup: doc.HasAlternativeGroup ? doc.AlternativeGroup?.Trim() : existingIncoming.AlternativeGroup,
-                                HasAlternativeGroup: doc.HasAlternativeGroup || existingIncoming.HasAlternativeGroup
-                            );
-                        }
-                        else
-                        {
-                            incomingMap[key] = (
-                                IsMandatory: doc.IsMandatory,
-                                Description: doc.Description?.Trim(),
-                                DocName: doc.Name?.Trim(),
-                                AlternativeGroup: doc.AlternativeGroup?.Trim(),
-                                HasAlternativeGroup: doc.HasAlternativeGroup
-                            );
-                        }
+                        incomingDocuments.Add((normGroup, NormalizeDocType(doc.DocType), doc));
                     }
+                }
+            }
+
+            var incomingVariantCounts = incomingDocuments
+                .GroupBy(d => (d.TargetGroup, d.DocType))
+                .ToDictionary(
+                    group => group.Key,
+                    group => group
+                        .Select(d => d.Document.HasAlternativeGroup
+                            ? NormalizeAlternativeGroup(d.Document.AlternativeGroup)
+                            : null)
+                        .Distinct()
+                        .Count());
+
+            foreach (var (targetGroup, docType, doc) in incomingDocuments)
+            {
+                var existingVariants = existingMap.Keys
+                    .Where(k => k.TargetGroup == targetGroup && k.DocType == docType)
+                    .ToList();
+                var alternativeGroup = doc.HasAlternativeGroup
+                    ? NormalizeAlternativeGroup(doc.AlternativeGroup)
+                    : null;
+
+                if (!doc.HasAlternativeGroup)
+                {
+                    if (existingMap.ContainsKey((targetGroup, docType, null)))
+                    {
+                        alternativeGroup = null;
+                    }
+                    else if (existingVariants.Count == 1)
+                    {
+                        alternativeGroup = existingVariants[0].AlternativeGroup;
+                    }
+                    else if (existingVariants.Count > 1)
+                    {
+                        _logger?.LogWarning(
+                            "Bỏ qua giấy tờ AI {TargetGroup}/{DocType}: dữ liệu không có alternative_group trong khi DB đã có nhiều biến thể.",
+                            targetGroup,
+                            docType);
+                        ambiguousIncomingDocuments.Add((targetGroup, docType));
+                        continue;
+                    }
+                }
+
+                var key = (targetGroup, docType, alternativeGroup);
+
+                if (incomingMap.TryGetValue(key, out var existingIncoming))
+                {
+                    _logger?.LogWarning(
+                        "Cặp ({TargetGroup}, {DocType}, {AlternativeGroup}) xuất hiện nhiều lần trong dữ liệu đồng bộ AI. Lấy giá trị xuất hiện cuối cùng.",
+                        targetGroup,
+                        docType,
+                        alternativeGroup);
+                    incomingMap[key] = (
+                        IsMandatory: doc.IsMandatory,
+                        Description: !string.IsNullOrWhiteSpace(doc.Description) ? doc.Description.Trim() : existingIncoming.Description,
+                        DocName: !string.IsNullOrWhiteSpace(doc.Name) ? doc.Name.Trim() : existingIncoming.DocName,
+                        AlternativeGroup: doc.HasAlternativeGroup ? doc.AlternativeGroup?.Trim() : existingIncoming.AlternativeGroup,
+                        HasAlternativeGroup: doc.HasAlternativeGroup || existingIncoming.HasAlternativeGroup
+                    );
+                }
+                else
+                {
+                    incomingMap[key] = (
+                        IsMandatory: doc.IsMandatory,
+                        Description: doc.Description?.Trim(),
+                        DocName: doc.Name?.Trim(),
+                        AlternativeGroup: doc.AlternativeGroup?.Trim(),
+                        HasAlternativeGroup: doc.HasAlternativeGroup
+                    );
                 }
             }
 
@@ -488,7 +551,23 @@ namespace TaxKeepVN.Application.Service.Implementations
             // Bước 2: Upsert các rule từ AI
             foreach (var (key, val) in incomingMap)
             {
-                if (existingMap.TryGetValue(key, out var existingRule))
+                if (!existingMap.TryGetValue(key, out var existingRule))
+                {
+                    var existingVariants = existingMap
+                        .Where(pair => pair.Key.TargetGroup == key.TargetGroup && pair.Key.DocType == key.DocType)
+                        .ToList();
+
+                    if (existingVariants.Count == 1 &&
+                        incomingVariantCounts.TryGetValue((key.TargetGroup, key.DocType), out var variantCount) &&
+                        variantCount == 1)
+                    {
+                        existingRule = existingVariants[0].Value;
+                        existingMap.Remove(existingVariants[0].Key);
+                        existingMap[key] = existingRule;
+                    }
+                }
+
+                if (existingRule != null)
                 {
                     existingRule.IsMandatory = val.IsMandatory;
                     if (!string.IsNullOrWhiteSpace(val.Description))
@@ -501,9 +580,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                     }
                     if (val.HasAlternativeGroup)
                     {
-                        existingRule.AlternativeGroup = !string.IsNullOrWhiteSpace(val.AlternativeGroup)
-                            ? val.AlternativeGroup.Trim()
-                            : null;
+                        existingRule.AlternativeGroup = NormalizeAlternativeGroup(val.AlternativeGroup);
                     }
                     existingRule.IsActive = true;
                     existingRule.UpdatedAt = DateTime.UtcNow;
@@ -518,8 +595,8 @@ namespace TaxKeepVN.Application.Service.Implementations
                         TargetGroup = key.TargetGroup,
                         DocType = key.DocType,
                         DocName = val.DocName,
-                        AlternativeGroup = val.HasAlternativeGroup && !string.IsNullOrWhiteSpace(val.AlternativeGroup)
-                            ? val.AlternativeGroup.Trim()
+                        AlternativeGroup = val.HasAlternativeGroup
+                            ? NormalizeAlternativeGroup(val.AlternativeGroup)
                             : null,
                         Source = "AI",
                         IsMandatory = val.IsMandatory,
@@ -538,16 +615,17 @@ namespace TaxKeepVN.Application.Service.Implementations
             // Bước 3: Tắt rule cũ (với mỗi nhóm có trong lần sync, rule source='AI' không còn trong dữ liệu mới thì đặt IsActive = false)
             foreach (var grp in affectedGroups)
             {
-                var incomingDocTypesForGroup = incomingMap.Keys
+                var incomingRuleKeysForGroup = incomingMap.Keys
                     .Where(k => k.TargetGroup.Equals(grp, StringComparison.OrdinalIgnoreCase))
-                    .Select(k => k.DocType)
-                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                    .Select(k => (k.DocType, k.AlternativeGroup))
+                    .ToHashSet();
 
                 var staleAiRules = allExistingRules.Where(r =>
                     r.TargetGroup.Equals(grp, StringComparison.OrdinalIgnoreCase) &&
                     r.Source == "AI" &&
                     r.IsActive &&
-                    !incomingDocTypesForGroup.Contains(NormalizeDocType(r.DocType))).ToList();
+                    !incomingRuleKeysForGroup.Contains((NormalizeDocType(r.DocType), NormalizeAlternativeGroup(r.AlternativeGroup))) &&
+                    !ambiguousIncomingDocuments.Contains((grp, NormalizeDocType(r.DocType)))).ToList();
 
                 foreach (var staleRule in staleAiRules)
                 {
@@ -673,12 +751,16 @@ namespace TaxKeepVN.Application.Service.Implementations
         private static IEnumerable<DependentDocumentRule> ApplySort(IEnumerable<DependentDocumentRule> rules, string? sort)
         {
             if (string.IsNullOrWhiteSpace(sort))
-                return rules.OrderBy(r => r.TargetGroup).ThenBy(r => r.DocType);
+                return rules
+                    .OrderBy(r => r.TargetGroup)
+                    .ThenBy(r => r.DocType)
+                    .ThenBy(r => r.AlternativeGroup)
+                    .ThenBy(r => r.RuleId);
 
             bool desc = sort.StartsWith("-");
             string field = sort.TrimStart('-').ToLower();
 
-            return field switch
+            IOrderedEnumerable<DependentDocumentRule> ordered = field switch
             {
                 "targetgroup" => desc ? rules.OrderByDescending(r => r.TargetGroup) : rules.OrderBy(r => r.TargetGroup),
                 "doctype" => desc ? rules.OrderByDescending(r => r.DocType) : rules.OrderBy(r => r.DocType),
@@ -688,6 +770,12 @@ namespace TaxKeepVN.Application.Service.Implementations
                 "updatedat" => desc ? rules.OrderByDescending(r => r.UpdatedAt) : rules.OrderBy(r => r.UpdatedAt),
                 _ => desc ? rules.OrderByDescending(r => r.CreatedAt) : rules.OrderBy(r => r.CreatedAt)
             };
+
+            return ordered
+                .ThenBy(r => r.TargetGroup)
+                .ThenBy(r => r.DocType)
+                .ThenBy(r => r.AlternativeGroup)
+                .ThenBy(r => r.RuleId);
         }
 
         private async Task InvalidateGroupCacheAsync(string targetGroup)
@@ -743,7 +831,8 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             return trimmed switch
             {
-                "CT07" or "RESIDENCE_CT07" or "RESIDENCE" or "HO_KHAU" or "HOUSEHOLD" or "HOUSEHOLD_CERTIFICATE" or "RELATIONSHIP_CERTIFICATE" or "XAC_NHAN_CU_TRU" or "GIAY_XAC_NHAN_CU_TRU" => "RELATIONSHIP_CERTIFICATE",
+                "CT07" or "RESIDENCE_CT07" or "RESIDENCE" or "HO_KHAU" or "HOUSEHOLD" or "HOUSEHOLD_CERTIFICATE" or "XAC_NHAN_CU_TRU" or "GIAY_XAC_NHAN_CU_TRU" => "RESIDENCE_CT07",
+                "RELATIONSHIP_CERTIFICATE" => "RELATIONSHIP_CERTIFICATE",
                 "CHILD_BIRTH" or "CHILD_BIRTH_CERTIFICATE" => "CHILD_BIRTH_CERTIFICATE",
                 "TAXPAYER_BIRTH" or "TAXPAYER_BIRTH_CERTIFICATE" => "TAXPAYER_BIRTH_CERTIFICATE",
                 "KHAI_SINH" or "GIAY_KHAI_SINH" or "BIRTH" or "BIRTH_CERTIFICATE" => "BIRTH_CERTIFICATE",
@@ -758,6 +847,13 @@ namespace TaxKeepVN.Application.Service.Implementations
                 "XAC_NHAN_UBND" or "COMMUNE" or "COMMUNE_CERTIFICATION" => "COMMUNE_CERTIFICATION",
                 _ => trimmed
             };
+        }
+
+        private static string? NormalizeAlternativeGroup(string? alternativeGroup)
+        {
+            return string.IsNullOrWhiteSpace(alternativeGroup)
+                ? null
+                : alternativeGroup.Trim().ToUpperInvariant();
         }
 
         #endregion
