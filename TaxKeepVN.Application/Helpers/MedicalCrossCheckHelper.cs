@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -50,7 +51,12 @@ namespace TaxKeepVN.Application.Helpers
                 if ((data.MedicalHeader.Value.TryGetProperty("dob", out var dob) ||
                      data.MedicalHeader.Value.TryGetProperty("patientDateOfBirth", out dob)) &&
                     dob.ValueKind == JsonValueKind.String &&
-                    DateOnly.TryParse(dob.GetString(), out var parsedDob))
+                    DateOnly.TryParseExact(
+                        dob.GetString()?.Trim(),
+                        new[] { "yyyy-MM-dd", "d/M/yyyy" },
+                        CultureInfo.InvariantCulture,
+                        DateTimeStyles.None,
+                        out var parsedDob))
                 {
                     patientDob = parsedDob;
                 }
