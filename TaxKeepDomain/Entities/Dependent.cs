@@ -13,6 +13,8 @@ namespace TaxKeepVN.Domain.Entities
 
         public string FullName { get; set; } = string.Empty;
 
+        public string? Gender { get; set; }
+
         public DateTime BirthDate { get; set; } = DateTime.UtcNow;
         public string CurrentGroup { get; set; } = string.Empty;   
         public bool IsDeleted { get; set; } = false;

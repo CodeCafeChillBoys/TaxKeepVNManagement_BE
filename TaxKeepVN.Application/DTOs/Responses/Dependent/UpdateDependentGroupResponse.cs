@@ -14,6 +14,7 @@ namespace TaxKeepVN.Application.DTOs.Responses.Dependent
         public Guid DependentId { get; set; }
         public Guid TaxpayerId { get; set; }
         public string FullName { get; set; } = string.Empty;
+        public string? Gender { get; set; }
         public DateTime BirthDate { get; set; }
         public string? CitizenId { get; set; }
         public string? BirthCertNumber { get; set; }

@@ -14,6 +14,8 @@ namespace TaxKeepVN.Application.DTOs.Responses.Dependent
 
         public string FullName { get; set; } = string.Empty;
 
+        public string? Gender { get; set; }
+
         /// <summary>CHILD | SPOUSE | PARENT | OTHER_DEPENDENT</summary>
         public string Relationship { get; set; } = string.Empty;
 

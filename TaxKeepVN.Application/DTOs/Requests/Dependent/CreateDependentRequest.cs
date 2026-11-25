@@ -10,6 +10,16 @@ namespace TaxKeepVN.Application.DTOs.Requests.Dependent
         [MaxLength(150)]
         public string FullName { get; set; } = string.Empty;
 
+        [Required(ErrorMessage = "Giới tính người phụ thuộc không được để trống.")]
+        [RegularExpression(@"^(?i:MALE|FEMALE|OTHER)$", ErrorMessage = "Giới tính chỉ được là MALE, FEMALE hoặc OTHER.")]
+        public string Gender { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Xác nhận người phụ thuộc có thu nhập hàng tháng không vượt ngưỡng cấu hình.
+        /// Bắt buộc với cha/mẹ còn dưới tuổi tối đa theo giới tính.
+        /// </summary>
+        public bool ConfirmIncomeBelowThreshold { get; set; }
+
         /// <summary>
         /// Nhóm quan hệ: CHILD | SPOUSE | PARENT | OTHER_DEPENDENT
         /// </summary>

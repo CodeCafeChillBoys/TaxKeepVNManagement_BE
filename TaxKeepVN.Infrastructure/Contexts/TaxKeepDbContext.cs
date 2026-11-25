@@ -179,6 +179,7 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(d => d.Id).HasColumnName("id");
                 entity.Property(d => d.TaxpayerId).HasColumnName("taxpayer_id");
                 entity.Property(d => d.FullName).HasColumnName("full_name").IsRequired();
+                entity.Property(d => d.Gender).HasColumnName("gender").HasMaxLength(10);
                 entity.Property(d => d.Relationship).HasColumnName("relationship")
                     .HasMaxLength(50).IsRequired();
                 entity.Property(d => d.CitizenId).HasColumnName("citizen_id");
@@ -699,7 +700,10 @@ namespace TaxKeepVN.Infrastructure.Contexts
                     new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000022"), ConfigKey = "CHAT_MAX_ATTACHMENT_URL_LENGTH", ConfigValue = "1000", Description = "Độ dài tối đa của URL tệp đính kèm trong chat tư vấn", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
                     new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000023"), ConfigKey = "CHAT_HISTORY_DEFAULT_PAGE_SIZE", ConfigValue = "50", Description = "Số lượng tin nhắn mặc định hiển thị trên một trang lịch sử chat", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
                     new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000024"), ConfigKey = "CHAT_HISTORY_MAX_PAGE_SIZE", ConfigValue = "100", Description = "Số lượng tin nhắn tối đa cho phép lấy trên một trang lịch sử chat", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
-                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000025"), ConfigKey = "CONSULTATION_ROOM_URL_BASE", ConfigValue = "https://meet.jit.si", Description = "URL gốc của hệ thống phòng họp trực tuyến", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime }
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000025"), ConfigKey = "CONSULTATION_ROOM_URL_BASE", ConfigValue = "https://meet.jit.si", Description = "URL gốc của hệ thống phòng họp trực tuyến", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000026"), ConfigKey = "DEPENDENT_PARENT_MALE_MAX_AGE", ConfigValue = "62", Description = "Tuổi tối đa áp dụng cam kết thu nhập cho cha (tuổi)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000027"), ConfigKey = "DEPENDENT_PARENT_FEMALE_MAX_AGE", ConfigValue = "60", Description = "Tuổi tối đa áp dụng cam kết thu nhập cho mẹ (tuổi)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime },
+                    new SystemConfig { ConfigId = Guid.Parse("44444444-0000-0000-0000-000000000028"), ConfigKey = "DEPENDENT_PARENT_MONTHLY_INCOME_LIMIT_VND", ConfigValue = "1000000", Description = "Ngưỡng thu nhập tháng tối đa cần cam kết của cha/mẹ (VNĐ)", IsActive = true, CreatedAt = seedTime, UpdatedAt = seedTime }
                 );
             });
 

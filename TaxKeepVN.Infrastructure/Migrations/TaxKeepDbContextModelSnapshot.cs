@@ -759,6 +759,11 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         .HasColumnType("text")
                         .HasColumnName("full_name");
 
+                    b.Property<string>("Gender")
+                        .HasMaxLength(10)
+                        .HasColumnType("character varying(10)")
+                        .HasColumnName("gender");
+
                     b.Property<DateTime?>("IdentityUpdatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("identity_updated_at");
@@ -3383,6 +3388,36 @@ namespace TaxKeepVN.Infrastructure.Migrations
                             ConfigValue = "https://meet.jit.si",
                             CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
                             Description = "URL gốc của hệ thống phòng họp trực tuyến",
+                            IsActive = true,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            ConfigId = new Guid("44444444-0000-0000-0000-000000000026"),
+                            ConfigKey = "DEPENDENT_PARENT_MALE_MAX_AGE",
+                            ConfigValue = "62",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Description = "Tuổi tối đa áp dụng cam kết thu nhập cho cha (tuổi)",
+                            IsActive = true,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            ConfigId = new Guid("44444444-0000-0000-0000-000000000027"),
+                            ConfigKey = "DEPENDENT_PARENT_FEMALE_MAX_AGE",
+                            ConfigValue = "60",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Description = "Tuổi tối đa áp dụng cam kết thu nhập cho mẹ (tuổi)",
+                            IsActive = true,
+                            UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
+                        },
+                        new
+                        {
+                            ConfigId = new Guid("44444444-0000-0000-0000-000000000028"),
+                            ConfigKey = "DEPENDENT_PARENT_MONTHLY_INCOME_LIMIT_VND",
+                            ConfigValue = "1000000",
+                            CreatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0)),
+                            Description = "Ngưỡng thu nhập tháng tối đa cần cam kết của cha/mẹ (VNĐ)",
                             IsActive = true,
                             UpdatedAt = new DateTimeOffset(new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Unspecified), new TimeSpan(0, 0, 0, 0, 0))
                         });
