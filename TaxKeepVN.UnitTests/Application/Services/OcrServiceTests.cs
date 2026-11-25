@@ -1595,7 +1595,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
                     FullName = "Trần Thị Bệnh",
                     BirthDate = "1960-03-10",
                     DisabilityLevel = "Nhẹ", // Không thuộc Đặc biệt nặng hay Nặng
-                    LaborCapacityLossPercent = 30 // < 61%
+                    LaborCapacityLossPercent = 90 // Tỷ lệ phần trăm không thay thế mức độ được chấp nhận
                 }
             };
 

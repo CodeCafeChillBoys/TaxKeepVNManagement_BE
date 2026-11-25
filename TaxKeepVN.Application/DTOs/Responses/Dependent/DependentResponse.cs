@@ -8,6 +8,7 @@ namespace TaxKeepVN.Application.DTOs.Responses.Dependent
         public Guid DependentId { get; set; }
         public Guid TaxpayerId { get; set; }
         public string FullName { get; set; } = string.Empty;
+        public string? Gender { get; set; }
         public string Relationship { get; set; } = string.Empty;
 
         /// <summary>

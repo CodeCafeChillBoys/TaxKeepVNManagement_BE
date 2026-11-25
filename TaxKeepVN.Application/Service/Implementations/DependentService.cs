@@ -84,6 +84,11 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             // ── 3. Validate CurrentGroup phải khớp với Relationship ─────────────
             ValidateGroupMatchesRelationship(relationship, matchedGroup, activeGroups);
+            var gender = NormalizeGender(request.Gender);
+            if (string.Equals(relationship, "PARENT", StringComparison.OrdinalIgnoreCase))
+            {
+                await ValidateParentIncomeCommitmentAsync(request, gender);
+            }
 
             // ── 3.5. Validate độ tuổi phù hợp với CurrentGroup nếu có BirthDate ─
             if (request.BirthDate.HasValue)
@@ -190,6 +195,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 Id = Guid.NewGuid(),
                 TaxpayerId = taxpayerId,
                 FullName = request.FullName,
+                Gender = gender,
                 Relationship = relationship,
                 CurrentGroup = currentGroup,
                 BirthDate = request.BirthDate.HasValue
@@ -215,6 +221,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 DependentId = newDependent.Id,
                 TaxpayerId = newDependent.TaxpayerId,
                 FullName = newDependent.FullName,
+                Gender = newDependent.Gender,
                 Relationship = newDependent.Relationship.ToString(),
                 CurrentGroup = newDependent.CurrentGroup.ToString(),
                 BirthDate = newDependent.BirthDate,
@@ -296,6 +303,128 @@ namespace TaxKeepVN.Application.Service.Implementations
                     $"Nhóm này chỉ áp dụng cho con từ đủ {group.MinAge.Value} tuổi trở lên."
                 );
             }
+        }
+
+        private static string NormalizeGender(string? gender)
+        {
+            var normalizedGender = gender?.Trim().ToUpperInvariant();
+            if (normalizedGender is not ("MALE" or "FEMALE" or "OTHER"))
+            {
+                throw new BadRequestException(
+                    "INVALID_GENDER",
+                    "Giới tính người phụ thuộc chỉ được là MALE, FEMALE hoặc OTHER."
+                );
+            }
+
+            return normalizedGender;
+        }
+
+        private async Task ValidateParentIncomeCommitmentAsync(CreateDependentRequest request, string gender)
+        {
+            if (!request.BirthDate.HasValue)
+            {
+                throw new BadRequestException("BIRTH_DATE_REQUIRED", "Ngày sinh cha/mẹ không được để trống.");
+            }
+
+            var birthDate = request.BirthDate.Value.Date;
+            var today = DateTime.UtcNow.Date;
+            if (birthDate > today)
+            {
+                throw new BadRequestException("INVALID_BIRTH_DATE", "Ngày sinh không được nằm trong tương lai.");
+            }
+
+            var maxAgeConfigKey = gender switch
+            {
+                "MALE" => "DEPENDENT_PARENT_MALE_MAX_AGE",
+                "FEMALE" => "DEPENDENT_PARENT_FEMALE_MAX_AGE",
+                _ => throw new BadRequestException(
+                    "AGE_NOT_MATCH",
+                    "Không thể áp dụng quy tắc tuổi cha/mẹ với giới tính OTHER; vui lòng kiểm tra lại giới tính.")
+            };
+
+            var maxAge = await GetRequiredIntegerConfigAsync(maxAgeConfigKey);
+            if (maxAge <= 0)
+            {
+                throw new ServiceUnavailableException(
+                    "DEPENDENT_CONFIG_INVALID",
+                    $"Cấu hình '{maxAgeConfigKey}' phải là số tuổi lớn hơn 0.");
+            }
+
+            var age = CalculateAge(birthDate, today);
+            if (age >= maxAge)
+            {
+                return;
+            }
+
+            var incomeLimit = await GetRequiredDecimalConfigAsync("DEPENDENT_PARENT_MONTHLY_INCOME_LIMIT_VND");
+            if (incomeLimit <= 0)
+            {
+                throw new ServiceUnavailableException(
+                    "DEPENDENT_CONFIG_INVALID",
+                    "Cấu hình 'DEPENDENT_PARENT_MONTHLY_INCOME_LIMIT_VND' phải lớn hơn 0.");
+            }
+
+            if (!request.ConfirmIncomeBelowThreshold)
+            {
+                throw new BadRequestException(
+                    "INCOME_COMMITMENT_REQUIRED",
+                    $"Cha/mẹ dưới {maxAge} tuổi cần xác nhận cam kết thu nhập hàng tháng không vượt quá {incomeLimit:N0} VND.");
+            }
+        }
+
+        private async Task<int> GetRequiredIntegerConfigAsync(string configKey)
+        {
+            var value = await GetRequiredSystemConfigValueAsync(configKey);
+            if (int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed))
+            {
+                return parsed;
+            }
+
+            throw new ServiceUnavailableException(
+                "DEPENDENT_CONFIG_INVALID",
+                $"Cấu hình '{configKey}' phải có giá trị là số nguyên.");
+        }
+
+        private async Task<decimal> GetRequiredDecimalConfigAsync(string configKey)
+        {
+            var value = await GetRequiredSystemConfigValueAsync(configKey);
+            if (decimal.TryParse(value, NumberStyles.Number, CultureInfo.InvariantCulture, out var parsed))
+            {
+                return parsed;
+            }
+
+            throw new ServiceUnavailableException(
+                "DEPENDENT_CONFIG_INVALID",
+                $"Cấu hình '{configKey}' phải có giá trị số hợp lệ.");
+        }
+
+        private async Task<string> GetRequiredSystemConfigValueAsync(string configKey)
+        {
+            var configRepo = _unitOfWork.Repository<SystemConfig>();
+            var config = configRepo == null
+                ? null
+                : (await configRepo.FindAsync(c => c.IsActive && c.ConfigKey == configKey))
+                    .FirstOrDefault();
+
+            if (string.IsNullOrWhiteSpace(config?.ConfigValue))
+            {
+                throw new ServiceUnavailableException(
+                    "DEPENDENT_CONFIG_NOT_CONFIGURED",
+                    $"Thiếu cấu hình active '{configKey}' trong system_configs; vui lòng liên hệ quản trị viên.");
+            }
+
+            return config.ConfigValue.Trim();
+        }
+
+        private static int CalculateAge(DateTime birthDate, DateTime asOfDate)
+        {
+            var age = asOfDate.Year - birthDate.Year;
+            if (birthDate > asOfDate.AddYears(-age))
+            {
+                age--;
+            }
+
+            return age;
         }
 
         // ── Helper: validate khoảng thời gian giảm trừ: From <= To và From >= BirthDate ──
@@ -394,6 +523,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             DependentId = d.Id,
             TaxpayerId = d.TaxpayerId,
             FullName = d.FullName,
+            Gender = d.Gender,
             Relationship = d.Relationship.ToString(),
             CurrentGroup = d.CurrentGroup.ToString(),
             BirthDate = d.BirthDate,
@@ -557,6 +687,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 DependentId = dependent.Id,
                 TaxpayerId = dependent.TaxpayerId,
                 FullName = dependent.FullName,
+                Gender = dependent.Gender,
                 Relationship = dependent.Relationship.ToString(),
                 CurrentGroup = dependent.CurrentGroup.ToString(),
                 BirthDate = dependent.BirthDate,
@@ -626,6 +757,10 @@ namespace TaxKeepVN.Application.Service.Implementations
                 ? request.FullName.Trim()
                 : dependent.FullName;
 
+            var newGender = request.Gender == null
+                ? dependent.Gender
+                : NormalizeGender(request.Gender);
+
             var newBirthDate = request.BirthDate.HasValue
                 ? DateTime.SpecifyKind(request.BirthDate.Value, DateTimeKind.Utc)
                 : dependent.BirthDate;
@@ -656,11 +791,12 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             // ── 5. So sánh thay đổi thông tin nhân thân ─────────────────────────
             bool isNameChanged = !string.Equals(newFullName.Trim(), dependent.FullName.Trim(), StringComparison.OrdinalIgnoreCase);
+            bool isGenderChanged = !string.Equals(newGender, dependent.Gender, StringComparison.OrdinalIgnoreCase);
             bool isBirthDateChanged = newBirthDate.Date != dependent.BirthDate.Date;
             bool isCitizenIdChanged = !string.Equals(newCitizenId?.Trim(), dependent.CitizenId?.Trim(), StringComparison.Ordinal);
             bool isBirthCertChanged = !string.Equals(newBirthCertNumber?.Trim(), dependent.BirthCertNumber?.Trim(), StringComparison.Ordinal);
 
-            bool isIdentityChanged = isNameChanged || isBirthDateChanged || isCitizenIdChanged || isBirthCertChanged;
+            bool isIdentityChanged = isNameChanged || isGenderChanged || isBirthDateChanged || isCitizenIdChanged || isBirthCertChanged;
 
             // ── 6. Validate định danh: phải có CitizenId HOẶC BirthCertNumber ──
             var hasCitizenId = !string.IsNullOrWhiteSpace(newCitizenId);
@@ -834,6 +970,7 @@ namespace TaxKeepVN.Application.Service.Implementations
 
             // ── 12. Cập nhật entity ──────────────────────────────────────────────
             dependent.FullName = newFullName;
+            dependent.Gender = newGender;
             dependent.BirthDate = newBirthDate;
             dependent.CitizenId = newCitizenId;
             dependent.BirthCertNumber = newBirthCertNumber;
@@ -860,6 +997,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 DependentId = dependent.Id,
                 TaxpayerId = dependent.TaxpayerId,
                 FullName = dependent.FullName,
+                Gender = dependent.Gender,
                 Relationship = dependent.Relationship.ToString(),
                 CurrentGroup = dependent.CurrentGroup.ToString(),
                 BirthDate = dependent.BirthDate,
@@ -1004,6 +1142,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 DependentId = dependent.Id,
                 TaxpayerId = dependent.TaxpayerId,
                 FullName = dependent.FullName,
+                Gender = dependent.Gender,
                 BirthDate = dependent.BirthDate,
                 CitizenId = dependent.CitizenId,
                 BirthCertNumber = dependent.BirthCertNumber,
