@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using System;
@@ -50,20 +50,32 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
         {
             var dependentRepo = unitOfWork.Repository<Dependent>();
             var notificationRepo = unitOfWork.Repository<SystemNotification>();
+            var groupRepo = unitOfWork.Repository<DependentGroupCatalog>();
 
-            var dependents = await dependentRepo.FindAsync(d => !d.IsDeleted && d.CurrentGroup == DependentGroup.CHILD_UNDER_18);
+            var allGroups = groupRepo != null
+                ? (await groupRepo.FindAsync(g => g.IsActive)).ToList()
+                : new List<DependentGroupCatalog>();
+
+            var groupsWithMaxAge = allGroups
+                .Where(g => g.MaxAge.HasValue)
+                .ToDictionary(g => g.Code, StringComparer.OrdinalIgnoreCase);
+
+            var allDeps = await dependentRepo.FindAsync(d => !d.IsDeleted);
+            var dependents = allDeps.Where(d => groupsWithMaxAge.ContainsKey(d.CurrentGroup)).ToList();
             var currentDate = DateTime.UtcNow;
             int currentYear = currentDate.Year;
 
             foreach (var dep in dependents)
             {
-                var turning18Date = dep.BirthDate.AddYears(18);
-                var daysRemaining = (turning18Date - currentDate).Days;
+                var curGroup = groupsWithMaxAge[dep.CurrentGroup];
+                var maxAge = curGroup.MaxAge!.Value;
+                var turningDate = dep.BirthDate.AddYears(maxAge);
+                var daysRemaining = (turningDate - currentDate).Days;
 
                 bool isTurningSoon = daysRemaining >= 0 && daysRemaining <= 60;
-                bool isAlready18 = daysRemaining < 0 && turning18Date.Year <= currentYear;
+                bool isAlreadyAge = daysRemaining < 0 && turningDate.Year <= currentYear;
 
-                if (isTurningSoon || isAlready18)
+                if (isTurningSoon || isAlreadyAge)
                 {
                     string targetUrl = $"/dependents/{dep.Id}";
                     
@@ -75,10 +87,31 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
 
                     if (!existingNotifs.Any())
                     {
+                        var relCode = curGroup.RelationshipCode ?? dep.Relationship;
+                        var candidateGroups = allGroups
+                            .Where(g => string.Equals(g.RelationshipCode, relCode, StringComparison.OrdinalIgnoreCase)
+                                        && g.MinAge == maxAge
+                                        && g.Level > curGroup.Level)
+                            .OrderByDescending(g => g.RequireStudying)
+                            .ThenBy(g => g.Level)
+                            .ToList();
+
+                        var recommendedGroup = candidateGroups.FirstOrDefault();
+
                         string title = isTurningSoon ? "Sắp đến tuổi trưởng thành" : "Đã đến tuổi trưởng thành";
-                        string message = isTurningSoon 
-                            ? $"Người phụ thuộc {dep.FullName} sẽ tròn 18 tuổi vào ngày {turning18Date:dd/MM/yyyy}. Vui lòng cập nhật hồ sơ sinh viên nếu tiếp tục theo học."
-                            : $"Người phụ thuộc {dep.FullName} đã tròn 18 tuổi. Khoản giảm trừ sẽ bị tạm dừng nếu không bổ sung giấy tờ sinh viên.";
+                        string message;
+                        if (isTurningSoon)
+                        {
+                            message = recommendedGroup != null
+                                ? $"Người phụ thuộc {dep.FullName} sẽ tròn {maxAge} tuổi vào ngày {turningDate:dd/MM/yyyy}. Vui lòng chuyển sang nhóm '{recommendedGroup.Name}' và bổ sung giấy tờ nếu tiếp tục đủ điều kiện."
+                                : $"Người phụ thuộc {dep.FullName} sẽ tròn {maxAge} tuổi vào ngày {turningDate:dd/MM/yyyy}. Vui lòng cập nhật thông tin nhóm và bổ sung giấy tờ phù hợp nếu tiếp tục đủ điều kiện.";
+                        }
+                        else
+                        {
+                            message = recommendedGroup != null
+                                ? $"Người phụ thuộc {dep.FullName} đã tròn {maxAge} tuổi. Vui lòng chuyển sang nhóm '{recommendedGroup.Name}' và bổ sung giấy tờ để tiếp tục được tính giảm trừ."
+                                : $"Người phụ thuộc {dep.FullName} đã tròn {maxAge} tuổi. Khoản giảm trừ sẽ bị tạm dừng nếu không cập nhật nhóm và bổ sung giấy tờ phù hợp.";
+                        }
 
                         var notification = new SystemNotification
                         {

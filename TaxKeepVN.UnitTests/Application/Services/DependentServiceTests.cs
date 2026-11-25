@@ -58,6 +58,34 @@ namespace TaxKeepVN.UnitTests.Application.Services
             secDisabled.Setup(s => s.Value).Returns("3");
             _mockConfig.Setup(c => c.GetSection("DependentSettings:GroupOrders:CHILD:CHILD_OVER_18_DISABLED")).Returns(secDisabled.Object);
 
+            var defaultRels = new List<DependentRelationshipCatalog>
+            {
+                new() { Code = "CHILD", Name = "Con cái", DisplayOrder = 1, IsActive = true },
+                new() { Code = "SPOUSE", Name = "Vợ/Chồng", DisplayOrder = 2, IsActive = true },
+                new() { Code = "PARENT", Name = "Cha/Mẹ", DisplayOrder = 3, IsActive = true },
+                new() { Code = "OTHER_DEPENDENT", Name = "Người phụ thuộc khác", DisplayOrder = 4, IsActive = true }
+            };
+            var mockRelRepo = new Mock<IGenericRepository<DependentRelationshipCatalog>>();
+            mockRelRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentRelationshipCatalog, bool>>>()))
+                .ReturnsAsync(defaultRels);
+            _mockUnitOfWork.Setup(u => u.Repository<DependentRelationshipCatalog>()).Returns(mockRelRepo.Object);
+
+            var defaultGroups = new List<DependentGroupCatalog>
+            {
+                new() { Code = "CHILD_UNDER_18", Name = "Con dưới 18 tuổi", RelationshipCode = "CHILD", MaxAge = 18, Level = 0, DisplayOrder = 1, IsActive = true },
+                new() { Code = "CHILD_OVER_18_STUDYING", Name = "Con từ 18 tuổi trở lên đang đi học", RelationshipCode = "CHILD", MinAge = 18, Level = 1, RequireStudying = true, DisplayOrder = 2, IsActive = true },
+                new() { Code = "CHILD_OVER_18_DISABLED", Name = "Con từ 18 tuổi trở lên bị khuyết tật", RelationshipCode = "CHILD", MinAge = 18, Level = 1, RequireDisabled = true, DisplayOrder = 3, IsActive = true },
+                new() { Code = "SPOUSE_DISABLED", Name = "Vợ/Chồng khuyết tật", RelationshipCode = "SPOUSE", Level = 0, RequireDisabled = true, DisplayOrder = 4, IsActive = true },
+                new() { Code = "SPOUSE_RETIRED", Name = "Vợ/Chồng ngoài độ tuổi lao động", RelationshipCode = "SPOUSE", Level = 1, DisplayOrder = 5, IsActive = true },
+                new() { Code = "PARENT_DISABLED", Name = "Cha/Mẹ khuyết tật", RelationshipCode = "PARENT", Level = 0, RequireDisabled = true, DisplayOrder = 6, IsActive = true },
+                new() { Code = "PARENT_RETIRED", Name = "Cha/Mẹ ngoài độ tuổi lao động", RelationshipCode = "PARENT", Level = 1, DisplayOrder = 7, IsActive = true },
+                new() { Code = "OTHER_HELPLESS", Name = "Cá nhân không nơi nương tựa khác", RelationshipCode = "OTHER_DEPENDENT", Level = 0, DisplayOrder = 8, IsActive = true }
+            };
+            var mockGroupRepo = new Mock<IGenericRepository<DependentGroupCatalog>>();
+            mockGroupRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentGroupCatalog, bool>>>()))
+                .ReturnsAsync(defaultGroups);
+            _mockUnitOfWork.Setup(u => u.Repository<DependentGroupCatalog>()).Returns(mockGroupRepo.Object);
+
             _dependentService = new DependentService(
                 _mockUnitOfWork.Object,
                 _mockCache.Object,
@@ -129,16 +157,56 @@ namespace TaxKeepVN.UnitTests.Application.Services
         }
 
         [Fact]
+        public async Task UTCID04b_CreateDependentAsync_EffectiveBeforeBirthDate_ThrowsBadRequestException()
+        {
+            var request = new CreateDependentRequest
+            {
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
+                CitizenId = "079201009999",
+                BirthDate = new DateTime(2024, 5, 15),
+                EffectiveFromMonth = "2024-04",
+                EffectiveToMonth = "2024-12"
+            };
+
+            var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
+                _dependentService.CreateDependentAsync(Guid.NewGuid(), request));
+            ex.ErrorCode.Should().Be("PERIOD_BEFORE_BIRTH");
+            ex.Message.Should().Contain("không được trước tháng sinh");
+        }
+
+        [Fact]
+        public async Task CreateDependentAsync_EffectiveEqualsBirthMonth_Succeeds()
+        {
+            var taxpayerId = Guid.NewGuid();
+            var request = new CreateDependentRequest
+            {
+                FullName = "Nguyen Con",
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
+                CitizenId = "079201009999",
+                BirthDate = new DateTime(2024, 5, 15),
+                EffectiveFromMonth = "2024-05",
+                EffectiveToMonth = "2024-12"
+            };
+
+            var mockRepo = new Mock<IGenericRepository<Dependent>>();
+            mockRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Dependent, bool>>>()))
+                .ReturnsAsync(new List<Dependent>());
+            _mockUnitOfWork.Setup(u => u.Repository<Dependent>()).Returns(mockRepo.Object);
+
+            var res = await _dependentService.CreateDependentAsync(taxpayerId, request);
+            res.Should().NotBeNull();
+            res.EffectiveFromMonth.Should().Be("2024-05");
+        }
+
+        [Fact]
         public async Task UTCID05_CreateDependentAsync_GroupRelationshipMismatch_ThrowsBadRequestException()
         {
-            var emptySection = new Mock<IConfigurationSection>();
-            emptySection.Setup(s => s.GetChildren()).Returns(new List<IConfigurationSection>());
-            _mockConfig.Setup(c => c.GetSection(It.Is<string>(s => s.Contains("SPOUSE")))).Returns(emptySection.Object);
-
             var request = new CreateDependentRequest
             {
                 Relationship = "SPOUSE",
-                CurrentGroup = "SPOUSE_RETIRED"
+                CurrentGroup = "CHILD_UNDER_18"
             };
 
             var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
@@ -176,6 +244,65 @@ namespace TaxKeepVN.UnitTests.Application.Services
             var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
                 _dependentService.CreateDependentAsync(taxpayerId, request));
             ex.ErrorCode.Should().Be("DEPENDENT_PERIOD_OVERLAP");
+            ex.Message.Should().Contain("********9999");
+            ex.Message.Should().NotContain("079201009999");
+        }
+
+        [Fact]
+        public async Task CreateDependentAsync_OverlapWithDeletedDependent_IgnoredAndSucceeds()
+        {
+            var taxpayerId = Guid.NewGuid();
+            var request = new CreateDependentRequest
+            {
+                FullName = "Nguyen Van Con",
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
+                CitizenId = "079201009999",
+                EffectiveFromMonth = "2024-06",
+                EffectiveToMonth = "2024-12"
+            };
+
+            var mockRepo = new Mock<IGenericRepository<Dependent>>();
+            // Database only returns non-deleted records when queried with !d.IsDeleted
+            mockRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Dependent, bool>>>()))
+                .ReturnsAsync(new List<Dependent>());
+            _mockUnitOfWork.Setup(u => u.Repository<Dependent>()).Returns(mockRepo.Object);
+
+            var res = await _dependentService.CreateDependentAsync(taxpayerId, request);
+            res.Should().NotBeNull();
+        }
+
+        [Fact]
+        public async Task CreateDependentAsync_SettlementLockedYear_ThrowsConflictException()
+        {
+            var taxpayerId = Guid.NewGuid();
+            var request = new CreateDependentRequest
+            {
+                FullName = "Nguyen Van Con",
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
+                CitizenId = "079201009999",
+                EffectiveFromMonth = "2025-06",
+                EffectiveToMonth = "2025-12"
+            };
+
+            var mockSettlementRepo = new Mock<IGenericRepository<TaxSettlementDossier>>();
+            mockSettlementRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<TaxSettlementDossier, bool>>>()))
+                .ReturnsAsync(new List<TaxSettlementDossier>
+                {
+                    new TaxSettlementDossier
+                    {
+                        TaxpayerId = taxpayerId,
+                        TaxYear = 2025,
+                        Status = "LOCKED"
+                    }
+                });
+            _mockUnitOfWork.Setup(u => u.Repository<TaxSettlementDossier>()).Returns(mockSettlementRepo.Object);
+
+            var ex = await Assert.ThrowsAsync<ConflictException>(() =>
+                _dependentService.CreateDependentAsync(taxpayerId, request));
+            ex.ErrorCode.Should().Be("SETTLEMENT_LOCKED_PERIOD");
+            ex.Message.Should().Contain("2025");
         }
 
         [Fact]
@@ -208,6 +335,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
                 _dependentService.CreateDependentAsync(taxpayerId, request));
             ex.ErrorCode.Should().Be("DEPENDENT_PERIOD_OVERLAP");
+            ex.Message.Should().Contain("**9999");
         }
 
         [Fact]
@@ -274,8 +402,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
                     Id = Guid.NewGuid(),
                     TaxpayerId = taxpayerId,
                     FullName = "Nguyen Van B",
-                    Relationship = DependentRelationship.CHILD,
-                    CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                    Relationship = "CHILD",
+                    CurrentGroup = "CHILD_UNDER_18",
                     Status = DependentStatus.PENDING_DOCUMENTS,
                     IsDeleted = false,
                     CreatedAt = DateTimeOffset.UtcNow
@@ -285,8 +413,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
                     Id = Guid.NewGuid(),
                     TaxpayerId = taxpayerId,
                     FullName = "Nguyen Van A",
-                    Relationship = DependentRelationship.CHILD,
-                    CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                    Relationship = "CHILD",
+                    CurrentGroup = "CHILD_UNDER_18",
                     Status = DependentStatus.PENDING_DOCUMENTS,
                     IsDeleted = false,
                     CreatedAt = DateTimeOffset.UtcNow
@@ -360,8 +488,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 Id = depId,
                 TaxpayerId = taxpayerId,
                 FullName = "Nguyen Van Con",
-                Relationship = DependentRelationship.CHILD,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
                 Status = DependentStatus.PENDING_DOCUMENTS,
                 IsDeleted = false,
                 CreatedAt = DateTimeOffset.UtcNow
@@ -379,7 +507,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
                     {
                         Id = Guid.NewGuid(),
                         DependentId = depId,
-                        DocType = DocumentType.BIRTH_CERTIFICATE,
+                        DocType = "BIRTH_CERTIFICATE",
                         FileUrl = "/uploads/documents/doc.pdf",
                         FileMimeType = "application/pdf",
                         IsReadable = true,
@@ -410,8 +538,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 Id = depId,
                 TaxpayerId = taxpayerId,
                 FullName = "Vu Thi Lan",
-                Relationship = DependentRelationship.PARENT,
-                CurrentGroup = DependentGroup.PARENT_RETIRED,
+                Relationship = "PARENT",
+                CurrentGroup = "PARENT_RETIRED",
                 Status = DependentStatus.PENDING_DOCUMENTS,
                 IsDeleted = false,
                 CreatedAt = DateTimeOffset.UtcNow
@@ -430,7 +558,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
                     {
                         Id = Guid.NewGuid(),
                         DependentId = depId,
-                        DocType = DocumentType.CITIZEN_ID,
+                        DocType = "CITIZEN_ID",
                         FileUrl = "/uploads/cccd1.jpg",
                         UploadedAt = DateTime.UtcNow.AddHours(-2)
                     },
@@ -438,7 +566,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
                     {
                         Id = latestCccdId,
                         DependentId = depId,
-                        DocType = DocumentType.CITIZEN_ID,
+                        DocType = "CITIZEN_ID",
                         FileUrl = "/uploads/cccd_latest.jpg",
                         UploadedAt = DateTime.UtcNow
                     },
@@ -446,7 +574,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
                     {
                         Id = Guid.NewGuid(),
                         DependentId = depId,
-                        DocType = DocumentType.CITIZEN_ID,
+                        DocType = "CITIZEN_ID",
                         FileUrl = "/uploads/cccd2.jpg",
                         UploadedAt = DateTime.UtcNow.AddHours(-1)
                     }
@@ -513,8 +641,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
             {
                 Id = depId,
                 TaxpayerId = taxpayerId,
-                Relationship = DependentRelationship.CHILD,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
                 IsDeleted = false
             };
 
@@ -542,8 +670,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
             {
                 Id = depId,
                 TaxpayerId = taxpayerId,
-                Relationship = DependentRelationship.CHILD,
-                CurrentGroup = DependentGroup.CHILD_OVER_18_STUDYING, // Order = 2
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_OVER_18_STUDYING", // Order = 2
                 IsDeleted = false
             };
 
@@ -567,8 +695,9 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 Id = depId,
                 TaxpayerId = taxpayerId,
                 FullName = "Nguyen Van Con",
-                Relationship = DependentRelationship.CHILD,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18, // Order = 1
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18", // Order = 1
+                BirthDate = DateTime.UtcNow.AddYears(-19),
                 IsDeleted = false
             };
 
@@ -629,8 +758,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
             {
                 Id = depId,
                 TaxpayerId = taxpayerId,
-                Relationship = DependentRelationship.CHILD,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
                 IsDeleted = false
             };
 
@@ -653,8 +782,9 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 Id = depId,
                 TaxpayerId = taxpayerId,
                 FullName = "Nguyen Van Con",
-                Relationship = DependentRelationship.CHILD,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
+                BirthDate = DateTime.UtcNow.AddYears(-19),
                 Note = "Ghi chu ban dau",
                 IsDeleted = false
             };
@@ -696,8 +826,9 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 Id = depId,
                 TaxpayerId = taxpayerId,
                 FullName = "Nguyen Van Con",
-                Relationship = DependentRelationship.CHILD,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
+                BirthDate = DateTime.UtcNow.AddYears(-19),
                 IsDeleted = false
             };
 
@@ -709,7 +840,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             {
                 Id = Guid.NewGuid(),
                 DependentId = depId,
-                DocType = DocumentType.BIRTH_CERTIFICATE,
+                DocType = "BIRTH_CERTIFICATE",
                 FileUrl = "https://storage.taxkeep.vn/docs/bc.pdf",
                 FileMimeType = "application/pdf",
                 IsReadable = true,
@@ -736,6 +867,699 @@ namespace TaxKeepVN.UnitTests.Application.Services
 
             result.Documents.Should().HaveCount(1);
             result.Documents[0].DocType.Should().Be("BIRTH_CERTIFICATE");
+        }
+
+        [Fact]
+        public async Task UpdateGroupAsync_Under18_ToOver18Studying_ThrowsGroupAgeMismatch()
+        {
+            var taxpayerId = Guid.NewGuid();
+            var depId = Guid.NewGuid();
+            var dependent = new Dependent
+            {
+                Id = depId,
+                TaxpayerId = taxpayerId,
+                FullName = "Nguyen Van Con",
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
+                BirthDate = DateTime.UtcNow.AddYears(-15),
+                IsDeleted = false
+            };
+
+            var mockRepo = new Mock<IGenericRepository<Dependent>>();
+            mockRepo.Setup(r => r.GetByIdAsync(depId)).ReturnsAsync(dependent);
+            _mockUnitOfWork.Setup(u => u.Repository<Dependent>()).Returns(mockRepo.Object);
+
+            var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
+                _dependentService.UpdateGroupAsync(taxpayerId, depId, new UpdateDependentGroupRequest
+                {
+                    NewGroup = "CHILD_OVER_18_STUDYING"
+                }));
+
+            ex.ErrorCode.Should().Be("GROUP_AGE_MISMATCH");
+            ex.Message.Should().Contain("chưa đủ 18 tuổi");
+        }
+
+        [Fact]
+        public async Task UpdateGroupAsync_Under18_ToOver18Disabled_ThrowsGroupAgeMismatch()
+        {
+            var taxpayerId = Guid.NewGuid();
+            var depId = Guid.NewGuid();
+            var dependent = new Dependent
+            {
+                Id = depId,
+                TaxpayerId = taxpayerId,
+                FullName = "Nguyen Van Con",
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
+                BirthDate = DateTime.UtcNow.AddYears(-10),
+                IsDeleted = false
+            };
+
+            var mockRepo = new Mock<IGenericRepository<Dependent>>();
+            mockRepo.Setup(r => r.GetByIdAsync(depId)).ReturnsAsync(dependent);
+            _mockUnitOfWork.Setup(u => u.Repository<Dependent>()).Returns(mockRepo.Object);
+
+            var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
+                _dependentService.UpdateGroupAsync(taxpayerId, depId, new UpdateDependentGroupRequest
+                {
+                    NewGroup = "CHILD_OVER_18_DISABLED"
+                }));
+
+            ex.ErrorCode.Should().Be("GROUP_AGE_MISMATCH");
+            ex.Message.Should().Contain("chưa đủ 18 tuổi");
+        }
+
+        #endregion
+
+        #region FN_DEP_04_B: UpdateDependentAsync
+
+        [Fact]
+        public async Task UpdateDependentAsync_NotFound_ThrowsNotFoundException()
+        {
+            var taxpayerId = Guid.NewGuid();
+            var depId = Guid.NewGuid();
+
+            var mockRepo = new Mock<IGenericRepository<Dependent>>();
+            mockRepo.Setup(r => r.GetByIdAsync(depId)).ReturnsAsync((Dependent?)null);
+            _mockUnitOfWork.Setup(u => u.Repository<Dependent>()).Returns(mockRepo.Object);
+
+            await Assert.ThrowsAsync<NotFoundException>(() =>
+                _dependentService.UpdateDependentAsync(taxpayerId, depId, new UpdateDependentRequest
+                {
+                    FullName = "Nguyen Van A",
+                    EffectiveFromMonth = "2026-01",
+                    EffectiveToMonth = "2026-12",
+                    CitizenId = "079201009999"
+                }));
+        }
+
+        [Fact]
+        public async Task UpdateDependentAsync_Forbidden_ThrowsForbiddenException()
+        {
+            var taxpayerId = Guid.NewGuid();
+            var otherUser = Guid.NewGuid();
+            var depId = Guid.NewGuid();
+
+            var mockRepo = new Mock<IGenericRepository<Dependent>>();
+            mockRepo.Setup(r => r.GetByIdAsync(depId)).ReturnsAsync(new Dependent
+            {
+                Id = depId,
+                TaxpayerId = otherUser,
+                IsDeleted = false
+            });
+            _mockUnitOfWork.Setup(u => u.Repository<Dependent>()).Returns(mockRepo.Object);
+
+            await Assert.ThrowsAsync<ForbiddenException>(() =>
+                _dependentService.UpdateDependentAsync(taxpayerId, depId, new UpdateDependentRequest
+                {
+                    FullName = "Nguyen Van A",
+                    EffectiveFromMonth = "2026-01",
+                    EffectiveToMonth = "2026-12",
+                    CitizenId = "079201009999"
+                }));
+        }
+
+        [Fact]
+        public async Task UpdateDependentAsync_IdentifierRequired_ThrowsBadRequestException()
+        {
+            var taxpayerId = Guid.NewGuid();
+            var depId = Guid.NewGuid();
+
+            var mockRepo = new Mock<IGenericRepository<Dependent>>();
+            mockRepo.Setup(r => r.GetByIdAsync(depId)).ReturnsAsync(new Dependent
+            {
+                Id = depId,
+                TaxpayerId = taxpayerId,
+                IsDeleted = false
+            });
+            _mockUnitOfWork.Setup(u => u.Repository<Dependent>()).Returns(mockRepo.Object);
+
+            var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
+                _dependentService.UpdateDependentAsync(taxpayerId, depId, new UpdateDependentRequest
+                {
+                    FullName = "Nguyen Van A",
+                    EffectiveFromMonth = "2026-01",
+                    EffectiveToMonth = "2026-12",
+                    CitizenId = "",
+                    BirthCertNumber = ""
+                }));
+
+            ex.ErrorCode.Should().Be("IDENTIFIER_REQUIRED");
+        }
+
+        [Fact]
+        public async Task UpdateDependentAsync_InvalidPeriod_ThrowsBadRequestException()
+        {
+            var taxpayerId = Guid.NewGuid();
+            var depId = Guid.NewGuid();
+
+            var mockRepo = new Mock<IGenericRepository<Dependent>>();
+            mockRepo.Setup(r => r.GetByIdAsync(depId)).ReturnsAsync(new Dependent
+            {
+                Id = depId,
+                TaxpayerId = taxpayerId,
+                IsDeleted = false
+            });
+            _mockUnitOfWork.Setup(u => u.Repository<Dependent>()).Returns(mockRepo.Object);
+
+            var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
+                _dependentService.UpdateDependentAsync(taxpayerId, depId, new UpdateDependentRequest
+                {
+                    FullName = "Nguyen Van A",
+                    CitizenId = "079201009999",
+                    EffectiveFromMonth = "2026-12",
+                    EffectiveToMonth = "2026-01"
+                }));
+
+            ex.ErrorCode.Should().Be("INVALID_PERIOD");
+        }
+
+        [Fact]
+        public async Task UpdateDependentAsync_EffectiveBeforeBirthDate_ThrowsBadRequestException()
+        {
+            var taxpayerId = Guid.NewGuid();
+            var depId = Guid.NewGuid();
+
+            var mockRepo = new Mock<IGenericRepository<Dependent>>();
+            mockRepo.Setup(r => r.GetByIdAsync(depId)).ReturnsAsync(new Dependent
+            {
+                Id = depId,
+                TaxpayerId = taxpayerId,
+                IsDeleted = false,
+                BirthDate = new DateTime(2024, 5, 15),
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18"
+            });
+            _mockUnitOfWork.Setup(u => u.Repository<Dependent>()).Returns(mockRepo.Object);
+
+            var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
+                _dependentService.UpdateDependentAsync(taxpayerId, depId, new UpdateDependentRequest
+                {
+                    FullName = "Nguyen Van A",
+                    CitizenId = "079201009999",
+                    BirthDate = new DateTime(2024, 5, 15),
+                    EffectiveFromMonth = "2024-04",
+                    EffectiveToMonth = "2024-12"
+                }));
+
+            ex.ErrorCode.Should().Be("PERIOD_BEFORE_BIRTH");
+            ex.Message.Should().Contain("không được trước tháng sinh");
+        }
+
+        [Fact]
+        public async Task UpdateDependentAsync_EffectiveEqualsBirthMonth_Succeeds()
+        {
+            var taxpayerId = Guid.NewGuid();
+            var depId = Guid.NewGuid();
+
+            var mockRepo = new Mock<IGenericRepository<Dependent>>();
+            mockRepo.Setup(r => r.GetByIdAsync(depId)).ReturnsAsync(new Dependent
+            {
+                Id = depId,
+                TaxpayerId = taxpayerId,
+                IsDeleted = false,
+                BirthDate = new DateTime(2024, 5, 15),
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
+                CitizenId = "079201009999",
+                EffectiveFromMonth = "2024-06",
+                EffectiveToMonth = "2024-12"
+            });
+            mockRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Dependent, bool>>>()))
+                .ReturnsAsync(new List<Dependent>());
+            _mockUnitOfWork.Setup(u => u.Repository<Dependent>()).Returns(mockRepo.Object);
+
+            var res = await _dependentService.UpdateDependentAsync(taxpayerId, depId, new UpdateDependentRequest
+            {
+                BirthDate = new DateTime(2024, 5, 15),
+                EffectiveFromMonth = "2024-05",
+                EffectiveToMonth = "2024-12"
+            });
+
+            res.Should().NotBeNull();
+            res.EffectiveFromMonth.Should().Be("2024-05");
+        }
+
+        [Fact]
+        public async Task UpdateDependentAsync_SettlementLockedYear_ChangedMonthsAffectLockedYear_ThrowsConflictException()
+        {
+            var taxpayerId = Guid.NewGuid();
+            var depId = Guid.NewGuid();
+
+            var mockRepo = new Mock<IGenericRepository<Dependent>>();
+            mockRepo.Setup(r => r.GetByIdAsync(depId)).ReturnsAsync(new Dependent
+            {
+                Id = depId,
+                TaxpayerId = taxpayerId,
+                IsDeleted = false,
+                BirthDate = new DateTime(2020, 1, 1),
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
+                CitizenId = "079201009999",
+                EffectiveFromMonth = "2025-01",
+                EffectiveToMonth = "2026-12"
+            });
+            _mockUnitOfWork.Setup(u => u.Repository<Dependent>()).Returns(mockRepo.Object);
+
+            var mockSettlementRepo = new Mock<IGenericRepository<TaxSettlementDossier>>();
+            mockSettlementRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<TaxSettlementDossier, bool>>>()))
+                .ReturnsAsync(new List<TaxSettlementDossier>
+                {
+                    new TaxSettlementDossier
+                    {
+                        TaxpayerId = taxpayerId,
+                        TaxYear = 2025,
+                        Status = "LOCKED"
+                    }
+                });
+            _mockUnitOfWork.Setup(u => u.Repository<TaxSettlementDossier>()).Returns(mockSettlementRepo.Object);
+
+            // Sửa kỳ từ 01/2025-12/2026 thành 06/2025-12/2026 -> ảnh hưởng năm 2025 (đã LOCKED) -> BỊ CHẶN!
+            var ex = await Assert.ThrowsAsync<ConflictException>(() =>
+                _dependentService.UpdateDependentAsync(taxpayerId, depId, new UpdateDependentRequest
+                {
+                    EffectiveFromMonth = "2025-06",
+                    EffectiveToMonth = "2026-12"
+                }));
+
+            ex.ErrorCode.Should().Be("SETTLEMENT_LOCKED_PERIOD");
+            ex.Message.Should().Contain("2025");
+        }
+
+        [Fact]
+        public async Task UpdateDependentAsync_SettlementLockedYear_ChangedMonthsDoNotAffectLockedYear_Succeeds()
+        {
+            var taxpayerId = Guid.NewGuid();
+            var depId = Guid.NewGuid();
+
+            var mockRepo = new Mock<IGenericRepository<Dependent>>();
+            mockRepo.Setup(r => r.GetByIdAsync(depId)).ReturnsAsync(new Dependent
+            {
+                Id = depId,
+                TaxpayerId = taxpayerId,
+                IsDeleted = false,
+                BirthDate = new DateTime(2020, 1, 1),
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
+                CitizenId = "079201009999",
+                EffectiveFromMonth = "2025-01",
+                EffectiveToMonth = "2026-12"
+            });
+            mockRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Dependent, bool>>>()))
+                .ReturnsAsync(new List<Dependent>());
+            _mockUnitOfWork.Setup(u => u.Repository<Dependent>()).Returns(mockRepo.Object);
+
+            var mockSettlementRepo = new Mock<IGenericRepository<TaxSettlementDossier>>();
+            mockSettlementRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<TaxSettlementDossier, bool>>>()))
+                .ReturnsAsync(new List<TaxSettlementDossier>
+                {
+                    new TaxSettlementDossier
+                    {
+                        TaxpayerId = taxpayerId,
+                        TaxYear = 2025,
+                        Status = "LOCKED"
+                    }
+                });
+            _mockUnitOfWork.Setup(u => u.Repository<TaxSettlementDossier>()).Returns(mockSettlementRepo.Object);
+
+            // Sửa kỳ từ 01/2025-12/2026 thành 01/2025-06/2026 -> chỉ đổi tháng năm 2026. Năm 2025 không đổi -> QUA!
+            var res = await _dependentService.UpdateDependentAsync(taxpayerId, depId, new UpdateDependentRequest
+            {
+                EffectiveFromMonth = "2025-01",
+                EffectiveToMonth = "2026-06"
+            });
+
+            res.Should().NotBeNull();
+            res.EffectiveToMonth.Should().Be("2026-06");
+        }
+
+        [Fact]
+        public async Task UpdateDependentAsync_DifferentCurrentGroup_ThrowsBadRequestException()
+        {
+            var taxpayerId = Guid.NewGuid();
+            var depId = Guid.NewGuid();
+
+            var mockRepo = new Mock<IGenericRepository<Dependent>>();
+            mockRepo.Setup(r => r.GetByIdAsync(depId)).ReturnsAsync(new Dependent
+            {
+                Id = depId,
+                TaxpayerId = taxpayerId,
+                IsDeleted = false,
+                BirthDate = new DateTime(2020, 1, 1),
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
+                CitizenId = "079201009999"
+            });
+            _mockUnitOfWork.Setup(u => u.Repository<Dependent>()).Returns(mockRepo.Object);
+
+            var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
+                _dependentService.UpdateDependentAsync(taxpayerId, depId, new UpdateDependentRequest
+                {
+                    CurrentGroup = "CHILD_OVER_18_STUDYING"
+                }));
+
+            ex.ErrorCode.Should().Be("USE_CHANGE_GROUP_API");
+        }
+
+        [Fact]
+        public async Task UpdateDependentAsync_Active_IdentityChangedWithoutConfirmation_ThrowsConflictException()
+        {
+            var taxpayerId = Guid.NewGuid();
+            var depId = Guid.NewGuid();
+
+            var mockRepo = new Mock<IGenericRepository<Dependent>>();
+            mockRepo.Setup(r => r.GetByIdAsync(depId)).ReturnsAsync(new Dependent
+            {
+                Id = depId,
+                TaxpayerId = taxpayerId,
+                IsDeleted = false,
+                Status = DependentStatus.ACTIVE,
+                FullName = "Nguyen Van Cu",
+                BirthDate = new DateTime(2020, 1, 1),
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
+                CitizenId = "079201009999"
+            });
+            _mockUnitOfWork.Setup(u => u.Repository<Dependent>()).Returns(mockRepo.Object);
+
+            // Đổi họ tên khi ACTIVE mà ConfirmIdentityChange = false -> 409 IDENTITY_CHANGE_REQUIRES_REVERIFY
+            var ex = await Assert.ThrowsAsync<ConflictException>(() =>
+                _dependentService.UpdateDependentAsync(taxpayerId, depId, new UpdateDependentRequest
+                {
+                    FullName = "Nguyen Van Moi",
+                    ConfirmIdentityChange = false
+                }));
+
+            ex.ErrorCode.Should().Be("IDENTITY_CHANGE_REQUIRES_REVERIFY");
+        }
+
+        [Fact]
+        public async Task UpdateDependentAsync_Active_IdentityChangedWithConfirmation_SetsPendingDocumentsAndClearsComplete()
+        {
+            var taxpayerId = Guid.NewGuid();
+            var depId = Guid.NewGuid();
+
+            var dependent = new Dependent
+            {
+                Id = depId,
+                TaxpayerId = taxpayerId,
+                IsDeleted = false,
+                Status = DependentStatus.ACTIVE,
+                IsProfileComplete = true,
+                FullName = "Nguyen Van Cu",
+                BirthDate = new DateTime(2020, 1, 1),
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
+                CitizenId = "079201009999"
+            };
+
+            var mockRepo = new Mock<IGenericRepository<Dependent>>();
+            mockRepo.Setup(r => r.GetByIdAsync(depId)).ReturnsAsync(dependent);
+            mockRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Dependent, bool>>>()))
+                .ReturnsAsync(new List<Dependent>());
+            _mockUnitOfWork.Setup(u => u.Repository<Dependent>()).Returns(mockRepo.Object);
+
+            var mockNotifRepo = new Mock<IGenericRepository<SystemNotification>>();
+            _mockUnitOfWork.Setup(u => u.Repository<SystemNotification>()).Returns(mockNotifRepo.Object);
+
+            var res = await _dependentService.UpdateDependentAsync(taxpayerId, depId, new UpdateDependentRequest
+            {
+                FullName = "Nguyen Van Moi",
+                ConfirmIdentityChange = true
+            });
+
+            res.Status.Should().Be("PENDING_DOCUMENTS");
+            res.StatusChanged.Should().BeTrue();
+            res.DocumentsNeedReupload.Should().BeTrue();
+            dependent.Status.Should().Be(DependentStatus.PENDING_DOCUMENTS);
+            dependent.IsProfileComplete.Should().BeFalse();
+            dependent.IdentityUpdatedAt.Should().NotBeNull();
+            mockNotifRepo.Verify(r => r.AddAsync(It.IsAny<SystemNotification>()), Times.Once);
+        }
+
+        [Fact]
+        public async Task UpdateDependentAsync_Active_OnlyPeriodOrNoteChanged_StaysActive()
+        {
+            var taxpayerId = Guid.NewGuid();
+            var depId = Guid.NewGuid();
+
+            var dependent = new Dependent
+            {
+                Id = depId,
+                TaxpayerId = taxpayerId,
+                IsDeleted = false,
+                Status = DependentStatus.ACTIVE,
+                IsProfileComplete = true,
+                FullName = "Nguyen Van Cu",
+                BirthDate = new DateTime(2020, 1, 1),
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
+                CitizenId = "079201009999",
+                EffectiveFromMonth = "2024-01",
+                EffectiveToMonth = "2025-12",
+                Note = "Ghi chu cu"
+            };
+
+            var mockRepo = new Mock<IGenericRepository<Dependent>>();
+            mockRepo.Setup(r => r.GetByIdAsync(depId)).ReturnsAsync(dependent);
+            mockRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Dependent, bool>>>()))
+                .ReturnsAsync(new List<Dependent>());
+            _mockUnitOfWork.Setup(u => u.Repository<Dependent>()).Returns(mockRepo.Object);
+
+            var res = await _dependentService.UpdateDependentAsync(taxpayerId, depId, new UpdateDependentRequest
+            {
+                Note = "Ghi chu moi",
+                EffectiveToMonth = "2026-12"
+            });
+
+            res.Status.Should().Be("ACTIVE");
+            res.StatusChanged.Should().BeFalse();
+            res.DocumentsNeedReupload.Should().BeFalse();
+            dependent.Status.Should().Be(DependentStatus.ACTIVE);
+            dependent.IsProfileComplete.Should().BeTrue();
+            dependent.IdentityUpdatedAt.Should().BeNull();
+        }
+
+        [Fact]
+        public async Task UpdateDependentAsync_ChildUnder18NowOver18_OnlyPeriodOrNoteChanged_DoesNotThrowGroupAgeMismatch()
+        {
+            var taxpayerId = Guid.NewGuid();
+            var depId = Guid.NewGuid();
+
+            // Sinh năm 2005 (nay đã 21 tuổi), nhưng nhóm cũ là CHILD_UNDER_18
+            var dependent = new Dependent
+            {
+                Id = depId,
+                TaxpayerId = taxpayerId,
+                IsDeleted = false,
+                Status = DependentStatus.ACTIVE,
+                IsProfileComplete = true,
+                FullName = "Nguyen Van Lon",
+                BirthDate = new DateTime(2005, 5, 10, 0, 0, 0, DateTimeKind.Utc),
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
+                CitizenId = "079205001111",
+                EffectiveFromMonth = "2020-01",
+                EffectiveToMonth = "2022-12",
+                Note = "Ghi chu cu"
+            };
+
+            var mockRepo = new Mock<IGenericRepository<Dependent>>();
+            mockRepo.Setup(r => r.GetByIdAsync(depId)).ReturnsAsync(dependent);
+            mockRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Dependent, bool>>>()))
+                .ReturnsAsync(new List<Dependent>());
+            _mockUnitOfWork.Setup(u => u.Repository<Dependent>()).Returns(mockRepo.Object);
+
+            // Sửa ghi chú và gia hạn kỳ hiệu lực mà không đổi ngày sinh
+            var res = await _dependentService.UpdateDependentAsync(taxpayerId, depId, new UpdateDependentRequest
+            {
+                Note = "Ghi chu da tot nghiep THPT",
+                EffectiveToMonth = "2023-05"
+            });
+
+            res.Should().NotBeNull();
+            dependent.Note.Should().Be("Ghi chu da tot nghiep THPT");
+            dependent.EffectiveToMonth.Should().Be("2023-05");
+        }
+
+        [Fact]
+        public async Task UpdateDependentAsync_PendingDocuments_IdentityChangedWithExistingDocs_SetsIdentityUpdatedAt()
+        {
+            var taxpayerId = Guid.NewGuid();
+            var depId = Guid.NewGuid();
+
+            var dependent = new Dependent
+            {
+                Id = depId,
+                TaxpayerId = taxpayerId,
+                IsDeleted = false,
+                Status = DependentStatus.PENDING_DOCUMENTS,
+                FullName = "Nguyen Van Cu",
+                BirthDate = new DateTime(2020, 1, 1),
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
+                CitizenId = "079201009999"
+            };
+
+            var mockRepo = new Mock<IGenericRepository<Dependent>>();
+            mockRepo.Setup(r => r.GetByIdAsync(depId)).ReturnsAsync(dependent);
+            mockRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Dependent, bool>>>()))
+                .ReturnsAsync(new List<Dependent>());
+            _mockUnitOfWork.Setup(u => u.Repository<Dependent>()).Returns(mockRepo.Object);
+
+            var mockDocRepo = new Mock<IGenericRepository<DependentDocument>>();
+            mockDocRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentDocument, bool>>>()))
+                .ReturnsAsync(new List<DependentDocument>
+                {
+                    new DependentDocument
+                    {
+                        Id = Guid.NewGuid(),
+                        DependentId = depId,
+                        DocType = "BIRTH_CERTIFICATE",
+                        UploadedAt = DateTime.UtcNow.AddDays(-2)
+                    }
+                });
+            _mockUnitOfWork.Setup(u => u.Repository<DependentDocument>()).Returns(mockDocRepo.Object);
+
+            var res = await _dependentService.UpdateDependentAsync(taxpayerId, depId, new UpdateDependentRequest
+            {
+                FullName = "Nguyen Van Moi"
+            });
+
+            dependent.IdentityUpdatedAt.Should().NotBeNull();
+            res.DocumentsNeedReupload.Should().BeTrue();
+        }
+
+        [Fact]
+        public async Task UpdateDependentAsync_OmittedBirthCertNumber_PreservesExistingValue()
+        {
+            var taxpayerId = Guid.NewGuid();
+            var depId = Guid.NewGuid();
+
+            var dependent = new Dependent
+            {
+                Id = depId,
+                TaxpayerId = taxpayerId,
+                IsDeleted = false,
+                FullName = "Nguyen Van Cu",
+                BirthDate = new DateTime(2020, 1, 1),
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
+                BirthCertNumber = "KS-12345"
+            };
+
+            var mockRepo = new Mock<IGenericRepository<Dependent>>();
+            mockRepo.Setup(r => r.GetByIdAsync(depId)).ReturnsAsync(dependent);
+            mockRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Dependent, bool>>>()))
+                .ReturnsAsync(new List<Dependent>());
+            _mockUnitOfWork.Setup(u => u.Repository<Dependent>()).Returns(mockRepo.Object);
+
+            var res = await _dependentService.UpdateDependentAsync(taxpayerId, depId, new UpdateDependentRequest
+            {
+                FullName = "Nguyen Van Cu",
+                BirthCertNumber = null // không gửi
+            });
+
+            dependent.BirthCertNumber.Should().Be("KS-12345");
+        }
+
+        [Fact]
+        public async Task UpdateDependentAsync_CitizenIdOverlap_ThrowsBadRequestException()
+        {
+            var taxpayerId = Guid.NewGuid();
+            var depId = Guid.NewGuid();
+            var otherDepId = Guid.NewGuid();
+
+            var mockRepo = new Mock<IGenericRepository<Dependent>>();
+            mockRepo.Setup(r => r.GetByIdAsync(depId)).ReturnsAsync(new Dependent
+            {
+                Id = depId,
+                TaxpayerId = taxpayerId,
+                BirthDate = DateTime.UtcNow.AddYears(-10),
+                IsDeleted = false
+            });
+            mockRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Dependent, bool>>>()))
+                .ReturnsAsync(new List<Dependent>
+                {
+                    new Dependent
+                    {
+                        Id = otherDepId,
+                        CitizenId = "079201009999",
+                        EffectiveFromMonth = "2026-01",
+                        EffectiveToMonth = "2026-06",
+                        IsDeleted = false
+                    }
+                });
+            _mockUnitOfWork.Setup(u => u.Repository<Dependent>()).Returns(mockRepo.Object);
+
+            var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
+                _dependentService.UpdateDependentAsync(taxpayerId, depId, new UpdateDependentRequest
+                {
+                    FullName = "Nguyen Van A",
+                    BirthDate = DateTime.UtcNow.AddYears(-10),
+                    CitizenId = "079201009999",
+                    EffectiveFromMonth = "2026-05",
+                    EffectiveToMonth = "2026-12"
+                }));
+
+            ex.ErrorCode.Should().Be("DEPENDENT_PERIOD_OVERLAP");
+            ex.Message.Should().Contain("********9999");
+            ex.Message.Should().NotContain("079201009999");
+        }
+
+        [Fact]
+        public async Task UpdateDependentAsync_Success_UpdatesAndReturnsResponse()
+        {
+            var taxpayerId = Guid.NewGuid();
+            var depId = Guid.NewGuid();
+
+            var dependent = new Dependent
+            {
+                Id = depId,
+                TaxpayerId = taxpayerId,
+                FullName = "Ten Cu",
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
+                BirthDate = DateTime.UtcNow.AddYears(-10),
+                CitizenId = "079201001111",
+                EffectiveFromMonth = "2026-01",
+                EffectiveToMonth = "2026-06",
+                Status = DependentStatus.PENDING_DOCUMENTS,
+                IsDeleted = false
+            };
+
+            var mockRepo = new Mock<IGenericRepository<Dependent>>();
+            mockRepo.Setup(r => r.GetByIdAsync(depId)).ReturnsAsync(dependent);
+            mockRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Dependent, bool>>>()))
+                .ReturnsAsync(new List<Dependent>());
+            _mockUnitOfWork.Setup(u => u.Repository<Dependent>()).Returns(mockRepo.Object);
+
+            var mockDocRepo = new Mock<IGenericRepository<DependentDocument>>();
+            mockDocRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentDocument, bool>>>()))
+                .ReturnsAsync(new List<DependentDocument>());
+            _mockUnitOfWork.Setup(u => u.Repository<DependentDocument>()).Returns(mockDocRepo.Object);
+
+            var mockRuleRepo = new Mock<IGenericRepository<DependentDocumentRule>>();
+            mockRuleRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<DependentDocumentRule, bool>>>()))
+                .ReturnsAsync(new List<DependentDocumentRule>());
+            _mockUnitOfWork.Setup(u => u.Repository<DependentDocumentRule>()).Returns(mockRuleRepo.Object);
+
+            var result = await _dependentService.UpdateDependentAsync(taxpayerId, depId, new UpdateDependentRequest
+            {
+                FullName = "Nguyen Van Moi",
+                BirthDate = DateTime.UtcNow.AddYears(-12),
+                CitizenId = "079201002222",
+                EffectiveFromMonth = "2026-01",
+                EffectiveToMonth = "2026-12",
+                Note = "Cap nhat ghi chu"
+            });
+
+            result.Should().NotBeNull();
+            result.FullName.Should().Be("Nguyen Van Moi");
+            result.CitizenId.Should().Be("079201002222");
+            result.EffectiveToMonth.Should().Be("2026-12");
+            result.Note.Should().Be("Cap nhat ghi chu");
+            _mockUnitOfWork.Verify(u => u.SaveChangesAsync(), Times.Once);
         }
 
         #endregion
@@ -786,8 +1610,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 Id = depId,
                 TaxpayerId = taxpayerId,
                 FullName = "Nguyen Van Con",
-                Relationship = DependentRelationship.CHILD,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
                 IsDeleted = false,
                 Status = DependentStatus.ACTIVE
             };
@@ -836,8 +1660,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 Id = depId,
                 TaxpayerId = taxpayerId,
                 FullName = "Nguyen Van Con",
-                Relationship = DependentRelationship.CHILD,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
                 Note = "Ghi chu cu",
                 IsDeleted = false,
                 Status = DependentStatus.ACTIVE
@@ -868,8 +1692,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 Id = depId,
                 TaxpayerId = taxpayerId,
                 FullName = "Nguyen Van Con",
-                Relationship = DependentRelationship.CHILD,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
                 IsDeleted = false,
                 Status = DependentStatus.PENDING_DOCUMENTS
             };
@@ -899,8 +1723,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 Id = depId,
                 TaxpayerId = taxpayerId,
                 FullName = "Nguyen Van Con",
-                Relationship = DependentRelationship.CHILD,
-                CurrentGroup = DependentGroup.CHILD_UNDER_18,
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
                 IsDeleted = false,
                 Status = DependentStatus.ACTIVE
             };

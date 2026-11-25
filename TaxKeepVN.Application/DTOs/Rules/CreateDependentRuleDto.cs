@@ -1,4 +1,4 @@
-﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations;
 
 namespace TaxKeepVN.Application.DTOs.Rules
 {
@@ -13,9 +13,18 @@ namespace TaxKeepVN.Application.DTOs.Rules
         [MaxLength(50, ErrorMessage = "Loại giấy tờ không được vượt quá 50 ký tự.")]
         public string DocType { get; set; } = string.Empty;
 
+        [MaxLength(150, ErrorMessage = "Tên loại giấy tờ không được vượt quá 150 ký tự.")]
+        public string? DocName { get; set; }
+
         public bool IsMandatory { get; set; } = true;
 
         public string? Description { get; set; }
+
+        [MaxLength(50, ErrorMessage = "Nhóm thay thế không được vượt quá 50 ký tự.")]
+        public string? AlternativeGroup { get; set; }
+
+        [MaxLength(20, ErrorMessage = "Nguồn không được vượt quá 20 ký tự.")]
+        public string Source { get; set; } = "ADMIN";
 
         public bool IsActive { get; set; } = true;
     }

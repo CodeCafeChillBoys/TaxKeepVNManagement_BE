@@ -19,6 +19,8 @@ namespace TaxKeepVN.Infrastructure.Contexts
         public DbSet<SystemNotification> SystemNotifications { get; set; }
         public DbSet<IncomeSource> IncomeSources { get; set; }
         public DbSet<DependentDocumentRule> DependentDocumentRules { get; set; }
+        public DbSet<DependentRelationshipCatalog> DependentRelationships { get; set; }
+        public DbSet<DependentGroupCatalog> DependentGroups { get; set; }
         public DbSet<TaxPeriod> TaxPeriods { get; set; }
         public DbSet<TaxDocumentType> DocumentTypes { get; set; }
         public DbSet<Document> Documents { get; set; }
@@ -178,7 +180,7 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(d => d.TaxpayerId).HasColumnName("taxpayer_id");
                 entity.Property(d => d.FullName).HasColumnName("full_name").IsRequired();
                 entity.Property(d => d.Relationship).HasColumnName("relationship")
-                    .HasConversion<string>().IsRequired();
+                    .HasMaxLength(50).IsRequired();
                 entity.Property(d => d.CitizenId).HasColumnName("citizen_id");
                 entity.Property(d => d.BirthCertNumber).HasColumnName("birth_cert_number");
                 entity.Property(d => d.TaxIdNumber).HasColumnName("tax_id_number");
@@ -192,10 +194,11 @@ namespace TaxKeepVN.Infrastructure.Contexts
 
                 // Cột trong database PostgreSQL sử dụng quy ước snake_case
                 entity.Property(d => d.CurrentGroup).HasColumnName("current_group")
-                    .HasConversion<string>();
+                    .HasMaxLength(50).IsRequired();
                 entity.Property(d => d.BirthDate).HasColumnName("birth_date");
                 entity.Property(d => d.IsDeleted).HasColumnName("is_deleted").HasDefaultValue(false);
                 entity.Property(d => d.IsProfileComplete).HasColumnName("is_profile_complete").HasDefaultValue(false);
+                entity.Property(d => d.IdentityUpdatedAt).HasColumnName("identity_updated_at");
 
                 // Index để query overlap nhanh theo CitizenId và BirthCertNumber
                 entity.HasIndex(d => d.CitizenId).HasDatabaseName("idx_dependents_citizen_id");
@@ -216,7 +219,7 @@ namespace TaxKeepVN.Infrastructure.Contexts
 
                 entity.Property(d => d.Id).HasColumnName("id");
                 entity.Property(d => d.DependentId).HasColumnName("dependent_id").IsRequired();
-                entity.Property(d => d.DocType).HasColumnName("doc_type").HasConversion<string>().IsRequired();
+                entity.Property(d => d.DocType).HasColumnName("doc_type").IsRequired();
                 entity.Property(d => d.FileMimeType).HasColumnName("file_mime_type").IsRequired();
                 entity.Property(d => d.FileUrl).HasColumnName("file_url").IsRequired();
                 entity.Property(d => d.IsReadable).HasColumnName("is_readable");
@@ -239,8 +242,11 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.Property(r => r.RuleId).HasColumnName("rule_id");
                 entity.Property(r => r.TargetGroup).HasColumnName("target_group").HasMaxLength(50).IsRequired();
                 entity.Property(r => r.DocType).HasColumnName("doc_type").HasMaxLength(50).IsRequired();
+                entity.Property(r => r.DocName).HasColumnName("doc_name").HasMaxLength(150);
                 entity.Property(r => r.IsMandatory).HasColumnName("is_mandatory").HasDefaultValue(true);
                 entity.Property(r => r.Description).HasColumnName("description");
+                entity.Property(r => r.AlternativeGroup).HasColumnName("alternative_group").HasMaxLength(50);
+                entity.Property(r => r.Source).HasColumnName("source").HasMaxLength(20).HasDefaultValue("ADMIN");
                 entity.Property(r => r.IsActive).HasColumnName("is_active").HasDefaultValue(true);
                 entity.Property(r => r.CreatedAt).HasColumnName("created_at");
                 entity.Property(r => r.UpdatedAt).HasColumnName("updated_at");
@@ -248,6 +254,183 @@ namespace TaxKeepVN.Infrastructure.Contexts
                 entity.HasIndex(r => new { r.TargetGroup, r.DocType })
                     .IsUnique()
                     .HasDatabaseName("uq_group_doc_rule");
+            });
+
+            // ── DependentRelationshipCatalog ─────────────────────────────────────
+            modelBuilder.Entity<DependentRelationshipCatalog>(entity =>
+            {
+                entity.ToTable("dependent_relationships");
+                entity.HasKey(r => r.Code);
+
+                entity.Property(r => r.Code).HasColumnName("code").HasMaxLength(50);
+                entity.Property(r => r.Name).HasColumnName("name").HasMaxLength(255).IsRequired();
+                entity.Property(r => r.DisplayOrder).HasColumnName("display_order").HasDefaultValue(0);
+                entity.Property(r => r.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+
+                entity.HasMany(r => r.Groups)
+                    .WithOne(g => g.Relationship)
+                    .HasForeignKey(g => g.RelationshipCode)
+                    .OnDelete(DeleteBehavior.SetNull);
+
+                entity.HasData(
+                    new DependentRelationshipCatalog { Code = "CHILD", Name = "Con", DisplayOrder = 1, IsActive = true },
+                    new DependentRelationshipCatalog { Code = "SPOUSE", Name = "Vợ/chồng", DisplayOrder = 2, IsActive = true },
+                    new DependentRelationshipCatalog { Code = "PARENT", Name = "Cha/mẹ", DisplayOrder = 3, IsActive = true },
+                    new DependentRelationshipCatalog { Code = "OTHER_DEPENDENT", Name = "Cá nhân khác không nơi nương tựa", DisplayOrder = 4, IsActive = true }
+                );
+            });
+
+            // ── DependentGroupCatalog ────────────────────────────────────────────
+            modelBuilder.Entity<DependentGroupCatalog>(entity =>
+            {
+                entity.ToTable("dependent_groups");
+                entity.HasKey(g => g.Code);
+
+                entity.Property(g => g.Code).HasColumnName("code").HasMaxLength(50);
+                entity.Property(g => g.Name).HasColumnName("name").HasMaxLength(255).IsRequired();
+                entity.Property(g => g.RelationshipCode).HasColumnName("relationship_code").HasMaxLength(50);
+                entity.Property(g => g.MinAge).HasColumnName("min_age");
+                entity.Property(g => g.MaxAge).HasColumnName("max_age");
+                entity.Property(g => g.RequireDisabled).HasColumnName("require_disabled").HasDefaultValue(false);
+                entity.Property(g => g.RequireStudying).HasColumnName("require_studying").HasDefaultValue(false);
+                entity.Property(g => g.Level).HasColumnName("level").HasDefaultValue(0);
+                entity.Property(g => g.DisplayOrder).HasColumnName("display_order").HasDefaultValue(0);
+                entity.Property(g => g.IsActive).HasColumnName("is_active").HasDefaultValue(true);
+                entity.Property(g => g.Source).HasColumnName("source").HasMaxLength(20).HasDefaultValue("ADMIN");
+                entity.Property(g => g.CreatedAt).HasColumnName("created_at");
+                entity.Property(g => g.UpdatedAt).HasColumnName("updated_at");
+
+                var seedDate = new DateTime(2026, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+                entity.HasData(
+                    new DependentGroupCatalog
+                    {
+                        Code = "CHILD_UNDER_18",
+                        Name = "Con dưới 18 tuổi",
+                        RelationshipCode = "CHILD",
+                        MinAge = null,
+                        MaxAge = 18,
+                        RequireDisabled = false,
+                        RequireStudying = false,
+                        Level = 0,
+                        DisplayOrder = 1,
+                        IsActive = true,
+                        Source = "SEED",
+                        CreatedAt = seedDate,
+                        UpdatedAt = seedDate
+                    },
+                    new DependentGroupCatalog
+                    {
+                        Code = "CHILD_OVER_18_DISABLED",
+                        Name = "Con từ 18 tuổi trở lên bị khuyết tật",
+                        RelationshipCode = "CHILD",
+                        MinAge = 18,
+                        MaxAge = null,
+                        RequireDisabled = true,
+                        RequireStudying = false,
+                        Level = 1,
+                        DisplayOrder = 2,
+                        IsActive = true,
+                        Source = "SEED",
+                        CreatedAt = seedDate,
+                        UpdatedAt = seedDate
+                    },
+                    new DependentGroupCatalog
+                    {
+                        Code = "CHILD_OVER_18_STUDYING",
+                        Name = "Con từ 18 tuổi trở lên đang đi học",
+                        RelationshipCode = "CHILD",
+                        MinAge = 18,
+                        MaxAge = null,
+                        RequireDisabled = false,
+                        RequireStudying = true,
+                        Level = 1,
+                        DisplayOrder = 3,
+                        IsActive = true,
+                        Source = "SEED",
+                        CreatedAt = seedDate,
+                        UpdatedAt = seedDate
+                    },
+                    new DependentGroupCatalog
+                    {
+                        Code = "SPOUSE_DISABLED",
+                        Name = "Vợ/Chồng khuyết tật",
+                        RelationshipCode = "SPOUSE",
+                        MinAge = null,
+                        MaxAge = null,
+                        RequireDisabled = true,
+                        RequireStudying = false,
+                        Level = 0,
+                        DisplayOrder = 4,
+                        IsActive = true,
+                        Source = "SEED",
+                        CreatedAt = seedDate,
+                        UpdatedAt = seedDate
+                    },
+                    new DependentGroupCatalog
+                    {
+                        Code = "SPOUSE_RETIRED",
+                        Name = "Vợ/Chồng ngoài độ tuổi lao động",
+                        RelationshipCode = "SPOUSE",
+                        MinAge = null,
+                        MaxAge = null,
+                        RequireDisabled = false,
+                        RequireStudying = false,
+                        Level = 1,
+                        DisplayOrder = 5,
+                        IsActive = true,
+                        Source = "SEED",
+                        CreatedAt = seedDate,
+                        UpdatedAt = seedDate
+                    },
+                    new DependentGroupCatalog
+                    {
+                        Code = "PARENT_DISABLED",
+                        Name = "Cha/Mẹ khuyết tật",
+                        RelationshipCode = "PARENT",
+                        MinAge = null,
+                        MaxAge = null,
+                        RequireDisabled = true,
+                        RequireStudying = false,
+                        Level = 0,
+                        DisplayOrder = 6,
+                        IsActive = true,
+                        Source = "SEED",
+                        CreatedAt = seedDate,
+                        UpdatedAt = seedDate
+                    },
+                    new DependentGroupCatalog
+                    {
+                        Code = "PARENT_RETIRED",
+                        Name = "Cha/Mẹ ngoài độ tuổi lao động",
+                        RelationshipCode = "PARENT",
+                        MinAge = null,
+                        MaxAge = null,
+                        RequireDisabled = false,
+                        RequireStudying = false,
+                        Level = 1,
+                        DisplayOrder = 7,
+                        IsActive = true,
+                        Source = "SEED",
+                        CreatedAt = seedDate,
+                        UpdatedAt = seedDate
+                    },
+                    new DependentGroupCatalog
+                    {
+                        Code = "OTHER_HELPLESS",
+                        Name = "Cá nhân không nơi nương tựa khác",
+                        RelationshipCode = "OTHER_DEPENDENT",
+                        MinAge = null,
+                        MaxAge = null,
+                        RequireDisabled = false,
+                        RequireStudying = false,
+                        Level = 0,
+                        DisplayOrder = 8,
+                        IsActive = true,
+                        Source = "SEED",
+                        CreatedAt = seedDate,
+                        UpdatedAt = seedDate
+                    }
+                );
             });
 
             // ── TaxPeriod ────────────────────────────────────────────────────────

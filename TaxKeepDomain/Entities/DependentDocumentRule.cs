@@ -19,11 +19,23 @@ namespace TaxKeepVN.Domain.Entities
         [MaxLength(50)]
         public string DocType { get; set; } = string.Empty;
 
+        [Column("doc_name")]
+        [MaxLength(150)]
+        public string? DocName { get; set; }
+
         [Column("is_mandatory")]
         public bool IsMandatory { get; set; } = true;
 
         [Column("description")]
         public string? Description { get; set; }
+
+        [Column("alternative_group")]
+        [MaxLength(50)]
+        public string? AlternativeGroup { get; set; }
+
+        [Column("source")]
+        [MaxLength(20)]
+        public string Source { get; set; } = "ADMIN";
 
         [Column("is_active")]
         public bool IsActive { get; set; } = true;

@@ -740,7 +740,8 @@ namespace TaxKeepVN.Infrastructure.Migrations
 
                     b.Property<string>("CurrentGroup")
                         .IsRequired()
-                        .HasColumnType("text")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
                         .HasColumnName("current_group");
 
                     b.Property<string>("EffectiveFromMonth")
@@ -757,6 +758,10 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         .IsRequired()
                         .HasColumnType("text")
                         .HasColumnName("full_name");
+
+                    b.Property<DateTime?>("IdentityUpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("identity_updated_at");
 
                     b.Property<bool>("IsDeleted")
                         .ValueGeneratedOnAdd()
@@ -776,7 +781,8 @@ namespace TaxKeepVN.Infrastructure.Migrations
 
                     b.Property<string>("Relationship")
                         .IsRequired()
-                        .HasColumnType("text")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
                         .HasColumnName("relationship");
 
                     b.Property<string>("Status")
@@ -861,6 +867,11 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("rule_id");
 
+                    b.Property<string>("AlternativeGroup")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("alternative_group");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("created_at");
@@ -868,6 +879,11 @@ namespace TaxKeepVN.Infrastructure.Migrations
                     b.Property<string>("Description")
                         .HasColumnType("text")
                         .HasColumnName("description");
+
+                    b.Property<string>("DocName")
+                        .HasMaxLength(150)
+                        .HasColumnType("character varying(150)")
+                        .HasColumnName("doc_name");
 
                     b.Property<string>("DocType")
                         .IsRequired()
@@ -887,6 +903,14 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         .HasDefaultValue(true)
                         .HasColumnName("is_mandatory");
 
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("ADMIN")
+                        .HasColumnName("source");
+
                     b.Property<string>("TargetGroup")
                         .IsRequired()
                         .HasMaxLength(50)
@@ -904,6 +928,262 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         .HasDatabaseName("uq_group_doc_rule");
 
                     b.ToTable("dependent_document_rules", (string)null);
+                });
+
+            modelBuilder.Entity("TaxKeepVN.Domain.Entities.DependentGroupCatalog", b =>
+                {
+                    b.Property<string>("Code")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("code");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<int>("DisplayOrder")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("display_order");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<int>("Level")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("level");
+
+                    b.Property<int?>("MaxAge")
+                        .HasColumnType("integer")
+                        .HasColumnName("max_age");
+
+                    b.Property<int?>("MinAge")
+                        .HasColumnType("integer")
+                        .HasColumnName("min_age");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("name");
+
+                    b.Property<string>("RelationshipCode")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("relationship_code");
+
+                    b.Property<bool>("RequireDisabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("require_disabled");
+
+                    b.Property<bool>("RequireStudying")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(false)
+                        .HasColumnName("require_studying");
+
+                    b.Property<string>("Source")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("ADMIN")
+                        .HasColumnName("source");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Code");
+
+                    b.HasIndex("RelationshipCode");
+
+                    b.ToTable("dependent_groups", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Code = "CHILD_UNDER_18",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DisplayOrder = 1,
+                            IsActive = true,
+                            Level = 0,
+                            MaxAge = 18,
+                            Name = "Con dưới 18 tuổi",
+                            RelationshipCode = "CHILD",
+                            RequireDisabled = false,
+                            RequireStudying = false,
+                            Source = "SEED",
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Code = "CHILD_OVER_18_DISABLED",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DisplayOrder = 2,
+                            IsActive = true,
+                            Level = 1,
+                            MinAge = 18,
+                            Name = "Con từ 18 tuổi trở lên bị khuyết tật",
+                            RelationshipCode = "CHILD",
+                            RequireDisabled = true,
+                            RequireStudying = false,
+                            Source = "SEED",
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Code = "CHILD_OVER_18_STUDYING",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DisplayOrder = 3,
+                            IsActive = true,
+                            Level = 1,
+                            MinAge = 18,
+                            Name = "Con từ 18 tuổi trở lên đang đi học",
+                            RelationshipCode = "CHILD",
+                            RequireDisabled = false,
+                            RequireStudying = true,
+                            Source = "SEED",
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Code = "SPOUSE_DISABLED",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DisplayOrder = 4,
+                            IsActive = true,
+                            Level = 0,
+                            Name = "Vợ/Chồng khuyết tật",
+                            RelationshipCode = "SPOUSE",
+                            RequireDisabled = true,
+                            RequireStudying = false,
+                            Source = "SEED",
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Code = "SPOUSE_RETIRED",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DisplayOrder = 5,
+                            IsActive = true,
+                            Level = 1,
+                            Name = "Vợ/Chồng ngoài độ tuổi lao động",
+                            RelationshipCode = "SPOUSE",
+                            RequireDisabled = false,
+                            RequireStudying = false,
+                            Source = "SEED",
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Code = "PARENT_DISABLED",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DisplayOrder = 6,
+                            IsActive = true,
+                            Level = 0,
+                            Name = "Cha/Mẹ khuyết tật",
+                            RelationshipCode = "PARENT",
+                            RequireDisabled = true,
+                            RequireStudying = false,
+                            Source = "SEED",
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Code = "PARENT_RETIRED",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DisplayOrder = 7,
+                            IsActive = true,
+                            Level = 1,
+                            Name = "Cha/Mẹ ngoài độ tuổi lao động",
+                            RelationshipCode = "PARENT",
+                            RequireDisabled = false,
+                            RequireStudying = false,
+                            Source = "SEED",
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc)
+                        },
+                        new
+                        {
+                            Code = "OTHER_HELPLESS",
+                            CreatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DisplayOrder = 8,
+                            IsActive = true,
+                            Level = 0,
+                            Name = "Cá nhân không nơi nương tựa khác",
+                            RelationshipCode = "OTHER_DEPENDENT",
+                            RequireDisabled = false,
+                            RequireStudying = false,
+                            Source = "SEED",
+                            UpdatedAt = new DateTime(2026, 1, 1, 0, 0, 0, 0, DateTimeKind.Utc)
+                        });
+                });
+
+            modelBuilder.Entity("TaxKeepVN.Domain.Entities.DependentRelationshipCatalog", b =>
+                {
+                    b.Property<string>("Code")
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("code");
+
+                    b.Property<int>("DisplayOrder")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer")
+                        .HasDefaultValue(0)
+                        .HasColumnName("display_order");
+
+                    b.Property<bool>("IsActive")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true)
+                        .HasColumnName("is_active");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("name");
+
+                    b.HasKey("Code");
+
+                    b.ToTable("dependent_relationships", (string)null);
+
+                    b.HasData(
+                        new
+                        {
+                            Code = "CHILD",
+                            DisplayOrder = 1,
+                            IsActive = true,
+                            Name = "Con"
+                        },
+                        new
+                        {
+                            Code = "SPOUSE",
+                            DisplayOrder = 2,
+                            IsActive = true,
+                            Name = "Vợ/chồng"
+                        },
+                        new
+                        {
+                            Code = "PARENT",
+                            DisplayOrder = 3,
+                            IsActive = true,
+                            Name = "Cha/mẹ"
+                        },
+                        new
+                        {
+                            Code = "OTHER_DEPENDENT",
+                            DisplayOrder = 4,
+                            IsActive = true,
+                            Name = "Cá nhân khác không nơi nương tựa"
+                        });
                 });
 
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.Document", b =>
@@ -2143,7 +2423,69 @@ namespace TaxKeepVN.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.ToTable("income_sources", (string)null);
+                    b.ToTable("income_sources");
+                });
+
+            modelBuilder.Entity("TaxKeepVN.Domain.Entities.MedicalEligibleCategory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("CategoryCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasColumnName("category_code");
+
+                    b.Property<string>("CategoryName")
+                        .IsRequired()
+                        .HasMaxLength(255)
+                        .HasColumnType("character varying(255)")
+                        .HasColumnName("category_name");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<DateTime?>("DeletedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("deleted_at");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text")
+                        .HasColumnName("description");
+
+                    b.Property<bool>("IsDeleted")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_deleted");
+
+                    b.Property<bool>("IsEligible")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_eligible");
+
+                    b.Property<string>("Keywords")
+                        .HasColumnType("text")
+                        .HasColumnName("keywords");
+
+                    b.Property<string>("SectionCode")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasColumnName("section_code");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("updated_at");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CategoryCode")
+                        .IsUnique()
+                        .HasDatabaseName("idx_medical_eligible_categories_code");
+
+                    b.ToTable("medical_eligible_categories", (string)null);
                 });
 
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.MedicalStatement", b =>
@@ -2315,6 +2657,14 @@ namespace TaxKeepVN.Infrastructure.Migrations
                         .HasMaxLength(255)
                         .HasColumnType("character varying(255)")
                         .HasColumnName("deduction_reason");
+
+                    b.Property<string>("DeductionStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(50)
+                        .HasColumnType("character varying(50)")
+                        .HasDefaultValue("ELIGIBLE")
+                        .HasColumnName("deduction_status");
 
                     b.Property<decimal>("EligibleAmount")
                         .ValueGeneratedOnAdd()
@@ -3080,7 +3430,7 @@ namespace TaxKeepVN.Infrastructure.Migrations
 
                     b.HasKey("NotificationId");
 
-                    b.ToTable("system_notifications", (string)null);
+                    b.ToTable("system_notifications");
                 });
 
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.TaxBracket", b =>
@@ -4073,6 +4423,16 @@ namespace TaxKeepVN.Infrastructure.Migrations
                     b.Navigation("Dependent");
                 });
 
+            modelBuilder.Entity("TaxKeepVN.Domain.Entities.DependentGroupCatalog", b =>
+                {
+                    b.HasOne("TaxKeepVN.Domain.Entities.DependentRelationshipCatalog", "Relationship")
+                        .WithMany("Groups")
+                        .HasForeignKey("RelationshipCode")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Relationship");
+                });
+
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.Document", b =>
                 {
                     b.HasOne("TaxKeepVN.Domain.Entities.TaxDocumentType", "DocType")
@@ -4406,6 +4766,11 @@ namespace TaxKeepVN.Infrastructure.Migrations
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.Dependent", b =>
                 {
                     b.Navigation("Documents");
+                });
+
+            modelBuilder.Entity("TaxKeepVN.Domain.Entities.DependentRelationshipCatalog", b =>
+                {
+                    b.Navigation("Groups");
                 });
 
             modelBuilder.Entity("TaxKeepVN.Domain.Entities.Document", b =>

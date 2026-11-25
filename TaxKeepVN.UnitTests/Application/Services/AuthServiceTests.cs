@@ -40,6 +40,11 @@ namespace TaxKeepVN.UnitTests.Application.Services
 
             _mockUnitOfWork.Setup(u => u.Repository<User>()).Returns(_mockUserRepo.Object);
 
+            var mockRoleRepo = new Mock<IGenericRepository<Role>>();
+            mockRoleRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Role, bool>>>()))
+                        .ReturnsAsync(new List<Role> { new Role { Id = 1, Code = "taxpayer", Name = "Người nộp thuế", IsActive = true } });
+            _mockUnitOfWork.Setup(u => u.Repository<Role>()).Returns(mockRoleRepo.Object);
+
             _authService = new AuthService(
                 _mockUnitOfWork.Object,
                 _mockJwtTokenService.Object,
@@ -177,6 +182,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
             result.Should().NotBeNull();
             result.CitizenId.Should().Be(request.CitizenId);
             result.Email.Should().Be(request.Email.ToLower());
+            result.UserRole.Should().Be("taxpayer");
+            result.RoleId.Should().Be(1);
             _mockUserRepo.Verify(r => r.AddAsync(It.IsAny<User>()), Times.Once);
             mockWalletRepo.Verify(w => w.AddAsync(It.IsAny<UserWallet>()), Times.Once);
             _mockUnitOfWork.Verify(u => u.SaveChangesAsync(), Times.Once);

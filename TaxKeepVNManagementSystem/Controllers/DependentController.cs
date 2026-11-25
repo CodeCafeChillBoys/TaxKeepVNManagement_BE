@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel.DataAnnotations;
 using System.Linq;
+using System.Security.Claims;
 using System.Threading.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Http;
@@ -24,17 +25,23 @@ namespace TaxKeepVNManagementSystem.Controllers
         private readonly IDependentReminderService _reminderService;
         private readonly IOcrService _ocrService;
         private readonly IDependentRuleService _dependentRuleService;
+        private readonly IDependentCatalogService? _catalogService;
+        private readonly ISubscriptionQuotaService? _quotaService;
 
         public DependentController(
             IDependentService dependentService,
             IDependentReminderService reminderService,
             IOcrService ocrService,
-            IDependentRuleService dependentRuleService)
+            IDependentRuleService dependentRuleService,
+            IDependentCatalogService? catalogService = null,
+            ISubscriptionQuotaService? quotaService = null)
         {
             _dependentService = dependentService;
             _reminderService = reminderService;
             _ocrService = ocrService;
             _dependentRuleService = dependentRuleService;
+            _catalogService = catalogService;
+            _quotaService = quotaService;
         }
 
         /// <summary>
@@ -48,6 +55,15 @@ namespace TaxKeepVNManagementSystem.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> ExtractDependentOcr([FromForm] TaxKeepVN.Application.DTOs.OcrAI.OcrDocumentUploadRequestDto request)
         {
+            var userIdClaim = User.FindFirst(ClaimTypes.NameIdentifier)?.Value 
+                ?? User.FindFirst("userId")?.Value;
+            Guid? userId = Guid.TryParse(userIdClaim, out var parsedId) ? parsedId : null;
+
+            if (_quotaService != null && userId.HasValue && userId.Value != Guid.Empty)
+            {
+                await _quotaService.CheckAndConsumeOcrScanAsync(userId.Value, 1);
+            }
+
             var result = await _ocrService.ProcessDependentOcrAsync(request.File, request.BackFile);
             return Ok(ApiResponse<TaxKeepVN.Application.DTOs.OcrAI.DependentOcrResponseDto>.Ok(result, "Bóc tách thông tin người phụ thuộc thành công."));
         }
@@ -66,44 +82,40 @@ namespace TaxKeepVNManagementSystem.Controllers
         [ProducesResponseType(StatusCodes.Status400BadRequest)]
         public async Task<IActionResult> GetDependentGroups([FromQuery] string? relationship = null)
         {
-            // ── Đọc từ DB (dependent_document_rules is_active=true) thông qua DependentRuleService ──
-            // Dữ liệu được đồng bộ từ TaxAIService khi Admin Approve bộ luật.
-            // IMemoryCache 1 tiếng — cực nhanh và không phụ thuộc TaxAIService nhạt mạng.
-            var dbGroups = (await _dependentRuleService.GetActiveGroupsAsync(relationship))?.ToList();
-
-            string[] result;
-            if (dbGroups != null && dbGroups.Count > 0)
+            if (!string.IsNullOrWhiteSpace(relationship))
             {
-                result = dbGroups.ToArray();
-            }
-            else
-            {
-                // Fallback nếu DB chưa có dữ liệu (chưa sync từ TaxAIService lần nào)
-                var defaultGroups = new List<string>
+                var relUpper = relationship.Trim().ToUpper();
+                if (_catalogService != null)
                 {
-                    "CHILD_UNDER_18", "CHILD_OVER_18_DISABLED", "CHILD_OVER_18_STUDYING",
-                    "SPOUSE_DISABLED", "SPOUSE_RETIRED",
-                    "PARENT_DISABLED", "PARENT_RETIRED",
-                    "OTHER_HELPLESS"
-                };
-
-                if (!string.IsNullOrWhiteSpace(relationship))
-                {
-                    var prefix = relationship.Trim().ToUpper() + "_";
-                    var filtered = defaultGroups.Where(g => g.StartsWith(prefix, System.StringComparison.OrdinalIgnoreCase)).ToList();
-                    if (filtered.Count == 0)
+                    var activeRels = await _catalogService.GetActiveRelationshipsAsync();
+                    if (!activeRels.Any(r => string.Equals(r.Code, relUpper, StringComparison.OrdinalIgnoreCase)))
+                    {
                         return BadRequest(ApiResponse<object>.Fail(
                             "INVALID_RELATIONSHIP",
-                            $"Nhóm quan hệ '{relationship.Trim().ToUpper()}' không hợp lệ."));
-                    result = filtered.ToArray();
-                }
-                else
-                {
-                    result = defaultGroups.ToArray();
+                            $"Nhóm quan hệ '{relUpper}' không hợp lệ."));
+                    }
                 }
             }
 
-            return Ok(ApiResponse<object>.Ok(result, "Lấy danh sách nhóm người phụ thuộc thành công."));
+            var dbGroups = (await _dependentRuleService.GetActiveGroupsAsync(relationship))?.ToArray() ?? Array.Empty<string>();
+            return Ok(ApiResponse<object>.Ok(dbGroups, "Lấy danh sách nhóm người phụ thuộc thành công."));
+        }
+
+        /// <summary>
+        /// Lấy danh mục quan hệ và nhóm người phụ thuộc đang kích hoạt (active) phục vụ hiển thị trên Mobile và FE.
+        /// GET /api/v1/dependents/catalog
+        /// </summary>
+        [HttpGet("catalog", Name = "GetDependentCatalog")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        public async Task<IActionResult> GetDependentCatalog()
+        {
+            if (_catalogService == null)
+            {
+                return Ok(ApiResponse<object>.Ok(new { relationships = Array.Empty<object>(), groups = Array.Empty<object>() }, "Lấy danh mục thành công."));
+            }
+
+            var catalog = await _catalogService.GetActiveCatalogAsync();
+            return Ok(ApiResponse<TaxKeepVN.Application.DTOs.Catalog.DependentCatalogResponseDto>.Ok(catalog, "Lấy danh mục người phụ thuộc thành công."));
         }
 
         /// <summary>
@@ -194,6 +206,30 @@ namespace TaxKeepVNManagementSystem.Controllers
                     "Không thể xác định danh tính người dùng từ token. Vui lòng đăng nhập lại.");
             }
             return userId;
+        }
+
+        /// <summary>
+        /// Cập nhật thông tin hồ sơ người phụ thuộc sau khi tạo (họ tên, ngày sinh, định danh, kỳ giảm trừ, ghi chú).
+        /// PUT /api/v1/dependents/{dependentId}
+        /// </summary>
+        [HttpPut("{dependentId:guid}", Name = "UpdateDependent")]
+        [HasPermission("dependent.manage")]
+        [ProducesResponseType(StatusCodes.Status200OK)]
+        [ProducesResponseType(StatusCodes.Status400BadRequest)]
+        [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+        [ProducesResponseType(StatusCodes.Status403Forbidden)]
+        [ProducesResponseType(StatusCodes.Status404NotFound)]
+        public async Task<IActionResult> UpdateDependent(
+            [FromRoute] Guid dependentId,
+            [FromBody] UpdateDependentRequest request)
+        {
+            if (!ModelState.IsValid)
+                return BadRequest(ApiResponse<object>.ValidationFail(ModelState));
+
+            var taxpayerId = GetUserIdFromToken();
+            var result = await _dependentService.UpdateDependentAsync(taxpayerId, dependentId, request);
+
+            return Ok(ApiResponse<object>.Ok(result, "Cập nhật thông tin người phụ thuộc thành công."));
         }
 
         /// <summary>

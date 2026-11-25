@@ -1,13 +1,16 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Threading.Tasks;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
+using TaxKeepVN.Application.Constants;
 using TaxKeepVN.Application.DTOs.Common;
 using TaxKeepVN.Application.DTOs.Requests.Dependent;
 using TaxKeepVN.Application.DTOs.Responses.Dependent;
 using TaxKeepVN.Application.Exceptions;
+using TaxKeepVN.Application.Helpers;
 using TaxKeepVN.Application.Service.Interfaces;
 using TaxKeepVN.Domain.Entities;
 using TaxKeepVN.Domain.Enums;
@@ -21,33 +24,55 @@ namespace TaxKeepVN.Application.Service.Implementations
         private readonly IMemoryCache _cache;
         private readonly IConfiguration _configuration;
         private readonly IRedisCacheService? _redisCache;
+        private readonly IDependentRuleService _dependentRuleService;
+        private readonly IDependentCatalogService _catalogService;
 
         public DependentService(
             IUnitOfWork unitOfWork,
             IMemoryCache cache,
             IConfiguration configuration,
-            IRedisCacheService? redisCache = null)
+            IRedisCacheService? redisCache = null,
+            IDependentRuleService? dependentRuleService = null,
+            IDependentCatalogService? catalogService = null)
         {
             _unitOfWork = unitOfWork;
             _cache = cache;
             _configuration = configuration;
             _redisCache = redisCache;
+            _dependentRuleService = dependentRuleService ?? new DependentRuleService(_unitOfWork, _cache, _configuration, _redisCache);
+            _catalogService = catalogService ?? new DependentCatalogService(_unitOfWork, _cache, _redisCache);
+        }
+
+        private async Task<List<DependentRelationshipCatalog>> GetActiveRelationshipsAsync()
+        {
+            return await _catalogService.GetActiveRelationshipsAsync();
+        }
+
+        private async Task<List<DependentGroupCatalog>> GetActiveGroupsAsync()
+        {
+            return await _catalogService.GetActiveGroupsAsync();
         }
 
         public async Task<DependentResponse> CreateDependentAsync(Guid taxpayerId, CreateDependentRequest request)
         {
-            // ── 1. Validate Relationship enum ───────────────────────────────────
-            if (!Enum.TryParse<DependentRelationship>(request.Relationship, true, out var relationship))
+            // ── 1. Validate Relationship catalog ─────────────────────────────────
+            var activeRels = await GetActiveRelationshipsAsync();
+            var matchedRel = activeRels.FirstOrDefault(r => string.Equals(r.Code, request.Relationship?.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (matchedRel == null)
             {
+                var validRels = activeRels.Count > 0 ? string.Join(", ", activeRels.Select(r => r.Code)) : "CHILD, SPOUSE, PARENT, OTHER_DEPENDENT";
                 throw new BadRequestException(
                     "INVALID_RELATIONSHIP",
                     $"Nhóm quan hệ '{request.Relationship}' không hợp lệ. " +
-                    "Các giá trị hợp lệ: CHILD, SPOUSE, PARENT, OTHER_DEPENDENT."
+                    $"Các giá trị hợp lệ: {validRels}."
                 );
             }
+            var relationship = matchedRel.Code;
 
-            // ── 2. Validate và parse CurrentGroup enum ──────────────────────────
-            if (!Enum.TryParse<DependentGroup>(request.CurrentGroup, true, out var currentGroup))
+            // ── 2. Validate và parse CurrentGroup catalog ────────────────────────
+            var activeGroups = await GetActiveGroupsAsync();
+            var matchedGroup = activeGroups.FirstOrDefault(g => string.Equals(g.Code, request.CurrentGroup?.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (matchedGroup == null)
             {
                 throw new BadRequestException(
                     "INVALID_CURRENT_GROUP",
@@ -55,9 +80,16 @@ namespace TaxKeepVN.Application.Service.Implementations
                     "Vui lòng chọn đúng điều kiện đăng ký người phụ thuộc."
                 );
             }
+            var currentGroup = matchedGroup.Code;
 
             // ── 3. Validate CurrentGroup phải khớp với Relationship ─────────────
-            ValidateGroupMatchesRelationship(relationship, currentGroup);
+            ValidateGroupMatchesRelationship(relationship, matchedGroup, activeGroups);
+
+            // ── 3.5. Validate độ tuổi phù hợp với CurrentGroup nếu có BirthDate ─
+            if (request.BirthDate.HasValue)
+            {
+                ValidateGroupMatchesAge(request.BirthDate.Value, matchedGroup);
+            }
 
             // ── 4. Validate định danh: phải có CitizenId HOẶC BirthCertNumber ──
             var hasCitizenId = !string.IsNullOrWhiteSpace(request.CitizenId);
@@ -71,13 +103,34 @@ namespace TaxKeepVN.Application.Service.Implementations
                 );
             }
 
-            // ── 5. Validate khoảng thời gian: From <= To ───────────────────────
-            if (string.Compare(request.EffectiveFromMonth, request.EffectiveToMonth, StringComparison.Ordinal) > 0)
+            // ── 5. Validate khoảng thời gian: From <= To và From >= BirthDate ──
+            var birthDate = request.BirthDate.HasValue
+                ? DateTime.SpecifyKind(request.BirthDate.Value, DateTimeKind.Utc)
+                : default;
+            ValidateEffectivePeriod(birthDate, request.EffectiveFromMonth, request.EffectiveToMonth);
+
+            // ── 5.5. Chặn theo hồ sơ quyết toán đã chốt (TaxSettlementDossier LOCKED) ─
+            var affectedYears = PeriodHelper.GetYearsInRange(request.EffectiveFromMonth, request.EffectiveToMonth);
+            var settlementRepo = _unitOfWork.Repository<TaxSettlementDossier>();
+            if (settlementRepo != null && affectedYears.Count > 0)
             {
-                throw new BadRequestException(
-                    "INVALID_PERIOD",
-                    "Tháng bắt đầu tính giảm trừ phải nhỏ hơn hoặc bằng tháng kết thúc."
-                );
+                var lockedDossiers = (await settlementRepo.FindAsync(d =>
+                    d.TaxpayerId == taxpayerId &&
+                    d.Status == "LOCKED")).ToList();
+
+                var lockedYears = lockedDossiers
+                    .Where(d => affectedYears.Contains(d.TaxYear))
+                    .Select(d => d.TaxYear)
+                    .OrderBy(y => y)
+                    .ToList();
+
+                if (lockedYears.Count > 0)
+                {
+                    throw new ConflictException(
+                        ErrorCodes.Dependent.SettlementLockedPeriod,
+                        $"Năm {string.Join(", ", lockedYears)} đã chốt hồ sơ quyết toán, không thể thay đổi thời gian hiệu lực trong năm này."
+                    );
+                }
             }
 
             // ── 6. Kiểm tra trùng lặp thời gian ────────────────────────────────
@@ -89,7 +142,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             {
                 // Bước 1: Query DB chỉ theo CitizenId (EF Core dịch được)
                 var existingByCitizenId = await dependentRepo.FindAsync(d =>
-                    d.CitizenId == request.CitizenId);
+                    d.CitizenId == request.CitizenId && !d.IsDeleted);
 
                 // Bước 2: Kiểm tra overlap trong bộ nhớ (in-memory)
                 var conflict = existingByCitizenId.FirstOrDefault(d =>
@@ -100,8 +153,8 @@ namespace TaxKeepVN.Application.Service.Implementations
                 if (conflict != null)
                 {
                     throw new BadRequestException(
-                        "DEPENDENT_PERIOD_OVERLAP",
-                        $"Người phụ thuộc có số CCCD '{request.CitizenId}' đã được đăng ký " +
+                        ErrorCodes.Dependent.DependentPeriodOverlap,
+                        $"Người phụ thuộc có số CCCD '{MaskIdentifier(request.CitizenId!)}' đã được đăng ký " +
                         $"trong khoảng thời gian từ {conflict.EffectiveFromMonth} đến {conflict.EffectiveToMonth}. " +
                         "Một người phụ thuộc không thể được đăng ký trùng kỳ tính giảm trừ bởi nhiều người nộp thuế."
                     );
@@ -112,7 +165,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             {
                 // Bước 1: Query DB chỉ theo BirthCertNumber (EF Core dịch được)
                 var existingByBirthCert = await dependentRepo.FindAsync(d =>
-                    d.BirthCertNumber == request.BirthCertNumber);
+                    d.BirthCertNumber == request.BirthCertNumber && !d.IsDeleted);
 
                 // Bước 2: Kiểm tra overlap trong bộ nhớ (in-memory)
                 var conflict = existingByBirthCert.FirstOrDefault(d =>
@@ -123,8 +176,8 @@ namespace TaxKeepVN.Application.Service.Implementations
                 if (conflict != null)
                 {
                     throw new BadRequestException(
-                        "DEPENDENT_PERIOD_OVERLAP",
-                        $"Người phụ thuộc có số Giấy khai sinh '{request.BirthCertNumber}' đã được đăng ký " +
+                        ErrorCodes.Dependent.DependentPeriodOverlap,
+                        $"Người phụ thuộc có số Giấy khai sinh '{MaskIdentifier(request.BirthCertNumber!)}' đã được đăng ký " +
                         $"trong khoảng thời gian từ {conflict.EffectiveFromMonth} đến {conflict.EffectiveToMonth}. " +
                         "Một người phụ thuộc không thể được đăng ký trùng kỳ tính giảm trừ bởi nhiều người nộp thuế."
                     );
@@ -180,51 +233,109 @@ namespace TaxKeepVN.Application.Service.Implementations
         }
 
         // ── Helper: validate CurrentGroup phải khớp Relationship ─────────────────
-        // Đọc từ DependentSettings:GroupOrders trong appsettings.json.
-        // Không hardcode cặp Relationship-Group: thêm nhóm mới chỉ cần chỉnh config.
-        private void ValidateGroupMatchesRelationship(
-            DependentRelationship relationship,
-            DependentGroup currentGroup)
+        private static void ValidateGroupMatchesRelationship(
+            string relationship,
+            DependentGroupCatalog currentGroup,
+            List<DependentGroupCatalog> allGroups)
         {
-            var relKey   = relationship.ToString();   // Ví dụ: "CHILD"
-            var groupKey = currentGroup.ToString();   // Ví dụ: "CHILD_UNDER_18"
-
-            // Lấy danh sách các group hợp lệ cho relationship này từ config
-            var section = _configuration.GetSection($"DependentSettings:GroupOrders:{relKey}");
-
-            // section.Exists() = false nghĩa là relationship không có trong config (không xảy ra nếu seed đủ)
-            // Kiểm tra groupKey có phải là một key con không
-            var validGroups = section.GetChildren().Select(g => g.Key).ToHashSet(StringComparer.OrdinalIgnoreCase);
-
-            if (validGroups.Count == 0 || !validGroups.Contains(groupKey))
+            if (!string.Equals(currentGroup.RelationshipCode, relationship, StringComparison.OrdinalIgnoreCase))
             {
-                // Lấy danh sách hợp lệ để hiển thị trong thông báo lỗi
-                var validList = validGroups.Count > 0
-                    ? string.Join(", ", validGroups)
+                var validForRel = allGroups
+                    .Where(g => string.Equals(g.RelationshipCode, relationship, StringComparison.OrdinalIgnoreCase))
+                    .Select(g => g.Code)
+                    .ToList();
+                var validList = validForRel.Count > 0
+                    ? string.Join(", ", validForRel)
                     : "(chưa cấu hình)";
 
                 throw new BadRequestException(
                     "GROUP_RELATIONSHIP_MISMATCH",
-                    $"Điều kiện đăng ký '{currentGroup}' không thuộc nhóm quan hệ '{relationship}'. " +
+                    $"Điều kiện đăng ký '{currentGroup.Code}' không thuộc nhóm quan hệ '{relationship}'. " +
                     $"Các điều kiện hợp lệ cho nhóm này: {validList}."
                 );
             }
         }
 
-        // ── Helper: thứ tự ưu tiên của nhóm — đọc từ appsettings.json ──────────
-        // Số cao hơn = điều kiện "lớn hơn" (không thể đảo ngược theo thời gian).
-        // Cấu hình tại: DependentSettings:GroupOrders:{Relationship}:{Group}
-        // Trả về -1 nếu không tìm thấy (nhóm không thuộc relationship này).
-        private int GetGroupOrder(DependentRelationship relationship, DependentGroup group)
+        // ── Helper: lấy tên hiển thị tiếng Việt thân thiện cho DependentGroup ────
+        public static string GetGroupDisplayName(string groupCode, DependentGroupCatalog? groupCatalog = null)
         {
-            var configPath = $"DependentSettings:GroupOrders:{relationship}:{group}";
-            return _configuration.GetValue<int?>(configPath) ?? -1;
+            if (groupCatalog != null && !string.IsNullOrWhiteSpace(groupCatalog.Name))
+                return groupCatalog.Name;
+
+            return groupCode;
+        }
+
+        // ── Helper: validate độ tuổi phải phù hợp với DependentGroupCatalog ─────
+        private static void ValidateGroupMatchesAge(DateTime birthDate, DependentGroupCatalog group)
+        {
+            if (birthDate == default || birthDate == DateTime.MinValue)
+                return;
+
+            var today = DateTime.UtcNow;
+            var age = today.Year - birthDate.Year;
+            if (birthDate.Date > today.AddYears(-age))
+            {
+                age--;
+            }
+
+            if (group.MaxAge.HasValue && age >= group.MaxAge.Value)
+            {
+                throw new BadRequestException(
+                    ErrorCodes.Dependent.GroupAgeMismatch,
+                    $"Người phụ thuộc hiện tại {age} tuổi (đã từ đủ {group.MaxAge.Value} tuổi trở lên). " +
+                    $"Không thể chuyển hoặc đăng ký vào nhóm '{group.Name}'."
+                );
+            }
+
+            if (group.MinAge.HasValue && age < group.MinAge.Value)
+            {
+                throw new BadRequestException(
+                    ErrorCodes.Dependent.GroupAgeMismatch,
+                    $"Người phụ thuộc hiện tại {age} tuổi (chưa đủ {group.MinAge.Value} tuổi). " +
+                    $"Không thể chuyển sang nhóm '{group.Name}'. " +
+                    $"Nhóm này chỉ áp dụng cho con từ đủ {group.MinAge.Value} tuổi trở lên."
+                );
+            }
+        }
+
+        // ── Helper: validate khoảng thời gian giảm trừ: From <= To và From >= BirthDate ──
+        private static void ValidateEffectivePeriod(DateTime birthDate, string effectiveFromMonth, string effectiveToMonth)
+        {
+            if (string.Compare(effectiveFromMonth, effectiveToMonth, StringComparison.Ordinal) > 0)
+            {
+                throw new BadRequestException(
+                    ErrorCodes.Dependent.InvalidPeriod,
+                    "Tháng bắt đầu tính giảm trừ phải nhỏ hơn hoặc bằng tháng kết thúc."
+                );
+            }
+
+            if (birthDate != default && birthDate != DateTime.MinValue)
+            {
+                var birthMonth = birthDate.ToString("yyyy-MM", CultureInfo.InvariantCulture);
+                var birthDisplay = birthDate.ToString("MM/yyyy", CultureInfo.InvariantCulture);
+                if (!string.IsNullOrWhiteSpace(effectiveFromMonth) &&
+                    string.Compare(effectiveFromMonth, birthMonth, StringComparison.Ordinal) < 0)
+                {
+                    throw new BadRequestException(
+                        ErrorCodes.Dependent.PeriodBeforeBirth,
+                        $"Tháng bắt đầu giảm trừ không được trước tháng sinh của người phụ thuộc ({birthDisplay})."
+                    );
+                }
+            }
+        }
+
+        // ── Helper: che số giấy tờ (chỉ hiện 4 số cuối) ───────────────────────
+        private static string MaskIdentifier(string id)
+        {
+            if (string.IsNullOrWhiteSpace(id)) return string.Empty;
+            var trimmed = id.Trim();
+            if (trimmed.Length <= 4) return trimmed;
+            return new string('*', trimmed.Length - 4) + trimmed[^4..];
         }
 
         // ── Helper: danh sách giấy tờ bắt buộc — đọc từ DB + IMemoryCache + Redis ────────
-        private async Task<string[]> GetRequiredDocumentsAsync(DependentGroup group)
+        private async Task<string[]> GetRequiredDocumentsAsync(string groupString)
         {
-            var groupString = group.ToString();
             var cacheKey = $"DependentRules_Required_{groupString}";
             var redisKey = $"taxkeep:dependent_rules:required:{groupString}";
 
@@ -265,150 +376,14 @@ namespace TaxKeepVN.Application.Service.Implementations
 
         // ── Helper: danh sách giấy tờ còn thiếu ─────────────────────────────────
         private async Task<string[]> GetMissingDocumentsAsync(
-            DependentGroup group,
+            string groupString,
             bool isProfileComplete,
             List<string> uploadedDocTypes)
         {
             if (isProfileComplete)
                 return Array.Empty<string>();
 
-            var groupString = group.ToString();
-            var cacheKey = $"DependentRules_Active_{groupString}";
-            var redisKey = $"taxkeep:dependent_rules:active:{groupString}";
-
-            List<DependentDocumentRule>? activeRules = null;
-            if (_redisCache != null)
-            {
-                activeRules = await _redisCache.GetAsync<List<DependentDocumentRule>>(redisKey);
-            }
-
-            if (activeRules == null && (!_cache.TryGetValue(cacheKey, out activeRules) || activeRules == null))
-            {
-                var ruleRepo = _unitOfWork.Repository<DependentDocumentRule>();
-                activeRules = ruleRepo != null
-                    ? (await ruleRepo.FindAsync(r => r.TargetGroup == groupString && r.IsActive)).ToList()
-                    : new List<DependentDocumentRule>();
-
-                _cache.Set(cacheKey, activeRules,
-                    new MemoryCacheEntryOptions().SetAbsoluteExpiration(TimeSpan.FromHours(1)));
-
-                if (_redisCache != null)
-                {
-                    await _redisCache.SetAsync(redisKey, activeRules, TimeSpan.FromHours(24));
-                }
-            }
-
-            var uploadedNames = uploadedDocTypes.ToHashSet(StringComparer.OrdinalIgnoreCase);
-            if (uploadedNames.Contains("RELATIONSHIP_CERTIFICATE"))
-            {
-                uploadedNames.Add("RESIDENCE_CT07");
-                uploadedNames.Add("CT07");
-            }
-            if (uploadedNames.Contains("RESIDENCE_CT07") || uploadedNames.Contains("CT07"))
-            {
-                uploadedNames.Add("RELATIONSHIP_CERTIFICATE");
-            }
-            var missing = new List<string>();
-
-            if (activeRules.Count > 0)
-            {
-                if (group == DependentGroup.CHILD_UNDER_18)
-                {
-                    // Theo Thông tư 87: Con dưới 18 tuổi cần Giấy khai sinh HOẶC Căn cước công dân
-                    bool hasBirthCert = uploadedNames.Contains("BIRTH_CERTIFICATE");
-                    bool hasCitizenId = uploadedNames.Contains("CITIZEN_ID");
-                    if (!hasBirthCert && !hasCitizenId)
-                    {
-                        missing.Add("BIRTH_CERTIFICATE");
-                    }
-
-                    var otherMandatory = activeRules.Where(r => r.IsMandatory &&
-                        !r.DocType.Equals("BIRTH_CERTIFICATE", StringComparison.OrdinalIgnoreCase) &&
-                        !r.DocType.Equals("CITIZEN_ID", StringComparison.OrdinalIgnoreCase));
-
-                    foreach (var r in otherMandatory)
-                    {
-                        if (!uploadedNames.Contains(r.DocType))
-                            missing.Add(r.DocType);
-                    }
-                }
-                else if (group == DependentGroup.PARENT_DISABLED || group == DependentGroup.PARENT_RETIRED)
-                {
-                    // Theo Thông tư 111/2013 và Thông tư 79/2022: Minh chứng quan hệ cha/mẹ gồm Giấy khai sinh HOẶC Giấy xác nhận quan hệ/cư trú (CT07, hộ khẩu)
-                    bool hasRelationshipProof = uploadedNames.Contains("RELATIONSHIP_CERTIFICATE") || uploadedNames.Contains("BIRTH_CERTIFICATE");
-
-                    bool requiresRelationshipProof = activeRules.Any(r => r.IsMandatory &&
-                        (r.DocType.Equals("BIRTH_CERTIFICATE", StringComparison.OrdinalIgnoreCase) ||
-                         r.DocType.Equals("RELATIONSHIP_CERTIFICATE", StringComparison.OrdinalIgnoreCase)));
-
-                    if (requiresRelationshipProof && !hasRelationshipProof)
-                    {
-                        var prefRule = activeRules.FirstOrDefault(r => r.IsMandatory && r.DocType.Equals("RELATIONSHIP_CERTIFICATE", StringComparison.OrdinalIgnoreCase))
-                            ?? activeRules.FirstOrDefault(r => r.IsMandatory && r.DocType.Equals("BIRTH_CERTIFICATE", StringComparison.OrdinalIgnoreCase));
-                        missing.Add(prefRule?.DocType ?? "RELATIONSHIP_CERTIFICATE");
-                    }
-
-                    var otherMandatory = activeRules.Where(r => r.IsMandatory &&
-                        !r.DocType.Equals("BIRTH_CERTIFICATE", StringComparison.OrdinalIgnoreCase) &&
-                        !r.DocType.Equals("RELATIONSHIP_CERTIFICATE", StringComparison.OrdinalIgnoreCase));
-
-                    foreach (var r in otherMandatory)
-                    {
-                        if (!uploadedNames.Contains(r.DocType))
-                            missing.Add(r.DocType);
-                    }
-                }
-                else
-                {
-                    var mandatoryRules = activeRules.Where(r => r.IsMandatory);
-                    foreach (var rule in mandatoryRules)
-                    {
-                        if (!uploadedNames.Contains(rule.DocType))
-                            missing.Add(rule.DocType);
-                    }
-                }
-            }
-            else
-            {
-                // Fallback theo quy định thuế khi chưa seed rules
-                switch (group)
-                {
-                    case DependentGroup.CHILD_UNDER_18:
-                        if (!uploadedNames.Contains("BIRTH_CERTIFICATE") && !uploadedNames.Contains("CITIZEN_ID"))
-                            missing.Add("BIRTH_CERTIFICATE");
-                        break;
-                    case DependentGroup.CHILD_OVER_18_DISABLED:
-                        if (!uploadedNames.Contains("CITIZEN_ID")) missing.Add("CITIZEN_ID");
-                        if (!uploadedNames.Contains("DISABILITY_CERTIFICATE")) missing.Add("DISABILITY_CERTIFICATE");
-                        break;
-                    case DependentGroup.CHILD_OVER_18_STUDYING:
-                        if (!uploadedNames.Contains("CITIZEN_ID")) missing.Add("CITIZEN_ID");
-                        if (!uploadedNames.Contains("STUDENT_CARD")) missing.Add("STUDENT_CARD");
-                        break;
-                    case DependentGroup.SPOUSE_DISABLED:
-                    case DependentGroup.SPOUSE_RETIRED:
-                        if (!uploadedNames.Contains("CITIZEN_ID")) missing.Add("CITIZEN_ID");
-                        if (!uploadedNames.Contains("MARRIAGE_CERTIFICATE")) missing.Add("MARRIAGE_CERTIFICATE");
-                        break;
-                    case DependentGroup.PARENT_DISABLED:
-                        if (!uploadedNames.Contains("CITIZEN_ID")) missing.Add("CITIZEN_ID");
-                        if (!uploadedNames.Contains("RELATIONSHIP_CERTIFICATE") && !uploadedNames.Contains("BIRTH_CERTIFICATE"))
-                            missing.Add("RELATIONSHIP_CERTIFICATE");
-                        if (!uploadedNames.Contains("DISABILITY_CERTIFICATE")) missing.Add("DISABILITY_CERTIFICATE");
-                        break;
-                    case DependentGroup.PARENT_RETIRED:
-                        if (!uploadedNames.Contains("CITIZEN_ID")) missing.Add("CITIZEN_ID");
-                        if (!uploadedNames.Contains("RELATIONSHIP_CERTIFICATE") && !uploadedNames.Contains("BIRTH_CERTIFICATE"))
-                            missing.Add("RELATIONSHIP_CERTIFICATE");
-                        break;
-                    case DependentGroup.OTHER_HELPLESS:
-                        if (!uploadedNames.Contains("CITIZEN_ID")) missing.Add("CITIZEN_ID");
-                        if (!uploadedNames.Contains("RELATIONSHIP_CERTIFICATE")) missing.Add("RELATIONSHIP_CERTIFICATE");
-                        if (!uploadedNames.Contains("SUPPORT_COMMITMENT_FORM")) missing.Add("SUPPORT_COMMITMENT_FORM");
-                        break;
-                }
-            }
-
+            var (isComplete, missing) = await _dependentRuleService.ComputeMissingDocumentsAsync(groupString, uploadedDocTypes);
             return missing.ToArray();
         }
 
@@ -451,10 +426,10 @@ namespace TaxKeepVN.Application.Service.Implementations
             }
 
             // 3. Filter theo relationship
-            if (!string.IsNullOrWhiteSpace(query.Relationship) &&
-                Enum.TryParse<DependentRelationship>(query.Relationship.Trim(), true, out var relFilter))
+            if (!string.IsNullOrWhiteSpace(query.Relationship))
             {
-                all = all.Where(d => d.Relationship == relFilter).ToList();
+                var relFilter = query.Relationship.Trim();
+                all = all.Where(d => string.Equals(d.Relationship, relFilter, StringComparison.OrdinalIgnoreCase)).ToList();
             }
 
             // 4. Search theo FullName hoặc CitizenId (case-insensitive)
@@ -496,7 +471,12 @@ namespace TaxKeepVN.Application.Service.Implementations
             var allDocs = docRepo != null && pagedIds.Count > 0
                 ? (await docRepo.FindAsync(doc => pagedIds.Contains(doc.DependentId))).ToList()
                 : new List<DependentDocument>();
+            var depMap = pagedDependents.ToDictionary(d => d.Id);
             var docsByDependentId = allDocs
+                .Where(doc => {
+                    var dep = depMap.GetValueOrDefault(doc.DependentId);
+                    return dep == null || !dep.IdentityUpdatedAt.HasValue || doc.UploadedAt >= dep.IdentityUpdatedAt.Value;
+                })
                 .GroupBy(doc => doc.DependentId)
                 .ToDictionary(g => g.Key, g => g.Select(d => d.DocType.ToString()).ToList());
 
@@ -562,8 +542,14 @@ namespace TaxKeepVN.Application.Service.Implementations
                 FileUrl = doc.FileUrl,
                 FileMimeType = doc.FileMimeType,
                 IsReadable = doc.IsReadable,
-                UploadedAt = doc.UploadedAt
+                UploadedAt = doc.UploadedAt,
+                IsCurrent = !dependent.IdentityUpdatedAt.HasValue || doc.UploadedAt >= dependent.IdentityUpdatedAt.Value
             }).ToList();
+
+            var currentValidDocs = distinctDocs
+                .Where(doc => !dependent.IdentityUpdatedAt.HasValue || doc.UploadedAt >= dependent.IdentityUpdatedAt.Value)
+                .Select(doc => doc.DocType.ToString())
+                .ToList();
 
             return new DependentDetailResponse
             {
@@ -587,8 +573,308 @@ namespace TaxKeepVN.Application.Service.Implementations
                 MissingDocuments = await GetMissingDocumentsAsync(
                     dependent.CurrentGroup,
                     dependent.IsProfileComplete,
-                    distinctDocs.Select(doc => doc.DocType.ToString()).ToList()),
+                    currentValidDocs),
                 Documents = docDtos
+            };
+        }
+
+        // ─────────────────────────────────────────────────────────────────────────
+        // PUT /api/v1/dependents/{id} — Cập nhật thông tin hồ sơ NPT
+        // ─────────────────────────────────────────────────────────────────────────
+        public async Task<DependentResponse> UpdateDependentAsync(
+            Guid taxpayerId, Guid dependentId, UpdateDependentRequest request)
+        {
+            var dependentRepo = _unitOfWork.Repository<Dependent>();
+
+            // ── 1. Tìm NPT theo id ───────────────────────────────────────────────
+            var dependent = await dependentRepo.GetByIdAsync(dependentId);
+
+            if (dependent == null || dependent.IsDeleted || dependent.Status == DependentStatus.INACTIVE)
+                throw new NotFoundException($"Không tìm thấy người phụ thuộc với Id '{dependentId}'.");
+
+            // ── 2. Kiểm tra quyền sở hữu ─────────────────────────────────────────
+            if (dependent.TaxpayerId != taxpayerId)
+                throw new ForbiddenException(
+                    "Bạn không có quyền cập nhật thông tin người phụ thuộc này.");
+
+            // ── 3. Chặn đổi quan hệ và nhóm qua API này ─────────────────────────
+            if (!string.IsNullOrWhiteSpace(request.Relationship))
+            {
+                if (!string.Equals(request.Relationship.Trim(), dependent.Relationship, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new BadRequestException(
+                        ErrorCodes.Dependent.UseChangeGroupApi,
+                        "Đổi nhóm/quan hệ dùng chức năng Đổi nhóm điều kiện."
+                    );
+                }
+            }
+
+            if (!string.IsNullOrWhiteSpace(request.CurrentGroup))
+            {
+                if (!string.Equals(request.CurrentGroup.Trim(), dependent.CurrentGroup, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new BadRequestException(
+                        ErrorCodes.Dependent.UseChangeGroupApi,
+                        "Đổi nhóm/quan hệ dùng chức năng Đổi nhóm điều kiện."
+                    );
+                }
+            }
+
+            // ── 4. Xác định giá trị mới (nếu không gửi thì giữ nguyên) ──────────
+            var newFullName = !string.IsNullOrWhiteSpace(request.FullName)
+                ? request.FullName.Trim()
+                : dependent.FullName;
+
+            var newBirthDate = request.BirthDate.HasValue
+                ? DateTime.SpecifyKind(request.BirthDate.Value, DateTimeKind.Utc)
+                : dependent.BirthDate;
+
+            var newCitizenId = request.CitizenId != null
+                ? (string.IsNullOrWhiteSpace(request.CitizenId) ? null : request.CitizenId.Trim())
+                : dependent.CitizenId;
+
+            var newBirthCertNumber = request.BirthCertNumber != null
+                ? (string.IsNullOrWhiteSpace(request.BirthCertNumber) ? null : request.BirthCertNumber.Trim())
+                : dependent.BirthCertNumber;
+
+            var newTaxIdNumber = request.TaxIdNumber != null
+                ? (string.IsNullOrWhiteSpace(request.TaxIdNumber) ? null : request.TaxIdNumber.Trim())
+                : dependent.TaxIdNumber;
+
+            var newEffectiveFromMonth = !string.IsNullOrWhiteSpace(request.EffectiveFromMonth)
+                ? request.EffectiveFromMonth.Trim()
+                : dependent.EffectiveFromMonth;
+
+            var newEffectiveToMonth = !string.IsNullOrWhiteSpace(request.EffectiveToMonth)
+                ? request.EffectiveToMonth.Trim()
+                : dependent.EffectiveToMonth;
+
+            var newNote = request.Note != null
+                ? request.Note
+                : dependent.Note;
+
+            // ── 5. So sánh thay đổi thông tin nhân thân ─────────────────────────
+            bool isNameChanged = !string.Equals(newFullName.Trim(), dependent.FullName.Trim(), StringComparison.OrdinalIgnoreCase);
+            bool isBirthDateChanged = newBirthDate.Date != dependent.BirthDate.Date;
+            bool isCitizenIdChanged = !string.Equals(newCitizenId?.Trim(), dependent.CitizenId?.Trim(), StringComparison.Ordinal);
+            bool isBirthCertChanged = !string.Equals(newBirthCertNumber?.Trim(), dependent.BirthCertNumber?.Trim(), StringComparison.Ordinal);
+
+            bool isIdentityChanged = isNameChanged || isBirthDateChanged || isCitizenIdChanged || isBirthCertChanged;
+
+            // ── 6. Validate định danh: phải có CitizenId HOẶC BirthCertNumber ──
+            var hasCitizenId = !string.IsNullOrWhiteSpace(newCitizenId);
+            var hasBirthCert = !string.IsNullOrWhiteSpace(newBirthCertNumber);
+
+            if (!hasCitizenId && !hasBirthCert)
+            {
+                throw new BadRequestException(
+                    ErrorCodes.Dependent.IdentifierRequired,
+                    "Phải cung cấp ít nhất Số CCCD hoặc Số Giấy khai sinh của người phụ thuộc."
+                );
+            }
+
+            // ── 7. Validate độ tuổi: Chỉ kiểm tra nếu ngày sinh bị thay đổi ──────
+            // Con thuộc nhóm CHILD_UNDER_18 khi đủ 18 tuổi thì người nộp thuế vẫn được
+            // sửa kỳ hiệu lực hoặc ghi chú mà không bị chặn bởi tuổi hiện tại.
+            if (isBirthDateChanged)
+            {
+                var depGroup = await _catalogService.GetGroupAsync(dependent.CurrentGroup, includeInactive: true);
+                if (depGroup != null && depGroup.MaxAge.HasValue)
+                {
+                    var fromDate = DateTime.TryParseExact(newEffectiveFromMonth + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var fDate) ? fDate : DateTime.UtcNow;
+                    var ageAtStart = fromDate.Year - newBirthDate.Year;
+                    if (newBirthDate.Date > fromDate.AddYears(-ageAtStart)) ageAtStart--;
+
+                    if (ageAtStart >= depGroup.MaxAge.Value)
+                    {
+                        throw new BadRequestException(
+                            ErrorCodes.Dependent.GroupAgeMismatch,
+                            $"Người phụ thuộc đã từ đủ {depGroup.MaxAge.Value} tuổi tại thời điểm bắt đầu giảm trừ ({newEffectiveFromMonth}). " +
+                            $"Không thể áp dụng nhóm '{depGroup.Name}'."
+                        );
+                    }
+                }
+                else if (depGroup != null)
+                {
+                    ValidateGroupMatchesAge(newBirthDate, depGroup);
+                }
+            }
+
+            // ── 8. Validate thời gian: From <= To và From >= BirthDate ──────────
+            ValidateEffectivePeriod(newBirthDate, newEffectiveFromMonth, newEffectiveToMonth);
+
+            // ── 9. Chặn theo hồ sơ quyết toán đã chốt (TaxSettlementDossier LOCKED) ─
+            var affectedYears = PeriodHelper.AffectedYears(
+                dependent.EffectiveFromMonth, dependent.EffectiveToMonth,
+                newEffectiveFromMonth, newEffectiveToMonth);
+
+            var settlementRepo = _unitOfWork.Repository<TaxSettlementDossier>();
+            if (settlementRepo != null && affectedYears.Count > 0)
+            {
+                var lockedDossiers = (await settlementRepo.FindAsync(d =>
+                    d.TaxpayerId == taxpayerId &&
+                    d.Status == "LOCKED")).ToList();
+
+                var lockedYears = lockedDossiers
+                    .Where(d => affectedYears.Contains(d.TaxYear))
+                    .Select(d => d.TaxYear)
+                    .OrderBy(y => y)
+                    .ToList();
+
+                if (lockedYears.Count > 0)
+                {
+                    throw new ConflictException(
+                        ErrorCodes.Dependent.SettlementLockedPeriod,
+                        $"Năm {string.Join(", ", lockedYears)} đã chốt hồ sơ quyết toán, không thể thay đổi thời gian hiệu lực trong năm này."
+                    );
+                }
+            }
+
+            // ── 10. Kiểm tra trùng lặp thời gian với các NPT khác ───────────────
+            if (hasCitizenId)
+            {
+                var cleanCitizenId = newCitizenId!;
+                var existingByCitizenId = await dependentRepo.FindAsync(d =>
+                    d.CitizenId == cleanCitizenId && d.Id != dependentId && !d.IsDeleted);
+
+                var conflict = existingByCitizenId.FirstOrDefault(d =>
+                    string.Compare(d.EffectiveFromMonth, newEffectiveToMonth, StringComparison.Ordinal) <= 0 &&
+                    string.Compare(d.EffectiveToMonth, newEffectiveFromMonth, StringComparison.Ordinal) >= 0
+                );
+
+                if (conflict != null)
+                {
+                    throw new BadRequestException(
+                        ErrorCodes.Dependent.DependentPeriodOverlap,
+                        $"Người phụ thuộc có số CCCD '{MaskIdentifier(cleanCitizenId)}' đã được đăng ký " +
+                        $"trong khoảng thời gian từ {conflict.EffectiveFromMonth} đến {conflict.EffectiveToMonth}. " +
+                        "Một người phụ thuộc không thể được đăng ký trùng kỳ tính giảm trừ bởi nhiều người nộp thuế."
+                    );
+                }
+            }
+
+            if (hasBirthCert)
+            {
+                var cleanBirthCert = newBirthCertNumber!;
+                var existingByBirthCert = await dependentRepo.FindAsync(d =>
+                    d.BirthCertNumber == cleanBirthCert && d.Id != dependentId && !d.IsDeleted);
+
+                var conflict = existingByBirthCert.FirstOrDefault(d =>
+                    string.Compare(d.EffectiveFromMonth, newEffectiveToMonth, StringComparison.Ordinal) <= 0 &&
+                    string.Compare(d.EffectiveToMonth, newEffectiveFromMonth, StringComparison.Ordinal) >= 0
+                );
+
+                if (conflict != null)
+                {
+                    throw new BadRequestException(
+                        ErrorCodes.Dependent.DependentPeriodOverlap,
+                        $"Người phụ thuộc có số Giấy khai sinh '{MaskIdentifier(cleanBirthCert)}' đã được đăng ký " +
+                        $"trong khoảng thời gian từ {conflict.EffectiveFromMonth} đến {conflict.EffectiveToMonth}. " +
+                        "Một người phụ thuộc không thể được đăng ký trùng kỳ tính giảm trừ bởi nhiều người nộp thuế."
+                    );
+                }
+            }
+
+            // ── 11. Xử lý quy tắc sửa theo trạng thái ───────────────────────────
+            bool statusChanged = false;
+            bool documentsNeedReupload = false;
+
+            var docRepo = _unitOfWork.Repository<DependentDocument>();
+            var existingDocs = docRepo != null
+                ? ((await docRepo.FindAsync(d => d.DependentId == dependentId))?.ToList() ?? new List<DependentDocument>())
+                : new List<DependentDocument>();
+            bool hasExistingDocs = existingDocs.Any();
+
+            if (dependent.Status == DependentStatus.ACTIVE)
+            {
+                if (isIdentityChanged)
+                {
+                    if (!request.ConfirmIdentityChange)
+                    {
+                        throw new ConflictException(
+                            ErrorCodes.Dependent.IdentityChangeRequiresReverify,
+                            "Thay đổi thông tin nhân thân cần xác nhận để nộp lại giấy tờ minh chứng."
+                        );
+                    }
+
+                    dependent.Status = DependentStatus.PENDING_DOCUMENTS;
+                    dependent.IsProfileComplete = false;
+                    dependent.IdentityUpdatedAt = DateTime.UtcNow;
+                    statusChanged = true;
+                    documentsNeedReupload = true;
+
+                    var notification = new SystemNotification
+                    {
+                        NotificationId = Guid.NewGuid(),
+                        UserId = taxpayerId,
+                        Title = $"Hồ sơ người phụ thuộc '{newFullName}' cần nộp lại minh chứng",
+                        Message = $"Hồ sơ NPT '{newFullName}' cần nộp lại minh chứng do thay đổi thông tin nhân thân.",
+                        NotificationType = "DEPENDENT_IDENTITY_CHANGED",
+                        IsRead = false,
+                        TargetActionUrl = $"/dependents/{dependentId}/documents",
+                        CreatedAt = DateTime.UtcNow
+                    };
+                    var notifRepo = _unitOfWork.Repository<SystemNotification>();
+                    if (notifRepo != null)
+                    {
+                        await notifRepo.AddAsync(notification);
+                    }
+                }
+            }
+            else if (dependent.Status == DependentStatus.PENDING_DOCUMENTS)
+            {
+                if (isIdentityChanged && hasExistingDocs)
+                {
+                    dependent.IdentityUpdatedAt = DateTime.UtcNow;
+                    dependent.IsProfileComplete = false;
+                    documentsNeedReupload = true;
+                }
+            }
+
+            // ── 12. Cập nhật entity ──────────────────────────────────────────────
+            dependent.FullName = newFullName;
+            dependent.BirthDate = newBirthDate;
+            dependent.CitizenId = newCitizenId;
+            dependent.BirthCertNumber = newBirthCertNumber;
+            dependent.TaxIdNumber = newTaxIdNumber;
+            dependent.EffectiveFromMonth = newEffectiveFromMonth;
+            dependent.EffectiveToMonth = newEffectiveToMonth;
+            dependent.Note = newNote;
+            dependent.UpdatedAt = DateTimeOffset.UtcNow;
+
+            dependentRepo.Update(dependent);
+            await _unitOfWork.SaveChangesAsync();
+
+            // ── 13. Trả về response kèm checklist giấy tờ ───────────────────────
+            var validUploadedDocs = existingDocs
+                .Where(d => !dependent.IdentityUpdatedAt.HasValue || d.UploadedAt >= dependent.IdentityUpdatedAt.Value)
+                .Select(d => d.DocType)
+                .ToList();
+
+            var requiredDocs = await GetRequiredDocumentsAsync(dependent.CurrentGroup);
+            var missingDocs = await GetMissingDocumentsAsync(dependent.CurrentGroup, dependent.IsProfileComplete, validUploadedDocs);
+
+            return new DependentResponse
+            {
+                DependentId = dependent.Id,
+                TaxpayerId = dependent.TaxpayerId,
+                FullName = dependent.FullName,
+                Relationship = dependent.Relationship.ToString(),
+                CurrentGroup = dependent.CurrentGroup.ToString(),
+                BirthDate = dependent.BirthDate,
+                CitizenId = dependent.CitizenId,
+                BirthCertNumber = dependent.BirthCertNumber,
+                TaxIdNumber = dependent.TaxIdNumber,
+                EffectiveFromMonth = dependent.EffectiveFromMonth,
+                EffectiveToMonth = dependent.EffectiveToMonth,
+                Note = dependent.Note,
+                Status = dependent.Status.ToString(),
+                CreatedAt = dependent.CreatedAt,
+                UpdatedAt = dependent.UpdatedAt,
+                RequiredDocuments = requiredDocs,
+                MissingDocuments = missingDocs,
+                StatusChanged = statusChanged,
+                DocumentsNeedReupload = documentsNeedReupload
             };
         }
 
@@ -611,52 +897,63 @@ namespace TaxKeepVN.Application.Service.Implementations
                 throw new ForbiddenException(
                     "Bạn không có quyền cập nhật thông tin người phụ thuộc này.");
 
-            // ── 3. Parse và validate NewGroup enum ──────────────────────────────
-            if (!Enum.TryParse<DependentGroup>(request.NewGroup, true, out var newGroup))
+            // ── 3. Parse và validate NewGroup catalog ───────────────────────────
+            var activeGroups = await GetActiveGroupsAsync();
+            var matchedNewGroup = activeGroups.FirstOrDefault(g => string.Equals(g.Code, request.NewGroup?.Trim(), StringComparison.OrdinalIgnoreCase));
+            if (matchedNewGroup == null)
             {
+                var validGroups = activeGroups.Count > 0 ? string.Join(", ", activeGroups.Select(g => g.Code)) : "";
                 throw new BadRequestException(
                     "INVALID_GROUP",
                     $"Nhóm điều kiện '{request.NewGroup}' không hợp lệ. " +
-                    "Các giá trị hợp lệ: CHILD_UNDER_18, CHILD_OVER_18_DISABLED, CHILD_OVER_18_STUDYING, " +
-                    "SPOUSE_DISABLED, SPOUSE_RETIRED, PARENT_DISABLED, PARENT_RETIRED, OTHER_HELPLESS."
+                    $"Các giá trị hợp lệ: {validGroups}."
                 );
             }
 
             // ── 4. Không cho phép chuyển cùng nhóm ──────────────────────────────
-            if (newGroup == dependent.CurrentGroup)
+            if (string.Equals(matchedNewGroup.Code, dependent.CurrentGroup, StringComparison.OrdinalIgnoreCase))
             {
                 throw new BadRequestException(
                     "SAME_GROUP",
-                    $"Người phụ thuộc đã ở nhóm '{newGroup}'. Vui lòng chọn nhóm khác để chuyển."
+                    $"Người phụ thuộc đã ở nhóm '{GetGroupDisplayName(dependent.CurrentGroup, matchedNewGroup)}'. Vui lòng chọn nhóm khác để chuyển."
                 );
             }
 
             // ── 4.5. Validate NewGroup phải thuộc cùng Relationship ────────────
             // Phải kiểm tra trước: nếu chọn sai Relationship thì báo lỗi GROUP_RELATIONSHIP_MISMATCH
             // rõ ràng hơn là bị lọt xuống check downgrade (ra lỗi sai ngữ nghĩa).
-            ValidateGroupMatchesRelationship(dependent.Relationship, newGroup);
+            ValidateGroupMatchesRelationship(dependent.Relationship, matchedNewGroup, activeGroups);
 
             // ── 5. Không cho phép chuyển xuống nhóm thấp hơn (downgrade) ─────────
             // Ví dụ: CHILD_OVER_18_STUDYING → CHILD_UNDER_18 là không hợp lệ vì
             // độ tuổi chỉ tăng theo thời gian, không thể trẻ lại.
-            var currentOrder = GetGroupOrder(dependent.Relationship, dependent.CurrentGroup);
-            var newOrder     = GetGroupOrder(dependent.Relationship, newGroup);
+            var currentGroupCatalog = await _catalogService.GetGroupAsync(dependent.CurrentGroup, includeInactive: true);
+            if (currentGroupCatalog == null)
+            {
+                throw new BadRequestException(
+                    "INVALID_GROUP",
+                    $"Nhóm hiện tại '{dependent.CurrentGroup}' không tồn tại trong hệ thống."
+                );
+            }
 
-            if (newOrder < currentOrder)
+            if (matchedNewGroup.Level < currentGroupCatalog.Level)
             {
                 throw new BadRequestException(
                     "GROUP_DOWNGRADE_NOT_ALLOWED",
-                    $"Không thể chuyển người phụ thuộc từ nhóm '{dependent.CurrentGroup}' " +
-                    $"xuống nhóm thấp hơn '{newGroup}'. " +
+                    $"Không thể chuyển người phụ thuộc từ nhóm '{currentGroupCatalog.Name}' " +
+                    $"xuống nhóm thấp hơn '{matchedNewGroup.Name}'. " +
                     "Nhóm mới phải tương đương hoặc cao hơn nhóm hiện tại."
                 );
             }
+
+            // ── 5.5. Validate độ tuổi phù hợp với NewGroup ─────────────────────
+            ValidateGroupMatchesAge(dependent.BirthDate, matchedNewGroup);
 
             // ── 6. Lưu nhóm cũ để đưa vào response ─────────────────────────────
             var previousGroup = dependent.CurrentGroup;
 
             // ── 7. Cập nhật entity ───────────────────────────────────────────────
-            dependent.CurrentGroup = newGroup;
+            dependent.CurrentGroup = matchedNewGroup.Code;
             dependent.IsProfileComplete = false;
             dependent.Status = DependentStatus.PENDING_DOCUMENTS;
             dependent.Note = request.Note ?? dependent.Note; // null giữ nguyên ghi chú cũ
@@ -665,7 +962,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             dependentRepo.Update(dependent);
 
             // ── 8. Tạo SystemNotification thông báo cho user ─────────────────────
-            var requiredDocs = await GetRequiredDocumentsAsync(newGroup);
+            var requiredDocs = await GetRequiredDocumentsAsync(matchedNewGroup.Code);
             var docList = string.Join(", ", requiredDocs);
 
             var notification = new SystemNotification
@@ -674,7 +971,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 UserId = taxpayerId,
                 Title = $"Hồ sơ người phụ thuộc '{dependent.FullName}' cần cập nhật giấy tờ",
                 Message = $"Người phụ thuộc '{dependent.FullName}' vừa được chuyển từ nhóm " +
-                          $"'{previousGroup}' sang nhóm '{newGroup}'. " +
+                          $"'{previousGroup}' sang nhóm '{matchedNewGroup.Code}'. " +
                           $"Vui lòng bổ sung các giấy tờ cần thiết: {docList}.",
                 NotificationType = "DEPENDENT_GROUP_TRANSITION",
                 IsRead = false,
@@ -696,7 +993,8 @@ namespace TaxKeepVN.Application.Service.Implementations
                 FileUrl = doc.FileUrl,
                 FileMimeType = doc.FileMimeType,
                 IsReadable = doc.IsReadable,
-                UploadedAt = doc.UploadedAt
+                UploadedAt = doc.UploadedAt,
+                IsCurrent = !dependent.IdentityUpdatedAt.HasValue || doc.UploadedAt >= dependent.IdentityUpdatedAt.Value
             }).ToList();
 
             // ── 10. Trả về response ─────────────────────────────────────────────
@@ -721,7 +1019,7 @@ namespace TaxKeepVN.Application.Service.Implementations
                 IsProfileComplete = false,
                 RequiredDocuments = requiredDocs,
                 MissingDocuments = await GetMissingDocumentsAsync(
-                    newGroup,
+                    matchedNewGroup.Code,
                     false,
                     documents.Select(doc => doc.DocType.ToString()).ToList()),
                 Documents = docDtos

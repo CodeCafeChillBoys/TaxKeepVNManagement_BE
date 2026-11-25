@@ -40,6 +40,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
         private readonly Mock<IGenericRepository<ExpertProfile>> _mockProfileRepo;
         private readonly Mock<IGenericRepository<UserWallet>> _mockWalletRepo;
         private readonly Mock<IGenericRepository<SystemNotification>> _mockNotifRepo;
+        private readonly Mock<IGenericRepository<Role>> _mockRoleRepo;
         private readonly ExpertApplicationService _service;
 
         public ExpertApplicationServiceTests()
@@ -61,6 +62,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             _mockProfileRepo = new Mock<IGenericRepository<ExpertProfile>>();
             _mockWalletRepo = new Mock<IGenericRepository<UserWallet>>();
             _mockNotifRepo = new Mock<IGenericRepository<SystemNotification>>();
+            _mockRoleRepo = new Mock<IGenericRepository<Role>>();
 
             _mockUnitOfWork.Setup(u => u.Repository<User>()).Returns(_mockUserRepo.Object);
             _mockUnitOfWork.Setup(u => u.Repository<ExpertApplication>()).Returns(_mockAppRepo.Object);
@@ -74,8 +76,11 @@ namespace TaxKeepVN.UnitTests.Application.Services
             _mockUnitOfWork.Setup(u => u.Repository<ExpertProfile>()).Returns(_mockProfileRepo.Object);
             _mockUnitOfWork.Setup(u => u.Repository<UserWallet>()).Returns(_mockWalletRepo.Object);
             _mockUnitOfWork.Setup(u => u.Repository<SystemNotification>()).Returns(_mockNotifRepo.Object);
+            _mockUnitOfWork.Setup(u => u.Repository<Role>()).Returns(_mockRoleRepo.Object);
 
             // Default empty setups
+            _mockRoleRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Role, bool>>>()))
+                         .ReturnsAsync(new List<Role> { new Role { Id = 3, Code = "expert", Name = "Chuyên gia tư vấn thuế", IsActive = true } });
             _mockAppSpecRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ExpertApplicationSpecialization, bool>>>()))
                             .ReturnsAsync(new List<ExpertApplicationSpecialization>());
             _mockSpecRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Specialization, bool>>>()))

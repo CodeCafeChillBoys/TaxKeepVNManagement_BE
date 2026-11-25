@@ -72,6 +72,12 @@ namespace TaxKeepVN.Application.Service.Implementations
                 }
             }
 
+            // Kiểm tra và trừ lượt quét OCR theo gói dịch vụ của người dùng
+            if (_quotaService != null)
+            {
+                await _quotaService.CheckAndConsumeOcrScanAsync(userId, files.Count);
+            }
+
             // 4. Lưu files vào Storage & Tạo entities Document
             var createdDocuments = new List<Document>();
 
@@ -346,6 +352,11 @@ namespace TaxKeepVN.Application.Service.Implementations
                     throw new BadRequestException(ErrorCodes.InvalidDocumentStatus, ErrorMessages.DocumentAlreadyVerified);
                 }
 
+                if (_quotaService != null)
+                {
+                    await _quotaService.CheckAndConsumeOcrScanAsync(userId, 1);
+                }
+
                 await PublishMedicalStatementOcrAsync(period, statement);
                 return;
             }
@@ -361,11 +372,20 @@ namespace TaxKeepVN.Application.Service.Implementations
                 var childStatement = (await _unitOfWork.Repository<MedicalStatement>().FindAsync(s => s.DocumentId == document.Id)).FirstOrDefault();
                 if (childStatement != null && !string.Equals(childStatement.Status, "CONFIRMED", StringComparison.OrdinalIgnoreCase))
                 {
+                    if (_quotaService != null)
+                    {
+                        await _quotaService.CheckAndConsumeOcrScanAsync(userId, 1);
+                    }
                     await PublishMedicalStatementOcrAsync(period, childStatement);
                     _logger.LogInformation("Re-triggered OCR task for child medical statement {StatementId} of document {DocId}", childStatement.Id, documentId);
                     return;
                 }
                 throw new BadRequestException(ErrorCodes.InvalidDocumentStatus, ErrorMessages.DocumentAlreadyVerified);
+            }
+
+            if (_quotaService != null)
+            {
+                await _quotaService.CheckAndConsumeOcrScanAsync(userId, 1);
             }
 
             var categories = await GetEligibleCategoriesForAiAsync();

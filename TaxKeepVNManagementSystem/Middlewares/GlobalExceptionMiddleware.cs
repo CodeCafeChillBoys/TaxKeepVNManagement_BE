@@ -73,6 +73,18 @@ namespace TaxKeepVNManagementSystem.Middlewares
                     message = unprocessableEx.Message;
                     break;
 
+                case BadGatewayException badGatewayEx:
+                    context.Response.StatusCode = StatusCodes.Status502BadGateway;
+                    errorCode = badGatewayEx.ErrorCode;
+                    message = badGatewayEx.Message;
+                    break;
+
+                case ServiceUnavailableException serviceUnavailableEx:
+                    context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+                    errorCode = serviceUnavailableEx.ErrorCode;
+                    message = serviceUnavailableEx.Message;
+                    break;
+
                 default:
                     Console.WriteLine($"[GLOBAL ERROR] {exception}");
                     context.Response.StatusCode = StatusCodes.Status500InternalServerError;

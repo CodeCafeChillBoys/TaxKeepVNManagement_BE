@@ -11,7 +11,7 @@ namespace TaxKeepVN.Application.Service.Interfaces
         /// <summary>
         /// Gọi trực tiếp AI Service để trích xuất thông tin ảnh/PDF
         /// </summary>
-        Task<ExtractedDependentDataDto> ExtractDocumentAsync(IFormFile file, IFormFile? backFile = null);
+        Task<ExtractedDependentDataDto> ExtractDocumentAsync(IFormFile file, IFormFile? backFile = null, string? targetGroup = null, string? rulesJson = null);
 
         /// <summary>
         /// Nghiệp vụ Case 1: Bóc tách CCCD người nộp thuế & kiểm tra trùng lặp tài khoản
@@ -24,8 +24,13 @@ namespace TaxKeepVN.Application.Service.Interfaces
         Task<DependentOcrResponseDto> ProcessDependentOcrAsync(IFormFile file, IFormFile? backFile = null);
 
         /// <summary>
-        /// Nghiệp vụ Case 3: Kiểm tra chéo (Verify) giấy tờ upload có đúng loại và đúng người phụ thuộc không
+        /// Nghiệp vụ Case 3: Kiểm tra chéo (Verify) giấy tờ upload có đúng loại, đúng người phụ thuộc và đúng quan hệ với NNT không
         /// </summary>
-        Task ValidateDependentDocumentAsync(Dependent dependent, DocumentType expectedType, IFormFile file);
+        Task ValidateDependentDocumentAsync(Dependent dependent, string docType, IFormFile file, User? taxpayer = null, string? targetGroup = null, string? rulesJson = null);
+
+        /// <summary>
+        /// Tương thích ngược với enum DocumentType
+        /// </summary>
+        Task ValidateDependentDocumentAsync(Dependent dependent, DocumentType expectedType, IFormFile file, User? taxpayer = null);
     }
 }
