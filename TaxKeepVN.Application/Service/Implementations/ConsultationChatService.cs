@@ -86,23 +86,14 @@ namespace TaxKeepVN.Application.Service.Implementations
                     $"Không thể gửi tin nhắn khi lịch hẹn đang ở trạng thái '{booking.Status}'. Phòng chat chỉ mở khi lịch hẹn đã xác nhận (CONFIRMED) hoặc đang diễn ra (IN_PROGRESS).");
             }
 
-            // Kiểm tra thời điểm mở phòng chat theo Policy (Zero-Hardcode: SESSION_OPEN_BEFORE_MINUTES do Admin cấu hình)
             var nowUtc = DateTimeOffset.UtcNow;
-            var openBeforeMinutes = policy.SessionOpenBeforeMinutes;
 
             var slotStartUtc = BookingHelper.ConvertSlotToUtc(slot.SlotDate, slot.StartTime);
-            var earliestOpenUtc = slotStartUtc.AddMinutes(-openBeforeMinutes);
-            var earliestOpenVn = earliestOpenUtc.ToOffset(BookingHelper.VietnamTimeZoneOffset);
-
-            if (nowUtc < earliestOpenUtc)
+            if (nowUtc >= slotStartUtc)
             {
-                var waitMinutes = (int)Math.Ceiling((earliestOpenUtc - nowUtc).TotalMinutes);
-                throw new BadRequestException("ROOM_NOT_OPEN_YET",
-                    $"Phòng chat tư vấn chỉ mở trước giờ hẹn tối đa {openBeforeMinutes} phút (từ {earliestOpenVn:HH:mm dd/MM/yyyy}). Vui lòng quay lại sau {waitMinutes} phút nữa.");
+                // Tin nhắn trước giờ hẹn không được tính là check-in cho phiên tư vấn.
+                await SynchronizeAttendanceOnMessageAsync(booking, isTaxpayer, isExpert, nowUtc, policy);
             }
-
-            // Đồng bộ Attendance Log / Check-in vào ConsultationSession
-            await SynchronizeAttendanceOnMessageAsync(booking, isTaxpayer, isExpert, nowUtc, policy);
 
             // Lấy thông tin người gửi
             string senderName = "Người dùng";
