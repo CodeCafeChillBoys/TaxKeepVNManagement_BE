@@ -16,7 +16,7 @@ namespace TaxKeepVN.Application.DTOs.Requests.Dependent
 
         /// <summary>
         /// Xác nhận người phụ thuộc có thu nhập hàng tháng không vượt ngưỡng cấu hình.
-        /// Bắt buộc với cha/mẹ còn dưới tuổi tối đa theo giới tính.
+        /// Bắt buộc với cha/mẹ đã đạt hoặc vượt ngưỡng tuổi theo giới tính.
         /// </summary>
         public bool ConfirmIncomeBelowThreshold { get; set; }
 

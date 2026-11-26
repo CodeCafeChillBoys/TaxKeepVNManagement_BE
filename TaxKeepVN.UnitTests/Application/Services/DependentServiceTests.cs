@@ -148,11 +148,43 @@ namespace TaxKeepVN.UnitTests.Application.Services
         }
 
         [Fact]
-        public async Task CreateParentUnderConfiguredAge_RequiresIncomeCommitment()
+        public async Task CreateParentBelowConfiguredAge_DoesNotRequireIncomeCommitment()
         {
             SetupDependentIncomeConfigs(
-                new SystemConfig { ConfigKey = "DEPENDENT_PARENT_MALE_MAX_AGE", ConfigValue = "61", IsActive = true },
-                new SystemConfig { ConfigKey = "DEPENDENT_PARENT_FEMALE_MAX_AGE", ConfigValue = "57", IsActive = true },
+                new SystemConfig { ConfigKey = "DEPENDENT_PARENT_MALE_MAX_AGE", ConfigValue = "62", IsActive = true },
+                new SystemConfig { ConfigKey = "DEPENDENT_PARENT_FEMALE_MAX_AGE", ConfigValue = "60", IsActive = true },
+                new SystemConfig { ConfigKey = "DEPENDENT_PARENT_MONTHLY_INCOME_LIMIT_VND", ConfigValue = "1000000", IsActive = true });
+
+            var dependentRepo = new Mock<IGenericRepository<Dependent>>();
+            dependentRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Dependent, bool>>>()))
+                .ReturnsAsync(new List<Dependent>());
+            dependentRepo.Setup(r => r.AddAsync(It.IsAny<Dependent>())).Returns(Task.CompletedTask);
+            _mockUnitOfWork.Setup(u => u.Repository<Dependent>()).Returns(dependentRepo.Object);
+
+            var request = new CreateDependentRequest
+            {
+                FullName = "Nguyen Van Parent",
+                Relationship = "PARENT",
+                CurrentGroup = "PARENT_RETIRED",
+                Gender = "MALE",
+                BirthDate = DateTime.UtcNow.Date.AddYears(-61),
+                CitizenId = "079201009999",
+                EffectiveFromMonth = "2026-01",
+                EffectiveToMonth = "2026-12"
+            };
+
+            var result = await _dependentService.CreateDependentAsync(Guid.NewGuid(), request);
+
+            result.Gender.Should().Be("MALE");
+            _mockUnitOfWork.Verify(u => u.SaveChangesAsync(), Times.Once);
+        }
+
+        [Fact]
+        public async Task CreateParentAtConfiguredAge_RequiresIncomeCommitment()
+        {
+            SetupDependentIncomeConfigs(
+                new SystemConfig { ConfigKey = "DEPENDENT_PARENT_MALE_MAX_AGE", ConfigValue = "62", IsActive = true },
+                new SystemConfig { ConfigKey = "DEPENDENT_PARENT_FEMALE_MAX_AGE", ConfigValue = "60", IsActive = true },
                 new SystemConfig { ConfigKey = "DEPENDENT_PARENT_MONTHLY_INCOME_LIMIT_VND", ConfigValue = "1000000", IsActive = true });
 
             var request = new CreateDependentRequest
@@ -161,7 +193,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 Relationship = "PARENT",
                 CurrentGroup = "PARENT_RETIRED",
                 Gender = "MALE",
-                BirthDate = DateTime.UtcNow.Date.AddYears(-40),
+                BirthDate = DateTime.UtcNow.Date.AddYears(-62),
                 CitizenId = "079201009999",
                 EffectiveFromMonth = "2026-01",
                 EffectiveToMonth = "2026-12"
@@ -185,7 +217,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 Relationship = "PARENT",
                 CurrentGroup = "PARENT_RETIRED",
                 Gender = "MALE",
-                BirthDate = DateTime.UtcNow.Date.AddYears(-40),
+                BirthDate = DateTime.UtcNow.Date.AddYears(-61),
                 CitizenId = "079201009999",
                 EffectiveFromMonth = "2026-01",
                 EffectiveToMonth = "2026-12"
@@ -202,8 +234,8 @@ namespace TaxKeepVN.UnitTests.Application.Services
         public async Task CreateParentWithIncomeCommitment_Succeeds()
         {
             SetupDependentIncomeConfigs(
-                new SystemConfig { ConfigKey = "DEPENDENT_PARENT_MALE_MAX_AGE", ConfigValue = "61", IsActive = true },
-                new SystemConfig { ConfigKey = "DEPENDENT_PARENT_FEMALE_MAX_AGE", ConfigValue = "57", IsActive = true },
+                new SystemConfig { ConfigKey = "DEPENDENT_PARENT_MALE_MAX_AGE", ConfigValue = "62", IsActive = true },
+                new SystemConfig { ConfigKey = "DEPENDENT_PARENT_FEMALE_MAX_AGE", ConfigValue = "60", IsActive = true },
                 new SystemConfig { ConfigKey = "DEPENDENT_PARENT_MONTHLY_INCOME_LIMIT_VND", ConfigValue = "1000000", IsActive = true });
 
             var dependentRepo = new Mock<IGenericRepository<Dependent>>();
@@ -218,7 +250,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 Relationship = "PARENT",
                 CurrentGroup = "PARENT_RETIRED",
                 Gender = "MALE",
-                BirthDate = DateTime.UtcNow.Date.AddYears(-40),
+                BirthDate = DateTime.UtcNow.Date.AddYears(-62),
                 CitizenId = "079201009999",
                 EffectiveFromMonth = "2026-01",
                 EffectiveToMonth = "2026-12",
