@@ -351,7 +351,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             }
 
             var age = CalculateAge(birthDate, today);
-            if (age >= maxAge)
+            if (age < maxAge)
             {
                 return;
             }
@@ -368,7 +368,7 @@ namespace TaxKeepVN.Application.Service.Implementations
             {
                 throw new BadRequestException(
                     "INCOME_COMMITMENT_REQUIRED",
-                    $"Cha/mẹ dưới {maxAge} tuổi cần xác nhận cam kết thu nhập hàng tháng không vượt quá {incomeLimit:N0} VND.");
+                    $"Cha/mẹ từ {maxAge} tuổi trở lên cần xác nhận cam kết thu nhập hàng tháng không vượt quá {incomeLimit:N0} VND.");
             }
         }
 
