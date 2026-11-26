@@ -662,6 +662,9 @@ namespace TaxKeepVN.Application.Service.Implementations
             {
                 var acceptedLevelsRaw = await GetRuleParamAsync("acceptedLevels", "ĐẶC BIỆT NẶNG,NẶNG,DAC BIET NANG,NANG,SEVERE,EXTREMELY_SEVERE");
                 var acceptedList = acceptedLevelsRaw.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                var disabilityLevel = string.IsNullOrWhiteSpace(ocrData.DisabilitySeverity)
+                    ? ocrData.DisabilityLevel
+                    : ocrData.DisabilitySeverity;
 
                 if (string.IsNullOrWhiteSpace(ocrData.FullName))
                 {
@@ -690,16 +693,16 @@ namespace TaxKeepVN.Application.Service.Implementations
                 }
 
                 bool isLevelAccepted = false;
-                if (!string.IsNullOrWhiteSpace(ocrData.DisabilityLevel))
+                if (!string.IsNullOrWhiteSpace(disabilityLevel))
                 {
-                    var cleanLevel = StringComparisonHelper.RemoveDiacritics(ocrData.DisabilityLevel).ToUpperInvariant();
+                    var cleanLevel = StringComparisonHelper.RemoveDiacritics(disabilityLevel).ToUpperInvariant();
                     isLevelAccepted = acceptedList.Any(l => cleanLevel.Contains(StringComparisonHelper.RemoveDiacritics(l).ToUpperInvariant()));
                 }
 
                 if (!isLevelAccepted)
                 {
                     throw new BadRequestException("DISABILITY_NOT_QUALIFIED",
-                        $"Mức độ khuyết tật ('{ocrData.DisabilityLevel}') không đủ điều kiện (yêu cầu thuộc [{string.Join(", ", acceptedList)}]).");
+                        $"Mức độ khuyết tật ('{disabilityLevel}') không đủ điều kiện (yêu cầu thuộc [{string.Join(", ", acceptedList)}]).");
                 }
             }
             // ── 6. Key: MARRIAGE_CERTIFICATE (Giấy kết hôn - NPT vợ/chồng) ─────────────

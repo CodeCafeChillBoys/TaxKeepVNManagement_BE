@@ -1633,22 +1633,12 @@ namespace TaxKeepVN.UnitTests.Application.Services
         {
             _mockUnitOfWork.Setup(u => u.Repository<SystemConfig>()).Returns((IGenericRepository<SystemConfig>)null!);
 
-            var ocrResponse = new OcrExtractResponseMessage
-            {
-                Success = true,
-                Data = new ExtractedDependentDataDto
-                {
-                    IsReadable = true,
-                    DocumentType = "DISABILITY_CERTIFICATE",
-                    FullName = "Trần Thị Bệnh",
-                    BirthDate = "1960-03-10",
-                    DisabilityLevel = "Đặc biệt nặng"
-                }
-            };
-
             var responseMessage = new HttpResponseMessage(HttpStatusCode.OK)
             {
-                Content = new StringContent(JsonSerializer.Serialize(ocrResponse), System.Text.Encoding.UTF8, "application/json")
+                Content = new StringContent(
+                    """{"success":true,"data":{"documentType":"DISABILITY_CERTIFICATE","fullName":"Trần Thị Bệnh","disabilitySeverity":"Đặc biệt nặng"}}""",
+                    System.Text.Encoding.UTF8,
+                    "application/json")
             };
 
             _mockHandler.Protected()

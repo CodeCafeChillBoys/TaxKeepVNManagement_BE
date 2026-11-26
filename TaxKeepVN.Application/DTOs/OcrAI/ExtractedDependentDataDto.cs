@@ -72,6 +72,9 @@ namespace TaxKeepVN.Application.DTOs.OcrAI
         [JsonPropertyName("validTo")]
         public string? ValidTo { get; set; }
 
+        [JsonPropertyName("disabilitySeverity")]
+        public string? DisabilitySeverity { get; set; }
+
         [JsonPropertyName("disabilityLevel")]
         public string? DisabilityLevel { get; set; }
 
