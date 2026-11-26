@@ -1,10 +1,16 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq.Expressions;
+using System.Net;
+using System.Net.Http;
+using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using FluentAssertions;
 using Microsoft.AspNetCore.Http;
 using Moq;
+using Moq.Protected;
 using TaxKeepVN.Application.DTOs.Requests.Income;
 using TaxKeepVN.Application.Exceptions;
 using TaxKeepVN.Application.Service.Implementations;
@@ -20,6 +26,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
         private readonly Mock<IUnitOfWork> _mockUnitOfWork;
         private readonly Mock<IGenericRepository<Income>> _mockIncomeRepo;
         private readonly Mock<IFileStorageService> _mockFileStorage;
+        private readonly Mock<IHttpClientFactory> _mockHttpClientFactory;
         private readonly IncomeService _incomeService;
 
         public IncomeServiceTests()
@@ -27,13 +34,36 @@ namespace TaxKeepVN.UnitTests.Application.Services
             _mockUnitOfWork = new Mock<IUnitOfWork>();
             _mockIncomeRepo = new Mock<IGenericRepository<Income>>();
             _mockFileStorage = new Mock<IFileStorageService>();
+            _mockHttpClientFactory = new Mock<IHttpClientFactory>();
 
             _mockUnitOfWork.Setup(u => u.Repository<Income>()).Returns(_mockIncomeRepo.Object);
 
             _incomeService = new IncomeService(
                 _mockUnitOfWork.Object,
-                _mockFileStorage.Object
+                _mockFileStorage.Object,
+                _mockHttpClientFactory.Object
             );
+        }
+
+        private void SetupIncomeOcrResponse(string? employeeName)
+        {
+            var payload = JsonSerializer.Serialize(new
+            {
+                success = true,
+                data = new { employeeName }
+            });
+            var handler = new Mock<HttpMessageHandler>();
+            handler.Protected()
+                .Setup<Task<HttpResponseMessage>>(
+                    "SendAsync",
+                    ItExpr.IsAny<HttpRequestMessage>(),
+                    ItExpr.IsAny<CancellationToken>())
+                .ReturnsAsync(new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent(payload)
+                });
+            _mockHttpClientFactory.Setup(f => f.CreateClient("TaxAIService"))
+                .Returns(new HttpClient(handler.Object) { BaseAddress = new Uri("http://localhost") });
         }
 
         #region FN_INC_01: CreateIncomeAsync
@@ -95,8 +125,17 @@ namespace TaxKeepVN.UnitTests.Application.Services
         {
             // Arrange
             var userId = Guid.NewGuid();
+            var userRepo = new Mock<IGenericRepository<User>>();
+            userRepo.Setup(r => r.GetByIdAsync(userId))
+                    .ReturnsAsync(new User { UserId = userId, FullName = "Nguyễn Văn A" });
+            _mockUnitOfWork.Setup(u => u.Repository<User>()).Returns(userRepo.Object);
+            SetupIncomeOcrResponse("NGUYEN VAN A");
+
             var mockFile = new Mock<IFormFile>();
             mockFile.Setup(f => f.Length).Returns(1024);
+            mockFile.Setup(f => f.FileName).Returns("slip.pdf");
+            mockFile.Setup(f => f.ContentType).Returns("application/pdf");
+            mockFile.Setup(f => f.OpenReadStream()).Returns(new MemoryStream(new byte[1024]));
 
             var request = new CreateIncomeRequest
             {
@@ -118,6 +157,40 @@ namespace TaxKeepVN.UnitTests.Application.Services
             // Assert
             result.PayslipFileUrl.Should().Be("https://storage.taxkeep.vn/incomes/slip.pdf");
             _mockFileStorage.Verify(f => f.SaveFileAsync(mockFile.Object, "incomes"), Times.Once);
+        }
+
+        [Fact]
+        public async Task CreateIncomeAsync_PayslipNameMismatch_RejectsAndDoesNotSave()
+        {
+            var userId = Guid.NewGuid();
+            var userRepo = new Mock<IGenericRepository<User>>();
+            userRepo.Setup(r => r.GetByIdAsync(userId))
+                    .ReturnsAsync(new User { UserId = userId, FullName = "Nguyễn Văn A" });
+            _mockUnitOfWork.Setup(u => u.Repository<User>()).Returns(userRepo.Object);
+            SetupIncomeOcrResponse("Trần Văn B");
+
+            var mockFile = new Mock<IFormFile>();
+            mockFile.Setup(f => f.Length).Returns(1024);
+            mockFile.Setup(f => f.FileName).Returns("slip.pdf");
+            mockFile.Setup(f => f.ContentType).Returns("application/pdf");
+            mockFile.Setup(f => f.OpenReadStream()).Returns(new MemoryStream(new byte[1024]));
+            _mockIncomeRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Income, bool>>>()))
+                           .ReturnsAsync(new List<Income>());
+
+            var request = new CreateIncomeRequest
+            {
+                OrganizationName = "Công ty ABC",
+                Month = 1,
+                Year = 2024,
+                PayslipFile = mockFile.Object
+            };
+
+            var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
+                _incomeService.CreateIncomeAsync(userId, request));
+
+            ex.ErrorCode.Should().Be("PAYSLIP_NAME_MISMATCH");
+            _mockFileStorage.Verify(f => f.SaveFileAsync(It.IsAny<IFormFile>(), It.IsAny<string>()), Times.Never);
+            _mockIncomeRepo.Verify(r => r.AddAsync(It.IsAny<Income>()), Times.Never);
         }
 
         #endregion
