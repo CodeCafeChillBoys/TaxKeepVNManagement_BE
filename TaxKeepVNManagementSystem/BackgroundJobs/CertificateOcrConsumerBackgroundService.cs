@@ -207,18 +207,71 @@ namespace TaxKeepVNManagementSystem.BackgroundJobs
 
                 var isThresholdPassed = !data.IsPassedThreshold.HasValue || data.IsPassedThreshold.Value;
 
+                // 4. Kiểm tra thời hạn hiệu lực của chứng chỉ (ExpiryDate)
+                var today = DateOnly.FromDateTime(DateTime.UtcNow);
+                DateOnly? effectiveExpiryDate = null;
+                if (!string.IsNullOrWhiteSpace(data.ExpiryDate) && DateOnly.TryParse(data.ExpiryDate.Trim(), out var parsedAiExpiry))
+                {
+                    effectiveExpiryDate = parsedAiExpiry;
+                    targetCert.ExpiryDate = parsedAiExpiry;
+                    targetCert.HasExpiry = true;
+                }
+                else if (targetCert.ExpiryDate.HasValue)
+                {
+                    effectiveExpiryDate = targetCert.ExpiryDate.Value;
+                }
+
+                var isHasExpiry = data.HasExpiry || targetCert.HasExpiry || effectiveExpiryDate.HasValue;
+                if (data.HasExpiry == false && string.IsNullOrWhiteSpace(data.ExpiryDate) && !string.IsNullOrWhiteSpace(data.CertificateName))
+                {
+                    // AI xác nhận là chứng chỉ vô thời hạn / vĩnh viễn
+                    isHasExpiry = false;
+                    targetCert.HasExpiry = false;
+                    targetCert.ExpiryDate = null;
+                    effectiveExpiryDate = null;
+                }
+
+                var isExpired = isHasExpiry && effectiveExpiryDate.HasValue && effectiveExpiryDate.Value <= today;
+
+                // Cập nhật bổ sung thông tin bóc tách từ AI vào chứng chỉ nếu trước đó chưa có
+                if (!string.IsNullOrWhiteSpace(data.CertificateName) && string.IsNullOrWhiteSpace(targetCert.CertificateName))
+                {
+                    targetCert.CertificateName = data.CertificateName.Trim();
+                }
+                if (!string.IsNullOrWhiteSpace(data.CertificateNumber) && string.IsNullOrWhiteSpace(targetCert.CertificateNumber))
+                {
+                    targetCert.CertificateNumber = data.CertificateNumber.Trim();
+                }
+                if (!string.IsNullOrWhiteSpace(data.IssuingAuthority) && string.IsNullOrWhiteSpace(targetCert.IssuingAuthority))
+                {
+                    targetCert.IssuingAuthority = data.IssuingAuthority.Trim();
+                }
+                if (!string.IsNullOrWhiteSpace(data.IssueDate) && DateOnly.TryParse(data.IssueDate.Trim(), out var parsedIssueDate) && targetCert.IssueDate == default)
+                {
+                    targetCert.IssueDate = parsedIssueDate;
+                }
+
                 _logger.LogInformation(
-                    "Kết quả đối soát chứng chỉ {CertId} (TaskId: {TaskId}): NameMatch={NameMatch}, CitizenMatch={CitizenMatch}, DetectedType={Type}, IsValidType={IsValidType}, ThresholdPassed={ThresholdPassed}",
-                    targetCert.Id, response.TaskId, isNameMatch, isCitizenMatch, data.DetectedType, data.IsValidType, isThresholdPassed
+                    "Kết quả đối soát chứng chỉ {CertId} (TaskId: {TaskId}): NameMatch={NameMatch}, CitizenMatch={CitizenMatch}, DetectedType={Type}, IsValidType={IsValidType}, ThresholdPassed={ThresholdPassed}, HasExpiry={HasExpiry}, ExpiryDate={ExpiryDate}, IsExpired={IsExpired}",
+                    targetCert.Id, response.TaskId, isNameMatch, isCitizenMatch, data.DetectedType, data.IsValidType, isThresholdPassed, isHasExpiry, effectiveExpiryDate, isExpired
                 );
 
-                if (isNameMatch && isCitizenMatch && data.IsValidType && isThresholdPassed)
+                if (isNameMatch && isCitizenMatch && data.IsValidType && isThresholdPassed && !isExpired)
                 {
                     targetCert.VerificationStatus = CertificateVerificationStatus.Verified;
                     targetCert.VerificationSource = "AI_OCR_GEMINI_RABBITMQ";
+                    var expiryNote = targetCert.HasExpiry && targetCert.ExpiryDate.HasValue
+                        ? $", Hạn dùng: {targetCert.ExpiryDate.Value:dd/MM/yyyy}"
+                        : ", Giá trị: Vĩnh viễn";
                     targetCert.VerificationNote = $"AI tự động xác thực thành công. Khớp Họ tên ('{data.FullName}')" +
                                                   (!string.IsNullOrWhiteSpace(data.CitizenId) ? $" & Số CCCD ('{data.CitizenId}')" : "") +
-                                                  $". Loại: {data.DetectedType}. Độ tin cậy: {data.OverallConfidence:P0}.";
+                                                  $". Loại: {data.DetectedType}{expiryNote}. Độ tin cậy: {data.OverallConfidence:P0}.";
+                }
+                else if (isExpired)
+                {
+                    targetCert.VerificationStatus = CertificateVerificationStatus.Expired;
+                    targetCert.VerificationSource = "AI_OCR_GEMINI_RABBITMQ";
+                    targetCert.VerificationNote = $"AI từ chối: Chứng chỉ đã hết hạn hiệu lực vào ngày {effectiveExpiryDate!.Value:dd/MM/yyyy}.";
                 }
                 else if (!isThresholdPassed)
                 {
