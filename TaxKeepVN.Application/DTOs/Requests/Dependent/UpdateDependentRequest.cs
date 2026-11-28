@@ -9,6 +9,9 @@ namespace TaxKeepVN.Application.DTOs.Requests.Dependent
         [MaxLength(150)]
         public string? FullName { get; set; }
 
+        [RegularExpression(@"^(?i:MALE|FEMALE|OTHER)$", ErrorMessage = "Giới tính chỉ được là MALE, FEMALE hoặc OTHER.")]
+        public string? Gender { get; set; }
+
         /// <summary>
         /// Nhóm quan hệ: CHILD | SPOUSE | PARENT | OTHER_DEPENDENT (Tùy chọn)
         /// </summary>

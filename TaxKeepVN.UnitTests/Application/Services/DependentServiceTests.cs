@@ -93,6 +93,15 @@ namespace TaxKeepVN.UnitTests.Application.Services
             );
         }
 
+        private void SetupDependentIncomeConfigs(params SystemConfig[] configs)
+        {
+            var configRepo = new Mock<IGenericRepository<SystemConfig>>();
+            configRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<SystemConfig, bool>>>()))
+                .Returns((Expression<Func<SystemConfig, bool>> predicate) =>
+                    Task.FromResult<IEnumerable<SystemConfig>>(configs.Where(predicate.Compile()).ToList()));
+            _mockUnitOfWork.Setup(u => u.Repository<SystemConfig>()).Returns(configRepo.Object);
+        }
+
         #region FN_DEP_01: CreateDependentAsync
 
         [Fact]
@@ -124,12 +133,144 @@ namespace TaxKeepVN.UnitTests.Application.Services
         }
 
         [Fact]
+        public async Task CreateDependentAsync_InvalidGender_ThrowsBadRequestException()
+        {
+            var request = new CreateDependentRequest
+            {
+                Relationship = "CHILD",
+                CurrentGroup = "CHILD_UNDER_18",
+                Gender = "UNKNOWN"
+            };
+
+            var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
+                _dependentService.CreateDependentAsync(Guid.NewGuid(), request));
+            ex.ErrorCode.Should().Be("INVALID_GENDER");
+        }
+
+        [Fact]
+        public async Task CreateParentBelowConfiguredAge_DoesNotRequireIncomeCommitment()
+        {
+            SetupDependentIncomeConfigs(
+                new SystemConfig { ConfigKey = "DEPENDENT_PARENT_MALE_MAX_AGE", ConfigValue = "62", IsActive = true },
+                new SystemConfig { ConfigKey = "DEPENDENT_PARENT_FEMALE_MAX_AGE", ConfigValue = "60", IsActive = true },
+                new SystemConfig { ConfigKey = "DEPENDENT_PARENT_MONTHLY_INCOME_LIMIT_VND", ConfigValue = "1000000", IsActive = true });
+
+            var dependentRepo = new Mock<IGenericRepository<Dependent>>();
+            dependentRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Dependent, bool>>>()))
+                .ReturnsAsync(new List<Dependent>());
+            dependentRepo.Setup(r => r.AddAsync(It.IsAny<Dependent>())).Returns(Task.CompletedTask);
+            _mockUnitOfWork.Setup(u => u.Repository<Dependent>()).Returns(dependentRepo.Object);
+
+            var request = new CreateDependentRequest
+            {
+                FullName = "Nguyen Van Parent",
+                Relationship = "PARENT",
+                CurrentGroup = "PARENT_RETIRED",
+                Gender = "MALE",
+                BirthDate = DateTime.UtcNow.Date.AddYears(-61),
+                CitizenId = "079201009999",
+                EffectiveFromMonth = "2026-01",
+                EffectiveToMonth = "2026-12"
+            };
+
+            var result = await _dependentService.CreateDependentAsync(Guid.NewGuid(), request);
+
+            result.Gender.Should().Be("MALE");
+            _mockUnitOfWork.Verify(u => u.SaveChangesAsync(), Times.Once);
+        }
+
+        [Fact]
+        public async Task CreateParentAtConfiguredAge_RequiresIncomeCommitment()
+        {
+            SetupDependentIncomeConfigs(
+                new SystemConfig { ConfigKey = "DEPENDENT_PARENT_MALE_MAX_AGE", ConfigValue = "62", IsActive = true },
+                new SystemConfig { ConfigKey = "DEPENDENT_PARENT_FEMALE_MAX_AGE", ConfigValue = "60", IsActive = true },
+                new SystemConfig { ConfigKey = "DEPENDENT_PARENT_MONTHLY_INCOME_LIMIT_VND", ConfigValue = "1000000", IsActive = true });
+
+            var request = new CreateDependentRequest
+            {
+                FullName = "Nguyen Van Parent",
+                Relationship = "PARENT",
+                CurrentGroup = "PARENT_RETIRED",
+                Gender = "MALE",
+                BirthDate = DateTime.UtcNow.Date.AddYears(-62),
+                CitizenId = "079201009999",
+                EffectiveFromMonth = "2026-01",
+                EffectiveToMonth = "2026-12"
+            };
+
+            var ex = await Assert.ThrowsAsync<BadRequestException>(() =>
+                _dependentService.CreateDependentAsync(Guid.NewGuid(), request));
+
+            ex.ErrorCode.Should().Be("INCOME_COMMITMENT_REQUIRED");
+            ex.Message.Should().Contain("1,000,000 VND");
+        }
+
+        [Fact]
+        public async Task CreateParentWithoutAgeConfig_FailsWithConfigurationError()
+        {
+            SetupDependentIncomeConfigs();
+
+            var request = new CreateDependentRequest
+            {
+                FullName = "Nguyen Van Parent",
+                Relationship = "PARENT",
+                CurrentGroup = "PARENT_RETIRED",
+                Gender = "MALE",
+                BirthDate = DateTime.UtcNow.Date.AddYears(-61),
+                CitizenId = "079201009999",
+                EffectiveFromMonth = "2026-01",
+                EffectiveToMonth = "2026-12"
+            };
+
+            var ex = await Assert.ThrowsAsync<ServiceUnavailableException>(() =>
+                _dependentService.CreateDependentAsync(Guid.NewGuid(), request));
+
+            ex.ErrorCode.Should().Be("DEPENDENT_CONFIG_NOT_CONFIGURED");
+            ex.Message.Should().Contain("DEPENDENT_PARENT_MALE_MAX_AGE");
+        }
+
+        [Fact]
+        public async Task CreateParentWithIncomeCommitment_Succeeds()
+        {
+            SetupDependentIncomeConfigs(
+                new SystemConfig { ConfigKey = "DEPENDENT_PARENT_MALE_MAX_AGE", ConfigValue = "62", IsActive = true },
+                new SystemConfig { ConfigKey = "DEPENDENT_PARENT_FEMALE_MAX_AGE", ConfigValue = "60", IsActive = true },
+                new SystemConfig { ConfigKey = "DEPENDENT_PARENT_MONTHLY_INCOME_LIMIT_VND", ConfigValue = "1000000", IsActive = true });
+
+            var dependentRepo = new Mock<IGenericRepository<Dependent>>();
+            dependentRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<Dependent, bool>>>()))
+                .ReturnsAsync(new List<Dependent>());
+            dependentRepo.Setup(r => r.AddAsync(It.IsAny<Dependent>())).Returns(Task.CompletedTask);
+            _mockUnitOfWork.Setup(u => u.Repository<Dependent>()).Returns(dependentRepo.Object);
+
+            var request = new CreateDependentRequest
+            {
+                FullName = "Nguyen Van Parent",
+                Relationship = "PARENT",
+                CurrentGroup = "PARENT_RETIRED",
+                Gender = "MALE",
+                BirthDate = DateTime.UtcNow.Date.AddYears(-62),
+                CitizenId = "079201009999",
+                EffectiveFromMonth = "2026-01",
+                EffectiveToMonth = "2026-12",
+                ConfirmIncomeBelowThreshold = true
+            };
+
+            var result = await _dependentService.CreateDependentAsync(Guid.NewGuid(), request);
+
+            result.Gender.Should().Be("MALE");
+            _mockUnitOfWork.Verify(u => u.SaveChangesAsync(), Times.Once);
+        }
+
+        [Fact]
         public async Task UTCID03_CreateDependentAsync_MissingCitizenIdAndBirthCert_ThrowsBadRequestException()
         {
             var request = new CreateDependentRequest
             {
                 Relationship = "CHILD",
                 CurrentGroup = "CHILD_UNDER_18",
+                Gender = "MALE",
                 CitizenId = null,
                 BirthCertNumber = ""
             };
@@ -146,6 +287,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             {
                 Relationship = "CHILD",
                 CurrentGroup = "CHILD_UNDER_18",
+                Gender = "MALE",
                 CitizenId = "079201009999",
                 EffectiveFromMonth = "2024-12",
                 EffectiveToMonth = "2024-01"
@@ -163,6 +305,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             {
                 Relationship = "CHILD",
                 CurrentGroup = "CHILD_UNDER_18",
+                Gender = "MALE",
                 CitizenId = "079201009999",
                 BirthDate = new DateTime(2024, 5, 15),
                 EffectiveFromMonth = "2024-04",
@@ -184,6 +327,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 FullName = "Nguyen Con",
                 Relationship = "CHILD",
                 CurrentGroup = "CHILD_UNDER_18",
+                Gender = "female",
                 CitizenId = "079201009999",
                 BirthDate = new DateTime(2024, 5, 15),
                 EffectiveFromMonth = "2024-05",
@@ -198,6 +342,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             var res = await _dependentService.CreateDependentAsync(taxpayerId, request);
             res.Should().NotBeNull();
             res.EffectiveFromMonth.Should().Be("2024-05");
+            res.Gender.Should().Be("FEMALE");
         }
 
         [Fact]
@@ -223,6 +368,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 FullName = "Nguyen Van Con",
                 Relationship = "CHILD",
                 CurrentGroup = "CHILD_UNDER_18",
+                Gender = "MALE",
                 CitizenId = "079201009999",
                 EffectiveFromMonth = "2024-06",
                 EffectiveToMonth = "2024-12"
@@ -257,6 +403,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 FullName = "Nguyen Van Con",
                 Relationship = "CHILD",
                 CurrentGroup = "CHILD_UNDER_18",
+                Gender = "MALE",
                 CitizenId = "079201009999",
                 EffectiveFromMonth = "2024-06",
                 EffectiveToMonth = "2024-12"
@@ -281,6 +428,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 FullName = "Nguyen Van Con",
                 Relationship = "CHILD",
                 CurrentGroup = "CHILD_UNDER_18",
+                Gender = "MALE",
                 CitizenId = "079201009999",
                 EffectiveFromMonth = "2025-06",
                 EffectiveToMonth = "2025-12"
@@ -314,6 +462,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 FullName = "Nguyen Van Em",
                 Relationship = "CHILD",
                 CurrentGroup = "CHILD_UNDER_18",
+                Gender = "MALE",
                 BirthCertNumber = "KS-999999",
                 EffectiveFromMonth = "2024-05",
                 EffectiveToMonth = "2024-10"
@@ -347,6 +496,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
                 FullName = "Nguyen Van Con",
                 Relationship = "CHILD",
                 CurrentGroup = "CHILD_UNDER_18",
+                Gender = "MALE",
                 CitizenId = "079201009999",
                 BirthDate = new DateTime(2015, 5, 20),
                 EffectiveFromMonth = "2024-01",

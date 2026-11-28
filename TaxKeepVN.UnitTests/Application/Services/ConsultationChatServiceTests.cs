@@ -22,6 +22,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
         private readonly Mock<IUnitOfWork> _mockUnitOfWork;
         private readonly Mock<ILogger<ConsultationChatService>> _mockLogger;
         private readonly Mock<IConsultationRealtimeNotifier> _mockNotifier;
+        private readonly Mock<IGenericRepository<ConsultationSession>> _mockConsultationSessionRepo;
         private readonly ConsultationChatService _service;
 
         private readonly Guid _taxpayerId = Guid.NewGuid();
@@ -42,6 +43,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             _mockUnitOfWork = new Mock<IUnitOfWork>();
             _mockLogger = new Mock<ILogger<ConsultationChatService>>();
             _mockNotifier = new Mock<IConsultationRealtimeNotifier>();
+            _mockConsultationSessionRepo = new Mock<IGenericRepository<ConsultationSession>>();
 
             _service = new ConsultationChatService(_mockUnitOfWork.Object, _mockLogger.Object, _mockNotifier.Object);
 
@@ -49,7 +51,7 @@ namespace TaxKeepVN.UnitTests.Application.Services
             {
                 Id = 1,
                 IsActive = true,
-                SessionOpenBeforeMinutes = 60, // Mở trước 60 phút để test không bị chặn ROOM_NOT_OPEN_YET
+                SessionOpenBeforeMinutes = 10,
                 SessionNoShowMinutes = 15,
                 ChatMessageMaxLength = 4000,
                 ChatAllowedAttachmentTypes = "IMAGE,PDF,DOCUMENT",
@@ -129,10 +131,9 @@ namespace TaxKeepVN.UnitTests.Application.Services
                    .ReturnsAsync(new List<ConsultationMessage>());
             _mockUnitOfWork.Setup(u => u.Repository<ConsultationMessage>()).Returns(msgRepo.Object);
 
-            var sessionRepo = new Mock<IGenericRepository<ConsultationSession>>();
-            sessionRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ConsultationSession, bool>>>()))
-                       .ReturnsAsync(new List<ConsultationSession>());
-            _mockUnitOfWork.Setup(u => u.Repository<ConsultationSession>()).Returns(sessionRepo.Object);
+            _mockConsultationSessionRepo.Setup(r => r.FindAsync(It.IsAny<Expression<Func<ConsultationSession, bool>>>()))
+                                        .ReturnsAsync(new List<ConsultationSession>());
+            _mockUnitOfWork.Setup(u => u.Repository<ConsultationSession>()).Returns(_mockConsultationSessionRepo.Object);
 
             var appRepo = new Mock<IGenericRepository<ExpertApplication>>();
             appRepo.Setup(r => r.GetByIdAsync(It.IsAny<Guid>()))
@@ -178,6 +179,24 @@ namespace TaxKeepVN.UnitTests.Application.Services
 
             _mockNotifier.Verify(n => n.NotifyChatMessageReceivedAsync(_bookingId, It.Is<ConsultationMessageDto>(m => m.IsMine == false)), Times.Once);
             _mockUnitOfWork.Verify(u => u.SaveChangesAsync(), Times.AtLeastOnce);
+        }
+
+        [Fact]
+        public async Task SendMessageAsync_ConfirmedBookingBeforeScheduledTime_AllowsMessage()
+        {
+            _defaultPolicy.SessionOpenBeforeMinutes = 0;
+            _defaultSlot.SlotDate = DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1));
+            _defaultSlot.StartTime = new TimeOnly(12, 0);
+
+            var request = new SendConsultationMessageRequest { Content = "Tôi muốn trao đổi trước về hồ sơ." };
+
+            var result = await _service.SendMessageAsync(_taxpayerId, "taxpayer", _bookingId, request);
+
+            result.Content.Should().Be(request.Content);
+            _defaultBooking.Status.Should().Be(BookingStatus.CONFIRMED);
+            _mockConsultationSessionRepo.Verify(
+                r => r.FindAsync(It.IsAny<Expression<Func<ConsultationSession, bool>>>()),
+                Times.Never);
         }
 
         [Fact]
